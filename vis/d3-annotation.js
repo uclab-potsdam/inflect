@@ -531,11 +531,14 @@ var addHandles = function addHandles(_ref5) {
   var h = group.selectAll("circle.handle").data(handles);
 
   h.enter().append("circle").attr("class", "handle").attr("fill", "grey").attr("fill-opacity", 0.1).attr("cursor", "move").attr("stroke-dasharray", 5).attr("stroke", "grey").call(d3Drag.drag().container(d3Selection.select("g.annotations").node()).on("start", function (d) {
-    return d.start && d.start(d);
+    return d.subject.start && d.subject.start(d);
   }).on("drag", function (d) {
-    return d.drag && d.drag(d);
+    // console.log(d.subject.drag(d))
+    // return d.drag && d.drag(d);
+    return d.subject.drag && d.subject.drag(d);
   }).on("end", function (d) {
     return d.end && d.end(d);
+    return d.subject.end && d.subject.end(d);
   }));
 
   group.selectAll("circle.handle").attr("cx", function (d) {
@@ -861,8 +864,8 @@ var connectorCurve = (function (_ref) {
     });
 
     var updatePoint = function updatePoint(index) {
-      connectorData.points[index][0] += d3Selection.event.dx;
-      connectorData.points[index][1] += d3Selection.event.dy;
+      connectorData.points[index][0] += event.movementX;
+      connectorData.points[index][1] += event.movementY;
       type.redrawConnector();
     };
 
@@ -981,7 +984,7 @@ var subjectCircle = (function (_ref) {
     });
 
     var updateRadius = function updateRadius(attr) {
-      var r = subjectData[attr] + d3Selection.event.dx * Math.sqrt(2);
+      var r = subjectData[attr] + event.movementX * Math.sqrt(2);
       subjectData[attr] = r;
       type.redrawSubject();
       type.redrawConnector();
@@ -1023,13 +1026,13 @@ var subjectRect = (function (_ref) {
 
   if (type.editMode) {
     var updateWidth = function updateWidth() {
-      subjectData.width = d3Selection.event.x;
+      subjectData.width = event.x;
       type.redrawSubject();
       type.redrawConnector();
     };
 
     var updateHeight = function updateHeight() {
-      subjectData.height = d3Selection.event.y;
+      subjectData.height = event.y;
       type.redrawSubject();
       type.redrawConnector();
     };
@@ -1156,8 +1159,8 @@ var subjectBadge = (function (_ref) {
 
   if (type.editMode) {
     var dragBadge = function dragBadge() {
-      subjectData.x = d3Selection.event.x < -radius * 2 ? "left" : d3Selection.event.x > radius * 2 ? "right" : undefined;
-      subjectData.y = d3Selection.event.y < -radius * 2 ? "top" : d3Selection.event.y > radius * 2 ? "bottom" : undefined;
+      subjectData.x = event.x < -radius * 2 ? "left" : event.x > radius * 2 ? "right" : undefined;
+      subjectData.y = event.y < -radius * 2 ? "top" : event.y > radius * 2 ? "bottom" : undefined;
 
       type.redrawSubject();
     };
@@ -1568,7 +1571,7 @@ var Type = function () {
   }, {
     key: "dragstarted",
     value: function dragstarted() {
-      d3Selection.event.sourceEvent.stopPropagation();
+      event.stopPropagation();
       this.dispatcher && this.dispatcher.call("dragstart", this.a, this.annotation);
       this.a.classed("dragging", true);
       this.a.selectAll("circle.handle").style("pointer-events", "none");
@@ -1584,16 +1587,16 @@ var Type = function () {
     key: "dragSubject",
     value: function dragSubject() {
       var position = this.annotation.position;
-      position.x += d3Selection.event.dx;
-      position.y += d3Selection.event.dy;
+      position.x = Number(position.x) + event.movementX;
+      position.y = Number(position.y) + event.movementY;
       this.annotation.position = position;
     }
   }, {
     key: "dragNote",
     value: function dragNote() {
       var offset = this.annotation.offset;
-      offset.x += d3Selection.event.dx;
-      offset.y += d3Selection.event.dy;
+      offset.x = Number(offset.x) + event.movementX;
+      offset.y = Number(offset.y) + event.movementY;
       this.annotation.offset = offset;
     }
   }, {

@@ -11,6 +11,8 @@ function Inflection() {
     };
     var highlight_colour = "#C8532E"
 
+    this.editable = true;
+
     
 
 
@@ -32,6 +34,38 @@ function Inflection() {
         this.baseurl = document.URL.split("#")[0];
         // that.col = that.hash.split("_")[0]
         var hashA = this.hash.split("&");
+        this.draw(which)
+
+        // add switch to toggle editability
+
+        if(window.top == window.self) {
+            // Top level window
+            d3.select("body").append("div").attr("class", "inflect_ui")
+            d3.select(".inflect_ui").append("p")
+                .attr("class", "infl_ui_titles").html("Toggle editability")
+            d3.select(".inflect_ui").append("label")
+            .attr("class", "switch");
+
+            d3.select(".switch").append("input")
+                .attr("type", "checkbox")
+                .attr("checked", true)
+                .on("change", function() {
+                    that.editable = this.checked;
+                    that.updateEditable();
+                });
+
+            d3.select(".switch").append("span")
+                .attr("class", "slider");
+        } else {
+            // Not top level. An iframe, popup or something
+            that.editable = false;
+        }
+
+
+
+        
+
+
         checkHash(hashA)
         
                           
@@ -50,6 +84,7 @@ function Inflection() {
                 // var mode = parseInt(hashA[0]);
                 var hashA = that.hash.split("&");
                 checkHash(hashA);
+                d3.selectAll(".annotation-group").raise()
                 
                 
             }
@@ -114,7 +149,7 @@ function Inflection() {
             
         }
 
-        this.draw(which)
+    
         this.colour();
         this.line();
         this.ann();
@@ -127,6 +162,11 @@ function Inflection() {
         window[fun]();
         // myfirstVis()
  
+    }
+
+    this.updateEditable = function(){
+        console.log("something");
+        // makeAnnotations.editMode(true)
     }
 
     this.colour = function(){
@@ -143,7 +183,7 @@ function Inflection() {
         //add 50% line
 
         let place = this.inflection.line
-        // console.log(d3.select("#trg").selectAll(".dashed_line"))
+
         if (place == "") {
             d3.selectAll(".line")
             .transition()
@@ -172,7 +212,7 @@ function Inflection() {
 
             });
 
-            d3.select("#trg").selectAll(".line")
+            d3.select("svg").selectAll(".line")
             .data(data)
             .join("line")
             .attr("x1", d => d.x1)
@@ -228,7 +268,9 @@ function Inflection() {
               
             const makeAnnotations = d3.annotation()
             .annotations(annotations)
-            .editMode(false)
+
+            
+
 
             d3.selectAll(".annotation-group")
             .transition()
@@ -236,7 +278,7 @@ function Inflection() {
                     .ease(d3.easeLinear)
             .remove()
     
-            d3.select("#trg").append("g")
+            d3.select("svg").append("g")
               .attr("class", "annotation-group")
               .call(makeAnnotations)
     
@@ -279,13 +321,13 @@ function Inflection() {
             .attr("fill", "#" + this.inflection.col)
         }
         else {
-            d3.select("#trg").selectAll("rect").filter(d => d.type == highlight)
+            d3.select("svg").selectAll("rect").filter(d => d.type == highlight)
             .transition()
             .duration(200)
             .ease(d3.easeLinear)
                 .attr("fill", highlight_colour)
 
-            d3.select("#trg").selectAll("rect").filter(d => d.type != highlight)
+            d3.select("svg").selectAll("rect").filter(d => d.type != highlight)
                 .transition()
                 .duration(200)
                 .ease(d3.easeLinear)
