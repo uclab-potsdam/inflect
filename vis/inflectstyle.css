@@ -15,6 +15,14 @@
     font-family: "Ubuntu";
 }
 
+.infl-handle {
+    fill: grey;
+    fill-opacity: 0.1;
+    cursor: move;
+    stroke-dasharray: 5;
+    stroke: grey;
+}
+
 .infl_ui_titles {
     margin: 5px;
 }
