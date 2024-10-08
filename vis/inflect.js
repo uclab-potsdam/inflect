@@ -211,7 +211,25 @@ function Inflection() {
             });
 
             d3.select("svg").selectAll("rect")
-                .attr("")
+                .style("cursor", "pointer")
+                .on("mousedown", function(event, d) {
+                    let type = d.type;
+                    that.inflection.high = d.type
+                    d3.select(this)
+                    .transition()
+                    .duration(200)
+                    .ease(d3.easeLinear)
+                        .attr("fill", highlight_colour);
+
+                    d3.select("svg").selectAll("rect").filter(d => d.type != type)
+                    .transition()
+                    .duration(200)
+                    .ease(d3.easeLinear)
+                        .attr("fill", "#" + that.inflection.col);
+                    that.updateHash("high")
+                })
+
+
 
             
 
@@ -223,6 +241,10 @@ function Inflection() {
                     .duration(200)
                     .ease(d3.easeLinear)
                 .remove()
+
+            d3.select("svg").selectAll("rect")
+                .style("cursor", "default")
+                .on("mousedown", function(event, d) {})
         }
 
         d3.selectAll(".infl-handle").call(d3.drag().on("drag", function (event, d) {
@@ -274,6 +296,9 @@ function Inflection() {
     
             })
             this.inflection.line = linetext;
+        }
+        if(kind == "high") {
+            
         }
         this.hash = 
             "col=" + this.inflection.col + "&" +
