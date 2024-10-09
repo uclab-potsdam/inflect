@@ -40,23 +40,7 @@ function Inflection() {
         // add switch to toggle editability
 
         if(window.top == window.self) {
-            // Top level window
-            d3.select("body").append("div").attr("class", "inflect_ui")
-            d3.select(".inflect_ui").append("p")
-                .attr("class", "infl_ui_titles").html("Toggle editability")
-            d3.select(".inflect_ui").append("label")
-            .attr("class", "switch");
-
-            d3.select(".switch").append("input")
-                .attr("type", "checkbox")
-                .attr("checked", true)
-                .on("change", function() {
-                    that.editable = this.checked;
-                    that.updateEditable();
-                });
-
-            d3.select(".switch").append("span")
-                .attr("class", "slider");
+            that.addUI();
             
         } else {
             // Not top level. An iframe, popup or something
@@ -86,6 +70,7 @@ function Inflection() {
                 // var mode = parseInt(hashA[0]);
                 var hashA = that.hash.split("&");
                 checkHash(hashA);
+                that.updateEditable()
                 d3.selectAll(".annotation-group").raise()
                 
                 
@@ -162,10 +147,75 @@ function Inflection() {
     }
 
 
+
+
     this.draw = function(fun) {
         window[fun]();
         // myfirstVis()
  
+    }
+
+    this.addUI = function() {
+
+        var that = this;
+        // Top level window
+        d3.select("body").append("div").attr("class", "inflect_ui");
+        
+        // switch
+
+        d3.select(".inflect_ui").append("div")
+        .attr("class", "infl-ui-div")
+        .attr("id", "toggle")
+        // .style("display", "block")
+
+        d3.select("#toggle")
+        .append("p")
+        .attr("class", "infl-ui-titles")
+            .html("Toggle editability")
+            .style("margin-top", "3px")
+            .style("margin-bottom", "0px");
+
+        d3.select("#toggle").append("label")
+        .attr("class", "switch");
+
+        d3.select(".switch").append("input")
+            .attr("type", "checkbox")
+            .attr("checked", true)
+            .on("change", function() {
+                that.editable = this.checked;
+                that.updateEditable();
+            });
+
+        d3.select(".switch").append("span")
+            .attr("class", "slider");
+
+        // Lines
+        d3.select(".inflect_ui").append("div")
+        .attr("class", "infl-ui-div")
+        .attr("id", "line-button");
+
+        d3.select("#line-button").append("button")
+            .attr("class", "infl-buttons").html("Add Line")
+            .on("click", function() {
+                console.log("clicked")
+                let lines = that.inflection.line
+                var list = lines.split(",");
+                if(list.length > 0 && list[0].length > 0) {
+                    lines += ","
+                }
+                lines += "120-330-80-80"
+                console.log(lines)
+                that.inflection.line = lines;
+                that.line()
+                that.updateHash("line")
+                that.updateEditable()
+
+            });
+        
+            d3.select("#line-button").append("p").html("double click on line to remove")
+                .style("margin-top", "6px")
+                .style("font-size", "13px")
+
     }
 
     this.updateEditable = function(){
@@ -188,21 +238,19 @@ function Inflection() {
                 x2 = +line.attr("x2"),
                 y2 = +line.attr("y2");
 
-            // Append circle at the start of the line
-            linegroup.append("circle")
+            linegroup.selectAll(".infl-handle.left")
+                .data([""])
+                .join("circle")
                 .attr("cx", x1)
                 .attr("cy", y1)
                 .attr("r", 10)
                 .attr("class", "infl-handle left")
 
-                // .attr("fill", "grey")
-                // .attr("fill-opacity", 0.1)
-                // .attr("cursor", "move")
-                // .attr("stroke-dasharray", 5)
-                // .attr("stroke", "grey")
 
             // Append circle at the end of the line
-            linegroup.append("circle")
+            linegroup.selectAll(".infl-handle.right")
+                .data([""])
+                .join("circle")
                 .attr("cx", x2)
                 .attr("cy", y2)
                 .attr("r", 10)
@@ -210,26 +258,36 @@ function Inflection() {
             
             });
 
+            // remove line
+            d3.selectAll(".infl-line")
+                .style("cursor", "pointer")
+                .on("dblclick", function(){
+                    d3.select(this.parentNode)
+                        // .transition()
+                        // .duration(200)
+                        // .ease(d3.easeLinear)
+                        .remove();
+                    that.updateHash("line")
+                    
+                });
+            
+            // change highlight
             d3.select("svg").selectAll("rect")
                 .style("cursor", "pointer")
                 .on("mousedown", function(event, d) {
-                    let type = d.type;
-                    that.inflection.high = d.type
-                    d3.select(this)
-                    .transition()
-                    .duration(200)
-                    .ease(d3.easeLinear)
-                        .attr("fill", highlight_colour);
+                    let highlight = d.type;
+                    let current_col = d3.select(this).attr("fill");
+                    let col_in_hex = rgbToHex(current_col)
+                    if(col_in_hex == highlight_colour.toUpperCase()) {
+                        that.inflection.high = "";
+                    } else {
+                        that.inflection.high = highlight
+                    }
 
-                    d3.select("svg").selectAll("rect").filter(d => d.type != type)
-                    .transition()
-                    .duration(200)
-                    .ease(d3.easeLinear)
-                        .attr("fill", "#" + that.inflection.col);
+                    that.highlight()
                     that.updateHash("high")
+                    // that.highlight()
                 })
-
-
 
             
 
@@ -244,7 +302,11 @@ function Inflection() {
 
             d3.select("svg").selectAll("rect")
                 .style("cursor", "default")
-                .on("mousedown", function(event, d) {})
+                .on("mousedown", function(event, d) {});
+
+            d3.selectAll(".infl-line")
+                .style("cursor", "default")
+                .on("dblclick", function(){});
         }
 
         d3.selectAll(".infl-handle").call(d3.drag().on("drag", function (event, d) {
@@ -308,6 +370,8 @@ function Inflection() {
         window.location.hash = "#" + this.hash
     }
 
+
+
     this.colour = function(){
         let colour = "#" + this.inflection.col
         d3.selectAll("rect")
@@ -367,27 +431,12 @@ function Inflection() {
                     .attr("y1", d => d.y1)
                     .attr("y2", d => d.y2)
                     .attr("class", "infl-line")
-                    .attr("stroke-dasharray", "3 3")
                     .transition()
                         .duration(200)
                         .ease(d3.easeLinear)
                         .attr("stroke", "black")
             });
 
-            // .selectAll(".infl-line")
-            // .data(data)
-            // .join("line")
-            // .attr("x1", d => d.x1)
-            // .attr("x2", d => d.x2)
-            // .attr("class", "infl-line")
-            // .attr("stroke-dasharray", "3 3")
-            // .transition()
-            //     .duration(200)
-            //     .ease(d3.easeLinear)
-            //     .attr("stroke", "black")
-            //     // .text(function(d) {console.log(d)})
-            //     .attr("y1", d => d.y1)
-            //     .attr("y2", d => d.y2);
         }
     }
 
@@ -499,6 +548,19 @@ function Inflection() {
                 .ease(d3.easeLinear)
                     .attr("fill", "#" + this.inflection.col)
         }
+    }
+
+    function rgbToHex(rgb) {
+        // Extract the RGB values using a regular expression
+        var rgbValues = rgb.match(/\d+/g); // Matches all numbers in the string
+    
+        // Convert each RGB component to a 2-digit hex value
+        var r = parseInt(rgbValues[0]).toString(16).padStart(2, '0'); // Red
+        var g = parseInt(rgbValues[1]).toString(16).padStart(2, '0'); // Green
+        var b = parseInt(rgbValues[2]).toString(16).padStart(2, '0'); // Blue
+    
+        // Combine into the hex format
+        return `#${r}${g}${b}`.toUpperCase(); // Uppercase for consistency
     }
 
     return this
