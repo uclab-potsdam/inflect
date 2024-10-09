@@ -6,9 +6,11 @@ function Inflection() {
     this.inflection = {
         line:"",
         ann:"",
-        high:""
+        high:"",
+        yax:""
     };
     var highlight_colour = "#C8532E"
+    this.basecol = "";
 
     this.editable = true;
 
@@ -355,12 +357,27 @@ function Inflection() {
                     that.updateHash("high")
                     // that.highlight()
                 })
-
             
+            // scale y-Axis
+        
+            var yaxis_placement = d3.select(".myYaxis").node().getBoundingClientRect()
+
+            d3.select("svg").selectAll(".infl-drag-area")
+                .data([""])
+                .join("rect")
+                .attr("class", "infl-drag-area")
+                .attr("width", yaxis_placement.width)
+                .attr("height", yaxis_placement.height)
+                .attr("x", yaxis_placement.x)
+                .attr("y", yaxis_placement.y)
+                .style("fill", "none")
+                .style("pointer-events", "all")
+                .style("cursor", "n-resize")
+
 
 
         }
-        else {
+        else { //not editable
             d3.selectAll(".infl-handle")
             .transition()
                     .duration(200)
@@ -371,10 +388,15 @@ function Inflection() {
                 .style("cursor", "default")
                 .on("mousedown", function(event, d) {//do nothing
                     });
+            
+            d3.select("g.myYaxis")
+                .style("cursor", "auto")
 
+            d3.select(".infl-drag-area").remove()
             
         }
 
+        // define events
         d3.selectAll(".infl-handle").call(d3.drag().on("drag", function (event, d) {
             // console.log(d);
                 d3.select(this)
@@ -434,6 +456,59 @@ function Inflection() {
                         that.updateHash("ann")
                     }
                 });
+                
+        // yaxis drag
+        // reconstruct scaleLinear Element:
+                // Select the axis element
+            var axisSelection = d3.select(".myYaxis");
+
+            // Extract tick values (domain points)
+            var tickValues = axisSelection.selectAll(".tick text")
+                .data()
+                .map(d => +d);
+
+            var tickPositions = axisSelection.selectAll(".tick")
+                .nodes()
+                .map(tick => {
+                    const transform = d3.select(tick).attr("transform");
+                    const translateY = transform.match(/translate\(.*?,([^\)]+)\)/)[1]; // Extract Y value from translate(0,Y)
+                    return +translateY;
+                });
+            var max_number = d3.max(tickValues) + (d3.min(tickPositions) / ((d3.max(tickPositions) - d3.min(tickPositions)) / d3.max(tickValues)))
+
+            // Now reconstruct the scale using the tick values and positions
+            var yScaleReconstructed = d3.scaleLinear()
+                .domain([0, max_number])
+                .range([d3.max(tickPositions), 0]);
+
+        // define drag
+        var height = d3.max(tickPositions)
+        d3.select(".infl-drag-area")
+            .call(d3.drag()
+                .on("drag", function(event) {
+                    // Calculate the change in the y-axis based on the drag
+                    const dragAmount = event.dy;
+
+                    // Adjust the domain of the y-scale
+                    const newMaxY = yScaleReconstructed.domain()[1] + dragAmount * (yScaleReconstructed.domain()[1] / height); // Adjust the domain proportionally
+                    yScaleReconstructed.domain([0, newMaxY]);
+
+                    // Update the y-axis
+                    d3.select(".myYaxis").call(d3.axisLeft(yScaleReconstructed));
+
+                    // Update the bars with the new y-scale
+                    d3.select("svg").selectAll(".bars rect")
+                        .attr("y", d => yScaleReconstructed(d.value))
+                        .attr("height", d => yScaleReconstructed.range()[0] - yScaleReconstructed(d.value))
+
+                    d3.select("svg").selectAll(".label text")
+                        .attr("y", (d) => yScaleReconstructed(d.value))
+                })
+                .on("end", function() {
+                        that.updateHash("yax")
+                })
+            );
+        
 
     }
 
@@ -509,7 +584,7 @@ function Inflection() {
             this.inflection.ann = anntext;
 
         }
-        this.hash = 
+        this.hash =
             "line=" + this.inflection.line + "&" +
             "ann=" + this.inflection.ann + "&" +
             "high=" + this.inflection.high;
