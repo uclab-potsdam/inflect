@@ -65,7 +65,7 @@ function myfirstVis() {
     //.text(function(d) {console.log(d.type);})
     .attr("width", x.bandwidth())
     .attr("height", function (d) { return height - y(d.value); })
-    // .attr("fill", "#C8532E")
+    .attr("fill", "#ABABAB")
     //   .on("mouseover", function (event, d) {
     //     tooltip.style("visibility", "visible").text(d.value + " Points");
     //     d3.select(this).attr("fill", "#ABABAB")

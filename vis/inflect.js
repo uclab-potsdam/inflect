@@ -4,7 +4,6 @@ function Inflection() {
     this.baseurl = "";
     this.hash = window.location.hash.substring(1);
     this.inflection = {
-        col:"ABABAB",
         line:"",
         ann:"",
         high:""
@@ -37,6 +36,8 @@ function Inflection() {
         this.draw(which)
         d3.select("svg").append("g").attr("class", "line-group")
         d3.select("svg").append("g").attr("class", "ann-group")
+        
+        this.basecol = d3.select("svg").select(".bars rect").attr("fill").split("#")[1]
 
         // add switch to toggle editability
 
@@ -87,12 +88,6 @@ function Inflection() {
                 let cat = splitted[0]
                 let value = splitted[1]
                 switch (cat) {
-                    case "col":
-                        if (value!=that.inflection.col) {
-                            that.inflection.col = value;
-                            that.colour();
-                        }
-                    break;
                         
                     case "line":
                         if (value!=that.inflection.line) {
@@ -118,10 +113,6 @@ function Inflection() {
                 cats_in_hash.push(cat)
             });
             
-            if (!cats_in_hash.includes("col") && that.inflection.col != "ABABAB") {
-                that.inflection.col = "ABABAB"
-                that.colour();
-            }
             if (!cats_in_hash.includes("line") && that.inflection.line != "") {
                 that.inflection.line = ""
                 that.line();
@@ -138,7 +129,6 @@ function Inflection() {
         }
 
     
-        this.colour();
         this.line();
         this.ann();
         this.highlight();
@@ -347,13 +337,15 @@ function Inflection() {
             })
             
             // change highlight
-            d3.select("svg").selectAll("rect")
+            d3.select("svg").selectAll(".bars rect")
                 .style("cursor", "pointer")
                 .on("mousedown", function(event, d) {
                     let highlight = d.type;
                     let current_col = d3.select(this).attr("fill");
-                    let col_in_hex = rgbToHex(current_col)
-                    if(col_in_hex == highlight_colour.toUpperCase()) {
+                    if(current_col[0] != "#") {
+                        current_col = rgbToHex(current_col)
+                    }
+                    if(current_col == highlight_colour.toUpperCase()) {
                         that.inflection.high = "";
                     } else {
                         that.inflection.high = highlight
@@ -518,7 +510,6 @@ function Inflection() {
 
         }
         this.hash = 
-            "col=" + this.inflection.col + "&" +
             "line=" + this.inflection.line + "&" +
             "ann=" + this.inflection.ann + "&" +
             "high=" + this.inflection.high;
@@ -526,16 +517,6 @@ function Inflection() {
     }
 
 
-
-    this.colour = function(){
-        let colour = "#" + this.inflection.col
-        d3.selectAll("rect")
-        .transition()
-            .duration(200)
-            .ease(d3.easeLinear)
-        .attr("fill", colour)
-
-    }
 
     this.line = function(){
         //add 50% line
@@ -683,20 +664,20 @@ function Inflection() {
             .transition()
                 .duration(200)
                 .ease(d3.easeLinear)
-            .attr("fill", "#" + this.inflection.col)
+            .attr("fill", "#" + this.basecol)
         }
         else {
-            d3.select("svg").selectAll("rect").filter(d => d.type == highlight)
+            d3.select("svg").selectAll(".bars rect").filter(d => d.type == highlight)
             .transition()
             .duration(200)
             .ease(d3.easeLinear)
                 .attr("fill", highlight_colour)
 
-            d3.select("svg").selectAll("rect").filter(d => d.type != highlight)
+            d3.select("svg").selectAll(".bars rect").filter(d => d.type != highlight)
                 .transition()
                 .duration(200)
                 .ease(d3.easeLinear)
-                    .attr("fill", "#" + this.inflection.col)
+                    .attr("fill", "#" + this.basecol)
         }
     }
 
