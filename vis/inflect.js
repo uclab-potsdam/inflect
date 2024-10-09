@@ -193,19 +193,17 @@ function Inflection() {
         // Lines
         d3.select(".inflect_ui").append("div")
         .attr("class", "infl-ui-div")
-        .attr("id", "line-button");
+        .attr("id", "line-div");
 
-        d3.select("#line-button").append("button")
+        d3.select("#line-div").append("button")
             .attr("class", "infl-buttons").html("Add Line")
             .on("click", function() {
-                console.log("clicked")
                 let lines = that.inflection.line
                 var list = lines.split(",");
                 if(list.length > 0 && list[0].length > 0) {
                     lines += ","
                 }
                 lines += "120-330-80-80"
-                console.log(lines)
                 that.inflection.line = lines;
                 that.line()
                 that.updateHash("line")
@@ -213,9 +211,55 @@ function Inflection() {
 
             });
         
-            d3.select("#line-button").append("p").html("double click on line to remove")
+            d3.select("#line-div").append("p").html("appears in a random place")
                 .style("margin-top", "6px")
-                .style("font-size", "13px")
+                .style("font-size", "13px");
+
+        // Annotations
+        d3.select(".inflect_ui").append("div")
+        .attr("class", "infl-ui-div")
+        .attr("id", "annotation-div");
+
+        d3.select("#annotation-div").append("button")
+            .attr("class", "infl-buttons").html("Add Annotation")
+            .attr("id", "ann-button")
+
+        d3.select("#annotation-div").append("input")
+            .attr("id", "infl-text-input")
+            .attr("type", "text")
+            .attr("placeholder", "annotation text")
+            .style("margin-top", "2px")
+
+        // now define button behaviour
+        d3.select("#ann-button")
+            .on("click", function() {
+                let anns = that.inflection.ann
+                var list = anns.split(",");
+                if(list.length > 0 && list[0].length > 0) {
+                    anns += ","
+                }
+                let text = d3.select("#infl-text-input").property("value")
+                if(text == "") {
+                    text = "text"
+                }
+                anns += ("140-70-175-90-"+text.replace(" ", "_"));
+                that.inflection.ann = anns;
+                that.ann()
+                that.updateHash("ann")
+                that.updateEditable()
+
+            });
+        
+        d3.select(".inflect_ui")
+            .append("div")
+            .attr("class", "infl-ui-div")
+            // .attr("id", "annotation-div")
+            .append("p").html("double click on handle to remove element")
+            // .style("margin-top", "12px")
+            .style("font-size", "13px")
+            .style("float", "right")
+
+
 
     }
 
@@ -261,17 +305,17 @@ function Inflection() {
             });
 
             // remove line
-            d3.selectAll(".infl-line")
-                .style("cursor", "pointer")
-                .on("dblclick", function(){
-                    d3.select(this.parentNode)
-                        // .transition()
-                        // .duration(200)
-                        // .ease(d3.easeLinear)
-                        .remove();
-                    that.updateHash("line")
+            // d3.selectAll(".infl-line")
+            //     .style("cursor", "pointer")
+            //     .on("dblclick", function(){
+            //         d3.select(this.parentNode)
+            //             // .transition()
+            //             // .duration(200)
+            //             // .ease(d3.easeLinear)
+            //             .remove();
+            //         that.updateHash("line")
                     
-                });
+            //     });
 
             // annotations
             var ann_lines = d3.selectAll(".infl-ann-line")
@@ -333,11 +377,10 @@ function Inflection() {
 
             d3.select("svg").selectAll("rect")
                 .style("cursor", "default")
-                .on("mousedown", function(event, d) {});
+                .on("mousedown", function(event, d) {//do nothing
+                    });
 
-            d3.selectAll(".infl-line")
-                .style("cursor", "default")
-                .on("dblclick", function(){});
+            
         }
 
         d3.selectAll(".infl-handle").call(d3.drag().on("drag", function (event, d) {
@@ -384,6 +427,21 @@ function Inflection() {
                 }
             })
         )
+
+        d3.selectAll(".infl-handle")
+                .on("dblclick", function(){
+                    d3.select(this.parentNode)
+                    // .transition()
+                    // .duration(200)
+                    // .ease(d3.easeLinear)
+                    .remove();
+                    if(this.classList[2] == "line") {
+                        that.updateHash("line")
+                    }
+                    if(this.classList[2] == "ann") {
+                        that.updateHash("ann")
+                    }
+                });
 
     }
 
