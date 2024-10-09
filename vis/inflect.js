@@ -269,13 +269,13 @@ function Inflection() {
         if(this.editable) {
 
             // lines
-            var lineGroup = d3.selectAll("g.line");
+            var lineGroup = d3.selectAll("g.infl-line");
 
             lineGroup.each(function() {
                 // Select all the lines inside the group
                 var linegroup = d3.select(this);
 
-                var line = linegroup.select(".infl-line");
+                var line = linegroup.select(".single-line");
                 // Append circles to the line ends
                     
                 // Get the start and end points of the line
@@ -392,11 +392,11 @@ function Inflection() {
                 //lines 
                 if(this.classList[2] == "line") {
                     if(this.classList[1] == "left") {
-                        d3.select(this.parentNode).select(".infl-line")
+                        d3.select(this.parentNode).select(".single-line")
                             .attr("x1", event.x)
                             .attr("y1", event.y);
                     } else if(this.classList[1] == "right") {
-                        d3.select(this.parentNode).select(".infl-line")
+                        d3.select(this.parentNode).select(".single-line")
                             .attr("x2", event.x)
                             .attr("y2", event.y);
                     }
@@ -449,7 +449,7 @@ function Inflection() {
         
         if(kind == "line") {
             var lines = [];
-            d3.select("svg").selectAll(".infl-line")
+            d3.select("svg").selectAll(".single-line")
             .each(function(d) {
                 let line = d3.select(this)
                 lines.push(
@@ -572,20 +572,20 @@ function Inflection() {
 
             
 
-            d3.select(".line-group").selectAll(".line")
+            d3.select(".line-group").selectAll(".infl-line")
             .data(data)
-            .join("g").attr("class", "line")
+            .join("g").attr("class", "infl-line")
             .each(function(d) {
                 var g = d3.select(this);
         
-                g.selectAll(".infl-line")
+                g.selectAll(".single-line")
                     .data([d])
                     .join("line")
                     .attr("x1", d => d.x1)
                     .attr("x2", d => d.x2)
                     .attr("y1", d => d.y1)
                     .attr("y2", d => d.y2)
-                    .attr("class", "infl-line")
+                    .attr("class", "single-line")
                     .transition()
                         .duration(200)
                         .ease(d3.easeLinear)
