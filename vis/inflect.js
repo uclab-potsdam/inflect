@@ -11,8 +11,10 @@ function Inflection() {
     };
     var highlight_colour = "#C8532E"
     this.basecol = "";
+    this.baseyax ="";
 
     this.editable = true;
+    this.SVGheight = 0;
 
     
 
@@ -40,6 +42,10 @@ function Inflection() {
         d3.select("svg").append("g").attr("class", "ann-group")
         
         this.basecol = d3.select("svg").select(".bars rect").attr("fill").split("#")[1]
+
+        this.baseyax = determineCurrentYax().toString()
+        this.inflection.yax = this.baseyax;
+        this.SVGheight = d3.select(".myYaxis").select(".tick").attr("transform").match(/translate\(.*?,([^\)]+)\)/)[1]
 
         // add switch to toggle editability
 
@@ -109,6 +115,12 @@ function Inflection() {
                             that.highlight();
                         }
                     break;
+                    case "yax":
+                        if (value!=that.inflection.yax) {
+                            that.inflection.yax = value;
+                            that.yAx();
+                        }
+                    break;
                     default:
                         break;
                 }
@@ -118,6 +130,10 @@ function Inflection() {
             if (!cats_in_hash.includes("line") && that.inflection.line != "") {
                 that.inflection.line = ""
                 that.line();
+            }
+            if ((!cats_in_hash.includes("yax") && that.inflection.yax != that.baseyax) | that.inflection.yax == "") {
+                that.inflection.yax = that.baseyax
+                that.yAx();
             }
             if (!cats_in_hash.includes("ann") && that.inflection.ann != "") {
                 that.inflection.ann = ""
@@ -134,6 +150,7 @@ function Inflection() {
         this.line();
         this.ann();
         this.highlight();
+        this.yAx();
 
         this.updateEditable();
 
@@ -154,8 +171,7 @@ function Inflection() {
         // Top level window
         d3.select("body").append("div").attr("class", "inflect_ui");
         
-        // switch
-
+        // define toggle div
         d3.select(".inflect_ui").append("div")
         .attr("class", "infl-ui-div")
         .attr("id", "toggle")
@@ -181,6 +197,25 @@ function Inflection() {
 
         d3.select(".switch").append("span")
             .attr("class", "slider");
+
+        // reset axis
+        d3.select(".inflect_ui").append("div")
+        .attr("class", "infl-ui-div")
+        .attr("id", "yax-div");
+
+        d3.select("#yax-div").append("button")
+            .attr("class", "infl-buttons").html("Reset Y-Axis")
+            .on("click", function() {
+                that.inflection.yax = that.baseyax;
+                that.yAx()
+                that.updateHash("line")
+                that.updateEditable()
+
+            });
+        
+            d3.select("#yax-div").append("p").html("back to original")
+                .style("margin-top", "6px")
+                .style("font-size", "13px");
 
         // Lines
         d3.select(".inflect_ui").append("div")
@@ -241,7 +276,9 @@ function Inflection() {
                 that.updateEditable()
 
             });
-        
+
+
+        // note about double click
         d3.select(".inflect_ui")
             .append("div")
             .attr("class", "infl-ui-div")
@@ -458,31 +495,13 @@ function Inflection() {
                 });
                 
         // yaxis drag
-        // reconstruct scaleLinear Element:
-                // Select the axis element
-            var axisSelection = d3.select(".myYaxis");
 
-            // Extract tick values (domain points)
-            var tickValues = axisSelection.selectAll(".tick text")
-                .data()
-                .map(d => +d);
-
-            var tickPositions = axisSelection.selectAll(".tick")
-                .nodes()
-                .map(tick => {
-                    const transform = d3.select(tick).attr("transform");
-                    const translateY = transform.match(/translate\(.*?,([^\)]+)\)/)[1]; // Extract Y value from translate(0,Y)
-                    return +translateY;
-                });
-            var max_number = d3.max(tickValues) + (d3.min(tickPositions) / ((d3.max(tickPositions) - d3.min(tickPositions)) / d3.max(tickValues)))
-
-            // Now reconstruct the scale using the tick values and positions
+            
             var yScaleReconstructed = d3.scaleLinear()
-                .domain([0, max_number])
-                .range([d3.max(tickPositions), 0]);
+                .domain([0, determineCurrentYax()])
+                .range([that.SVGheight, 0]);
 
         // define drag
-        var height = d3.max(tickPositions)
         d3.select(".infl-drag-area")
             .call(d3.drag()
                 .on("drag", function(event) {
@@ -490,7 +509,7 @@ function Inflection() {
                     const dragAmount = event.dy;
 
                     // Adjust the domain of the y-scale
-                    const newMaxY = yScaleReconstructed.domain()[1] + dragAmount * (yScaleReconstructed.domain()[1] / height); // Adjust the domain proportionally
+                    const newMaxY = yScaleReconstructed.domain()[1] + dragAmount * (yScaleReconstructed.domain()[1] / that.SVGheight); // Adjust the domain proportionally
                     yScaleReconstructed.domain([0, newMaxY]);
 
                     // Update the y-axis
@@ -508,9 +527,10 @@ function Inflection() {
                         that.updateHash("yax")
                 })
             );
-        
+    }   
+    
 
-    }
+    
 
     this.updateHash = function(kind){
         
@@ -584,7 +604,11 @@ function Inflection() {
             this.inflection.ann = anntext;
 
         }
+        if(kind == "yax") {
+            this.inflection.yax = determineCurrentYax().toString();
+        }
         this.hash =
+            "yax=" + this.inflection.yax + "&" +
             "line=" + this.inflection.line + "&" +
             "ann=" + this.inflection.ann + "&" +
             "high=" + this.inflection.high;
@@ -756,6 +780,37 @@ function Inflection() {
         }
     }
 
+    this.yAx = function(){
+        var that = this;
+        var yAxValue = that.inflection.yax
+        var newYScale = d3.scaleLinear()
+                .domain([0, yAxValue])
+                .range([that.SVGheight, 0]);
+
+            // Update the y-axis
+            d3.select(".myYaxis")
+            .transition()
+                .duration(200)
+                .ease(d3.easeLinear)
+            .call(d3.axisLeft(newYScale));
+            
+            d3.select("svg").selectAll(".label text")
+                .transition()
+                .duration(200)
+                .ease(d3.easeLinear)
+                .attr("y", (d) => newYScale(d.value));
+
+            // Update the bars with the new y-scale
+            d3.select("svg").selectAll(".bars rect")
+                // .transition()
+                // .duration(200)
+                // .ease(d3.easeLinear)
+                .attr("y", d => newYScale(d.value))
+                .attr("height", d => that.SVGheight - newYScale(d.value))
+
+     }
+    
+
     function rgbToHex(rgb) {
         // Extract the RGB values using a regular expression
         var rgbValues = rgb.match(/\d+/g); // Matches all numbers in the string
@@ -767,6 +822,27 @@ function Inflection() {
     
         // Combine into the hex format
         return `#${r}${g}${b}`.toUpperCase(); // Uppercase for consistency
+    }
+
+    function determineCurrentYax(){
+        var axisSelection = d3.select(".myYaxis");
+
+            // Extract tick values (domain points)
+            var tickValues = axisSelection.selectAll(".tick text")
+                .data()
+                .map(d => +d);
+
+            var tickPositions = axisSelection.selectAll(".tick")
+                .nodes()
+                .map(tick => {
+                    const transform = d3.select(tick).attr("transform");
+                    const translateY = transform.match(/translate\(.*?,([^\)]+)\)/)[1]; // Extract Y value from translate(0,Y)
+                    return +translateY;
+                });
+
+            var yaxValue = d3.max(tickValues) + (d3.min(tickPositions) / ((d3.max(tickPositions) - d3.min(tickPositions)) / d3.max(tickValues)))
+            return yaxValue
+
     }
 
     return this
