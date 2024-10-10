@@ -401,7 +401,8 @@ function Inflection() {
 
             d3.select("svg").selectAll(".infl-drag-area")
                 .data([""])
-                .join("rect")
+                .enter()
+                .insert("rect", ".line-group")
                 .attr("class", "infl-drag-area")
                 .attr("width", yaxis_placement.width)
                 .attr("height", yaxis_placement.height)
@@ -496,14 +497,18 @@ function Inflection() {
                 
         // yaxis drag
 
-            
             var yScaleReconstructed = d3.scaleLinear()
-                .domain([0, determineCurrentYax()])
-                .range([that.SVGheight, 0]);
+                
 
         // define drag
         d3.select(".infl-drag-area")
             .call(d3.drag()
+                .on("start", function(){
+                    var curYAxValue = determineCurrentYax()
+                    yScaleReconstructed
+                        .domain([0, curYAxValue])
+                        .range([that.SVGheight, 0]);
+                })
                 .on("drag", function(event) {
                     // Calculate the change in the y-axis based on the drag
                     const dragAmount = event.dy;
