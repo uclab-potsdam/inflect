@@ -205,23 +205,23 @@ function Inflection() {
         .attr("id", "toggle")
         // .style("display", "block")
 
-        d3.select("#toggle")
-        .append("p")
-        .attr("class", "infl-ui-titles")
-            .html("Toggle editability")
-            .style("margin-top", "3px")
-            .style("margin-bottom", "0px");
+        // d3.select("#toggle")
+        // .append("p")
+        // .attr("class", "infl-ui-titles")
+        //     .html("Toggle editability")
+        //     .style("margin-top", "3px")
+        //     .style("margin-bottom", "0px");
 
-        d3.select("#toggle").append("label")
-        .attr("class", "switch");
+        // d3.select("#toggle").append("label")
+        // .attr("class", "switch");
 
-        d3.select(".switch").append("input")
-            .attr("type", "checkbox")
-            .attr("checked", true)
-            .on("change", function() {
-                that.editable = this.checked;
-                that.updateEditable();
-            });
+        // d3.select(".switch").append("input")
+        //     .attr("type", "checkbox")
+        //     .attr("checked", true)
+        //     .on("change", function() {
+        //         that.editable = this.checked;
+        //         that.updateEditable();
+        //     });
 
         d3.select(".switch").append("span")
             .attr("class", "slider");
@@ -463,6 +463,52 @@ function Inflection() {
         }
 
         // define events
+        // lines
+        d3.select(".single-line")
+            .call(d3.drag()
+                .on("start", function(){
+                    
+                })
+                .on("drag", function(event) {
+                    var line = d3.select(this);
+                    
+                    var line_current_pos = {
+                        x1: +line.attr("x1"),
+                        y1: +line.attr("y1"),
+                        x2: +line.attr("x2"),
+                        y2: +line.attr("y2"),
+
+                    }
+                    const xdragAmount = event.dx;
+                    const ydragAmount = event.dy;
+
+                    line
+                        .attr("x1", line_current_pos.x1 + xdragAmount)
+                        .attr("y1", line_current_pos.y1 + ydragAmount)
+                        .attr("x2", line_current_pos.x2 + xdragAmount)
+                        .attr("y2", line_current_pos.y2 + ydragAmount);
+
+                    //handles
+                    d3.select(this.parentNode).selectAll(".infl-handle")
+                        .each(function(d) {
+                            var handle = d3.select(this);
+                            var handle_current_pos = {
+                                cx: +handle.attr("cx"),
+                                cy: +handle.attr("cy"),
+                            }
+
+                            handle
+                                .attr("cx", handle_current_pos.cx + xdragAmount)
+                                .attr("cy", handle_current_pos.cy + ydragAmount);
+                        })
+
+                })
+                .on("end", function() {
+                        that.updateHash("line")
+                })
+            );
+
+        //handles of lines
         d3.selectAll(".infl-handle").call(d3.drag().on("drag", function (event, d) {
             // console.log(d);
                 d3.select(this)
@@ -528,7 +574,7 @@ function Inflection() {
             var yScaleReconstructed = d3.scaleLinear()
                 
 
-        // define drag
+        // define drag of axis
         d3.select(".infl-drag-area")
             .call(d3.drag()
                 .on("start", function(){
@@ -702,7 +748,7 @@ function Inflection() {
                     .transition()
                         .duration(200)
                         .ease(d3.easeLinear)
-                        .attr("stroke", "black")
+                        .attr("stroke", "#C8532E")
             });
 
         }

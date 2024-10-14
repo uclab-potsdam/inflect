@@ -53,16 +53,19 @@
 }
 
 .infl-handle {
+    /* fill: white;
+    fill-opacity: 0; */
+
     fill: #C8532E;
-    fill-opacity: 0.1;
+    fill-opacity: 0.2;
     cursor: move;
-    stroke-dasharray: 7 3;
-    stroke: #C8532E;
+    stroke: none;
 }
 
 .infl-line {
-    stroke-dasharray: 6 3;
-    /* stroke: black; */
+    stroke: #C8532E;
+    stroke-width: 2px;
+    cursor: move;
 }
 
 .infl-ann-text {
