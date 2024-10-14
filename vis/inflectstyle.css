@@ -139,3 +139,20 @@
     -ms-transform: translateX(20px);
     transform: translateX(20px);
   }
+
+  .infl-tooltip {
+    font-family: "Ubuntu";
+    position: absolute;
+    text-align: center;
+    width: auto;
+    height: auto;
+    padding: 5px;
+    font-size: 13px;
+    background: #F2F2F2;
+    border: 0px;
+    border-radius: 2px;
+    pointer-events: none;
+    visibility: hidden;
+    z-index: 1;
+    /* Initially hidden */
+  }

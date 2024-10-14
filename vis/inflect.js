@@ -170,6 +170,34 @@ function Inflection() {
         var that = this;
         // Top level window
         d3.select("body").append("div").attr("class", "inflect_ui");
+        d3.select(".inflect_ui").append("div").attr("class", "infl-tooltip")
+        var tooltip = d3.select(".infl-tooltip")
+        d3.select(".inflect_ui")
+            // .append("a")
+            // .attr("href", that.hash)
+            .append("img").attr("src", "../img/link.png")
+            .style("width", "20px")
+            .style("float", "right")
+            .style("cursor", "pointer")
+            .on("mouseover", function () {
+                tooltip.style("visibility", "visible").text("Copy hash to clipboard");
+              })
+            .on("mousemove", function (event) {
+                tooltip.style("top", (event.pageY - 35) + "px")
+                  .style("left", (event.pageX - 20) + "px");
+              })
+            .on("mouseout", function () {
+                tooltip.style("visibility", "hidden");
+              })
+            .on("click", function() {
+                
+                // Copy the text inside the text field
+                navigator.clipboard.writeText("#" + that.hash);
+
+                // Alert the copied text
+                tooltip.text("Copied to clipboard.");
+    
+            });
         
         // define toggle div
         d3.select(".inflect_ui").append("div")
@@ -206,10 +234,10 @@ function Inflection() {
         d3.select("#yax-div").append("button")
             .attr("class", "infl-buttons").html("Reset Y-Axis")
             .on("click", function() {
-                that.inflection.yax = that.baseyax;
-                that.yAx()
-                that.updateHash("line")
-                that.updateEditable()
+                    that.inflection.yax = that.baseyax;
+                    that.yAx()
+                    that.updateHash("line")
+                    that.updateEditable()
 
             });
         
@@ -225,16 +253,16 @@ function Inflection() {
         d3.select("#line-div").append("button")
             .attr("class", "infl-buttons").html("Add Line")
             .on("click", function() {
-                let lines = that.inflection.line
-                var list = lines.split(",");
-                if(list.length > 0 && list[0].length > 0) {
-                    lines += ","
-                }
-                lines += "120-330-80-80"
-                that.inflection.line = lines;
-                that.line()
-                that.updateHash("line")
-                that.updateEditable()
+                    let lines = that.inflection.line
+                    var list = lines.split(",");
+                    if(list.length > 0 && list[0].length > 0) {
+                        lines += ","
+                    }
+                    lines += "120-330-80-80"
+                    that.inflection.line = lines;
+                    that.line()
+                    that.updateHash("line")
+                    that.updateEditable()
 
             });
         
@@ -260,20 +288,20 @@ function Inflection() {
         // now define button behaviour
         d3.select("#ann-button")
             .on("click", function() {
-                let anns = that.inflection.ann
-                var list = anns.split(",");
-                if(list.length > 0 && list[0].length > 0) {
-                    anns += ","
-                }
-                let text = d3.select("#infl-text-input").property("value")
-                if(text == "") {
-                    text = "text"
-                }
-                anns += ("140-70-175-90-"+text.replace(" ", "_"));
-                that.inflection.ann = anns;
-                that.ann()
-                that.updateHash("ann")
-                that.updateEditable()
+                    let anns = that.inflection.ann
+                    var list = anns.split(",");
+                    if(list.length > 0 && list[0].length > 0) {
+                        anns += ","
+                    }
+                    let text = d3.select("#infl-text-input").property("value")
+                    if(text == "") {
+                        text = "text"
+                    }
+                    anns += ("140-70-175-90-"+text.replace(" ", "_"));
+                    that.inflection.ann = anns;
+                    that.ann()
+                    that.updateHash("ann")
+                    that.updateEditable()
 
             });
 
@@ -411,9 +439,9 @@ function Inflection() {
                 .style("fill", "none")
                 .style("pointer-events", "all")
                 .style("cursor", "n-resize")
+              
 
-
-
+                
         }
         else { //not editable
             d3.selectAll(".infl-handle")
