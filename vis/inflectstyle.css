@@ -68,11 +68,19 @@
     cursor: move;
 }
 
+.infl-label {
+  font-family: "Ubuntu";
+  font-size: 16px;
+  fill: #C8532E;
+
+}
+
 .infl-ann-text {
     font-family: "Ubuntu";
     font-size: 14px;
     cursor: move;
-    fill: #C8532E;
+    fill: black;
+    /* fill: #C8532E; */
 }
 
 .infl-ui-titles {

@@ -38,8 +38,10 @@ function Inflection() {
         // that.col = that.hash.split("_")[0]
         var hashA = this.hash.split("&");
         this.draw(which)
+        var transformation = d3.select("svg").select("g").attr("transform")
         d3.select("svg").append("g").attr("class", "line-group")
         d3.select("svg").append("g").attr("class", "ann-group")
+        d3.select("svg").append("g").attr("class", "label-group").attr("transform", transformation)
         
         this.basecol = d3.select("svg").select(".bars rect").attr("fill").split("#")[1]
 
@@ -109,16 +111,16 @@ function Inflection() {
                             that.ann();
                         }
                     break;
-                    case "high":
-                        if (value!=that.inflection.high) {
-                            that.inflection.high = value;
-                            that.highlight();
-                        }
-                    break;
                     case "yax":
                         if (value!=that.inflection.yax) {
                             that.inflection.yax = value;
                             that.yAx();
+                        }
+                        break;
+                    case "high":
+                        if (value!=that.inflection.high) {
+                            that.inflection.high = value;
+                            that.highlight();
                         }
                     break;
                     default:
@@ -336,26 +338,31 @@ function Inflection() {
                 // Append circles to the line ends
                     
                 // Get the start and end points of the line
-                var x1 = +line.attr("x1"),
-                    y1 = +line.attr("y1"),
-                    x2 = +line.attr("x2"),
-                    y2 = +line.attr("y2");
+                var left_data = {
+                    x1: +line.attr("x1"),
+                    y1: +line.attr("y1")
+                }
+
+                var right_data = {
+                    x2: +line.attr("x2"),
+                    y2: +line.attr("y2")
+                }
 
                 linegroup.selectAll(".infl-handle.line.left")
-                    .data([""])
+                    .data([left_data])
                     .join("circle")
-                    .attr("cx", x1)
-                    .attr("cy", y1)
+                    .attr("cx", d => d.x1)
+                    .attr("cy", d => d.y1)
                     .attr("r", 10)
                     .attr("class", "infl-handle line left")
 
 
                 // Append circle at the end of the line
                 linegroup.selectAll(".infl-handle.line.right")
-                    .data([""])
+                    .data([right_data])
                     .join("circle")
-                    .attr("cx", x2)
-                    .attr("cy", y2)
+                    .attr("cx", d => d.x2)
+                    .attr("cy", d => d.y2)
                     .attr("r", 10)
                     .attr("class", "infl-handle line right")
                 
@@ -581,7 +588,7 @@ function Inflection() {
                         .attr("y", d => yScaleReconstructed(d.value))
                         .attr("height", d => yScaleReconstructed.range()[0] - yScaleReconstructed(d.value))
 
-                    d3.select("svg").selectAll(".label text")
+                    d3.select("svg").selectAll(".infl-label")
                         .attr("y", (d) => yScaleReconstructed(d.value))
                 })
                 .on("end", function() {
@@ -777,6 +784,12 @@ function Inflection() {
                 .duration(200)
                 .ease(d3.easeLinear)
             .attr("fill", "#" + this.basecol)
+
+            d3.selectAll(".infl-label")
+            .transition()
+                .duration(200)
+                .ease(d3.easeLinear)
+                .remove()
         }
         else {
             d3.select("svg").selectAll(".bars rect").filter(d => d.type == highlight)
@@ -790,6 +803,31 @@ function Inflection() {
                 .duration(200)
                 .ease(d3.easeLinear)
                     .attr("fill", "#" + this.basecol)
+
+                //add bar labels
+            var rect = d3.selectAll(".bars rect").filter(d => d.type == highlight);
+            var label_data = [{
+                x: +rect.attr("x"),
+                y: +rect.attr("y"),
+                width: +rect.attr("width"),
+                value: +rect.data()[0].value
+            }]
+
+
+            d3.select(".label-group")
+                .selectAll("text.infl-label")
+                .data(label_data)
+                .join("text")
+                .attr("class", "infl-label")
+                // .text(function(d) {console.log(d)})
+                .attr("dy", "-1em")
+                .style("text-anchor", "middle")
+                .text(d => d.value)
+                    .transition()
+                    .duration(200)
+                    .ease(d3.easeLinear)
+                    .attr("x", (d) => d.x + d.width / 2)
+                    .attr("y", (d) => d.y);
         }
     }
 
@@ -807,7 +845,7 @@ function Inflection() {
                 .ease(d3.easeLinear)
             .call(d3.axisLeft(newYScale));
             
-            d3.select("svg").selectAll(".label text")
+            d3.select("svg").selectAll(".infl-label")
                 .transition()
                 .duration(200)
                 .ease(d3.easeLinear)
@@ -854,7 +892,7 @@ function Inflection() {
                 });
 
             var yaxValue = d3.max(tickValues) + (d3.min(tickPositions) / ((d3.max(tickPositions) - d3.min(tickPositions)) / d3.max(tickValues)))
-            return yaxValue
+            return Math.round(10*yaxValue)/10
 
     }
 

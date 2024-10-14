@@ -81,19 +81,7 @@ function myfirstVis() {
 
 
 
-    //add bar labels
-    svg.append("g").attr("class", "label")
-    .selectAll("text.sum")
-    .data(data_overview)
-    .enter()
-    .append("text")
-    .attr("class", "sum")
-    // .text(function(d) {console.log(d)})
-    .attr("x", (d) => x(d.type) + x.bandwidth() / 2)
-    .attr("y", (d) => y(d.value))
-    .attr("dy", "-1em")
-    .style("text-anchor", "middle")
-    .text(d => d.value);
+
 
 
     //x-Axis on top
