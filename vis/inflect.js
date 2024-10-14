@@ -297,7 +297,7 @@ function Inflection() {
                     if(text == "") {
                         text = "text"
                     }
-                    anns += ("140-70-175-90-"+text.replace(" ", "_"));
+                    anns += ("140-70-"+text.replace(" ", "_"));
                     that.inflection.ann = anns;
                     that.ann()
                     that.updateHash("ann")
@@ -341,23 +341,23 @@ function Inflection() {
                     x2 = +line.attr("x2"),
                     y2 = +line.attr("y2");
 
-                linegroup.selectAll(".infl-handle.left.line")
+                linegroup.selectAll(".infl-handle.line.left")
                     .data([""])
                     .join("circle")
                     .attr("cx", x1)
                     .attr("cy", y1)
                     .attr("r", 10)
-                    .attr("class", "infl-handle left line")
+                    .attr("class", "infl-handle line left")
 
 
                 // Append circle at the end of the line
-                linegroup.selectAll(".infl-handle.right.line")
+                linegroup.selectAll(".infl-handle.line.right")
                     .data([""])
                     .join("circle")
                     .attr("cx", x2)
                     .attr("cy", y2)
                     .attr("r", 10)
-                    .attr("class", "infl-handle right line")
+                    .attr("class", "infl-handle line right")
                 
             });
 
@@ -374,35 +374,7 @@ function Inflection() {
                     
             //     });
 
-            // annotations
-            var ann_lines = d3.selectAll(".infl-ann-line")
-            ann_lines.each(function() {
-                var line = d3.select(this)
-                var group = d3.select(this.parentNode)
 
-                var x1 = +line.attr("x1"),
-                    y1 = +line.attr("y1"),
-                    x2 = +line.attr("x2"),
-                    y2 = +line.attr("y2");
-
-                group.selectAll(".infl-handle.left.ann")
-                    .data([""])
-                    .join("circle")
-                    .attr("cx", x1)
-                    .attr("cy", y1)
-                    .attr("r", 10)
-                    .attr("class", "infl-handle left ann")
-
-                // Append circle at the end of the line
-                group.selectAll(".infl-handle.right.ann")
-                    .data([""])
-                    .join("circle")
-                    .attr("cx", x2)
-                    .attr("cy", y2)
-                    .attr("r", 10)
-                    .attr("class", "infl-handle right ann")
-            })
-            
             // change highlight
             d3.select("svg").selectAll(".bars rect")
                 .style("cursor", "pointer")
@@ -466,8 +438,9 @@ function Inflection() {
         // lines
         d3.select(".single-line")
             .call(d3.drag()
-                .on("start", function(){
-                    
+                .on("start", function(event){
+                    console.log(event.x)
+                    console.log(event.y)
                 })
                 .on("drag", function(event) {
                     var line = d3.select(this);
@@ -509,65 +482,74 @@ function Inflection() {
             );
 
         //handles of lines
-        d3.selectAll(".infl-handle").call(d3.drag().on("drag", function (event, d) {
+        d3.selectAll(".infl-handle").call(d3.drag()
+            .on("start", function(event) {
+                var text_object = d3.select(this)
+                console.log(event.x + " " + event.y)
+                console.log(text_object.attr("cx") + " " + text_object.attr("cy"))
+
+            })
+            .on("drag", function (event, d) {
             // console.log(d);
                 d3.select(this)
                     .attr("cx", event.x)
                     .attr("cy", event.y);
 
-                //lines 
-                if(this.classList[2] == "line") {
-                    if(this.classList[1] == "left") {
-                        d3.select(this.parentNode).select(".single-line")
-                            .attr("x1", event.x)
-                            .attr("y1", event.y);
-                    } else if(this.classList[1] == "right") {
-                        d3.select(this.parentNode).select(".single-line")
-                            .attr("x2", event.x)
-                            .attr("y2", event.y);
-                    }
+                if(this.classList[2] == "left") {
+                    d3.select(this.parentNode).select(".single-line")
+                        .attr("x1", event.x)
+                        .attr("y1", event.y);
+                } else if(this.classList[2] == "right") {
+                    d3.select(this.parentNode).select(".single-line")
+                        .attr("x2", event.x)
+                        .attr("y2", event.y);
                 }
 
-                //annotation lines 
-                if(this.classList[2] == "ann") {
-                    if(this.classList[1] == "left") {
-                        d3.select(this.parentNode).select(".infl-ann-line")
-                            .attr("x1", event.x)
-                            .attr("y1", event.y);
-                        d3.select(this.parentNode).select(".infl-ann-text")
-                            .attr("x", event.x)
-                            .attr("y", event.y);
-                    } else if(this.classList[1] == "right") {
-                        d3.select(this.parentNode).select(".infl-ann-line")
-                            .attr("x2", event.x)
-                            .attr("y2", event.y);
-                    }
-                }
+                
             })
             .on("end", function() {
-                if(this.classList[2] == "line") {
                     that.updateHash("line")
-                }
-                if(this.classList[2] == "ann") {
-                    that.updateHash("ann")
-                }
+
             })
         )
 
         d3.selectAll(".infl-handle")
                 .on("dblclick", function(){
                     d3.select(this.parentNode)
-                    // .transition()
-                    // .duration(200)
-                    // .ease(d3.easeLinear)
                     .remove();
-                    if(this.classList[2] == "line") {
-                        that.updateHash("line")
-                    }
-                    if(this.classList[2] == "ann") {
-                        that.updateHash("ann")
-                    }
+                that.updateHash("line")
+    
                 });
+
+        // ann text
+        d3.selectAll(".infl-ann-text")
+            .call(d3.drag()
+            .on("start", function(event) {
+                var text_object = d3.select(this)
+                console.log(event.sourceEvent.clientX + " " + event.sourceEvent.clientY)
+                console.log(text_object.attr("x") + " " + text_object.attr("y"))
+
+                text_object
+                    .attr("x", event.sourceEvent.clientX)
+                    .attr("y", event.sourceEvent.clientY);
+            })
+            .on("drag", function(event) {
+                d3.select(this)
+                    .attr("x", event.sourceEvent.clientX)
+                    .attr("y", event.sourceEvent.clientY);
+            })
+            .on("end", function() {
+                that.updateHash("ann")
+            })
+        )
+        
+        d3.selectAll(".infl-ann-text")
+            .on("dblclick", function(){
+                d3.select(this)
+                .remove();
+            that.updateHash("ann")
+
+        });
                 
         // yaxis drag
 
@@ -645,39 +627,27 @@ function Inflection() {
             
         }
         if(kind == "ann") {
-            var lines = [];
-            d3.select("svg").selectAll(".infl-ann-line")
+            var anns = [];
+            d3.select("svg").selectAll(".infl-ann-text")
             .each(function(d) {
-                let line = d3.select(this)
-                let text = d3.select(this.parentElement).text().replace(" ", "_")
-                lines.push(
+                let text_object = d3.select(this)
+                anns.push(
                     {
-                        x1: line.attr("x1"),
-                        y1: line.attr("y1"),
-                        x2: line.attr("x2"),
-                        y2: line.attr("y2"),
-                        text: text
+                        x: text_object.attr("x"),
+                        y: text_object.attr("y"),
+                        text: text_object.text().replace(" ", "_")
                     }
                 )
             })
 
             let anntext = ""
-            lines.forEach((element, i) => {
+            anns.forEach((element, i) => {
                 if(i > 0) {anntext += ","}
-                anntext += element.x1
+                anntext += element.x
                 anntext += "-"
-                anntext += element.y1
-                anntext += "-"
-                anntext += element.x2
-                anntext += "-"
-                anntext += element.y2
+                anntext += element.y
                 anntext += "-"
                 anntext += element.text
-
-                // .attr("x1", single_ann.x)
-                //     .attr("x2", (single_ann.x-single_ann.dx))
-                //     .attr("y1", single_ann.y)
-                //     .attr("y2", (single_ann.y-single_ann.dy))
     
             })
             this.inflection.ann = anntext;
@@ -697,7 +667,6 @@ function Inflection() {
 
 
     this.line = function(){
-        //add 50% line
 
         let place = this.inflection.line
 
@@ -755,15 +724,7 @@ function Inflection() {
     }
 
     this.ann = function(){
-        // notation: x1-y1-x2-y2-text
-        // 
-        //      /  x1, y2
-        //     /
-        //    /
-        //   /
-        // text
-        // x1, y1
-
+        // notation: x-y-text
 
         let ann = this.inflection.ann
         if (ann == "") {
@@ -779,56 +740,29 @@ function Inflection() {
             let data = [];
             annlist.forEach(element => {
                 let splitted = element.split("-")
-                let x1value = splitted[0]
-                let y1value = splitted[1]
-                let x2value = splitted[2]
-                let y2value = splitted[3]
-                let text = splitted[4].replace("_", " ")
+                let xvalue = splitted[0]
+                let yvalue = splitted[1]
+                let text = splitted[2].replace("_", " ")
                 data.push({
-                    x1: x1value,
-                    y1: y1value,
-                    x2: x2value,
-                    y2: y2value,
+                    x: xvalue,
+                    y: yvalue,
                     text: text})
 
             });
 
-            d3.select(".ann-group").selectAll(".infl-ann")
-            .data(data)
-            .join("g").attr("class", "infl-ann")
-            .each(function(d) {
-                let single_ann = d
-                var g = d3.select(this);
-                // console.log(d)
-        
-                g.selectAll(".infl-ann-line")
-                    .data([""])
-                    .join("line")
-                    .attr("x1", single_ann.x1)
-                    .attr("x2", (single_ann.x2))
-                    .attr("y1", single_ann.y1)
-                    .attr("y2", (single_ann.y2))
-                    .attr("class", "infl-ann-line")
-                    .transition()
-                        .duration(200)
-                        .ease(d3.easeLinear)
-                        .attr("stroke", "black")
 
-
-                g.selectAll(".infl-ann-text")
-                    .data([""])
-                    .join("text")
-                    .style("text-anchor", "middle")
-                    .attr("class", "infl-ann-text")
-                    .attr("dy", "-.35em")
-                    // .text(function(d) {console.log(d)})
-                    .attr("x", single_ann.x1)
-                    .attr("y", single_ann.y1)
-                    .transition()
-                        .duration(200)
-                        .ease(d3.easeLinear)
-                    .text(single_ann.text);
-            })
+            d3.select(".ann-group").selectAll(".infl-ann-text")
+                .data(data)
+                .join("text")
+                .style("text-anchor", "middle")
+                .attr("class", "infl-ann-text")
+                .text(d => d.text)
+                .transition()
+                .duration(200)
+                .ease(d3.easeLinear)
+                    .attr("x", d => d.x)
+                    .attr("y", d => d.y)
+            // })
 
 
         }

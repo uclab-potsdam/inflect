@@ -71,7 +71,8 @@
 .infl-ann-text {
     font-family: "Ubuntu";
     font-size: 14px;
-    cursor: default;
+    cursor: move;
+    fill: #C8532E;
 }
 
 .infl-ui-titles {
