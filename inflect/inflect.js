@@ -75,10 +75,6 @@ function Inflection() {
 
                 that.hash = newhash;
 
-                // draw or zoom?
-                var walk = false;
-                var zoom = false;
-
                 // var mode = parseInt(hashA[0]);
                 var hashA = that.hash.split("&");
                 checkHash(hashA);
@@ -823,9 +819,9 @@ function Inflection() {
                 .attr("dy", "-1em")
                 .style("text-anchor", "middle")
                 .text(d => d.value)
-                    .transition()
-                    .duration(200)
-                    .ease(d3.easeLinear)
+                    // .transition()
+                    // .duration(200)
+                    // .ease(d3.easeLinear)
                     .attr("x", (d) => d.x + d.width / 2)
                     .attr("y", (d) => d.y);
         }
@@ -846,9 +842,9 @@ function Inflection() {
             .call(d3.axisLeft(newYScale));
             
             d3.select("svg").selectAll(".infl-label")
-                .transition()
-                .duration(200)
-                .ease(d3.easeLinear)
+                // .transition()
+                // .duration(200)
+                // .ease(d3.easeLinear)
                 .attr("y", (d) => newYScale(d.value));
 
             // Update the bars with the new y-scale
