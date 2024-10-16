@@ -53,19 +53,18 @@
 }
 
 .infl-handle {
-    /* fill: white;
-    fill-opacity: 0; */
+    fill: white;
+    fill-opacity: 0;
 
-    fill: #C8532E;
-    fill-opacity: 0.2;
+    /* fill: #C8532E;
+    fill-opacity: 0.2; */
     cursor: move;
     stroke: none;
 }
 
-.infl-line {
-    stroke: #C8532E;
+.single-line {
+    stroke: #71260f;
     stroke-width: 2px;
-    cursor: move;
 }
 
 .infl-label {
@@ -78,7 +77,6 @@
 .infl-ann-text {
     font-family: "Ubuntu";
     font-size: 14px;
-    cursor: move;
     fill: black;
     /* fill: #C8532E; */
 }

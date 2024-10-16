@@ -4,19 +4,19 @@ function Inflection() {
     this.baseurl = "";
     this.hash = window.location.hash.substring(1);
     this.inflection = {
-        line:"",
-        ann:"",
-        high:"",
-        yax:""
+        line: "",
+        ann: "",
+        high: "",
+        yax: ""
     };
     var highlight_colour = "#C8532E"
     this.basecol = "";
-    this.baseyax ="";
+    this.baseyax = "";
 
     this.editable = true;
     this.SVGheight = 0;
 
-    
+
 
 
 
@@ -31,7 +31,7 @@ function Inflection() {
     // });
 
     // hash change / history
-    this.init = function(which) {
+    this.init = function (which) {
 
         var that = this;
         this.baseurl = document.URL.split("#")[0];
@@ -42,7 +42,7 @@ function Inflection() {
         d3.select("svg").append("g").attr("class", "line-group")
         d3.select("svg").append("g").attr("class", "ann-group")
         d3.select("svg").append("g").attr("class", "label-group").attr("transform", transformation)
-        
+
         this.basecol = d3.select("svg").select(".bars rect").attr("fill").split("#")[1]
 
         this.baseyax = determineCurrentYax().toString()
@@ -51,9 +51,9 @@ function Inflection() {
 
         // add switch to toggle editability
 
-        if(window.top == window.self) {
+        if (window.top == window.self) {
             that.addUI();
-            
+
         } else {
             // Not top level. An iframe, popup or something
             that.editable = false;
@@ -61,17 +61,17 @@ function Inflection() {
 
 
 
-        
+
 
 
         checkHash(hashA)
-        
-                          
-        setInterval(function() {
+
+
+        setInterval(function () {
             var newhash = window.location.hash.substring(1);
             // console.log(newhash)
 
-            if (that.hash!=newhash) {
+            if (that.hash != newhash) {
 
                 that.hash = newhash;
 
@@ -80,11 +80,11 @@ function Inflection() {
                 checkHash(hashA);
                 that.updateEditable()
                 d3.selectAll(".annotation-group").raise()
-                
-                
+
+
             }
         }
-        , 500);
+            , 500);
 
         function checkHash(hash) {
             var cats_in_hash = [];
@@ -94,37 +94,37 @@ function Inflection() {
                 let cat = splitted[0]
                 let value = splitted[1]
                 switch (cat) {
-                        
+
                     case "line":
-                        if (value!=that.inflection.line) {
+                        if (value != that.inflection.line) {
                             that.inflection.line = value;
                             that.line();
                         }
-                    break;
+                        break;
                     case "ann":
-                        if (value!=that.inflection.ann) {
+                        if (value != that.inflection.ann) {
                             that.inflection.ann = value;
                             that.ann();
                         }
-                    break;
+                        break;
                     case "yax":
-                        if (value!=that.inflection.yax) {
+                        if (value != that.inflection.yax) {
                             that.inflection.yax = value;
                             that.yAx();
                         }
                         break;
                     case "high":
-                        if (value!=that.inflection.high) {
+                        if (value != that.inflection.high) {
                             that.inflection.high = value;
                             that.highlight();
                         }
-                    break;
+                        break;
                     default:
                         break;
                 }
                 cats_in_hash.push(cat)
             });
-            
+
             if (!cats_in_hash.includes("line") && that.inflection.line != "") {
                 that.inflection.line = ""
                 that.line();
@@ -141,10 +141,10 @@ function Inflection() {
                 that.inflection.high = ""
                 that.highlight();
             }
-            
+
         }
 
-    
+
         this.line();
         this.ann();
         this.highlight();
@@ -157,13 +157,13 @@ function Inflection() {
 
 
 
-    this.draw = function(fun) {
+    this.draw = function (fun) {
         window[fun]();
         // myfirstVis()
- 
+
     }
 
-    this.addUI = function() {
+    this.addUI = function () {
 
         var that = this;
         // Top level window
@@ -179,28 +179,28 @@ function Inflection() {
             .style("cursor", "pointer")
             .on("mouseover", function () {
                 tooltip.style("visibility", "visible").text("Copy hash to clipboard");
-              })
+            })
             .on("mousemove", function (event) {
                 tooltip.style("top", (event.pageY - 35) + "px")
-                  .style("left", (event.pageX - 20) + "px");
-              })
+                    .style("left", (event.pageX - 20) + "px");
+            })
             .on("mouseout", function () {
                 tooltip.style("visibility", "hidden");
-              })
-            .on("click", function() {
-                
+            })
+            .on("click", function () {
+
                 // Copy the text inside the text field
                 navigator.clipboard.writeText("#" + that.hash);
 
                 // Alert the copied text
                 tooltip.text("Copied to clipboard.");
-    
+
             });
-        
+
         // define toggle div
         d3.select(".inflect_ui").append("div")
-        .attr("class", "infl-ui-div")
-        .attr("id", "toggle")
+            .attr("class", "infl-ui-div")
+            .attr("id", "toggle")
         // .style("display", "block")
 
         // d3.select("#toggle")
@@ -226,52 +226,52 @@ function Inflection() {
 
         // reset axis
         d3.select(".inflect_ui").append("div")
-        .attr("class", "infl-ui-div")
-        .attr("id", "yax-div");
+            .attr("class", "infl-ui-div")
+            .attr("id", "yax-div");
 
         d3.select("#yax-div").append("button")
             .attr("class", "infl-buttons").html("Reset Y-Axis")
-            .on("click", function() {
-                    that.inflection.yax = that.baseyax;
-                    that.yAx()
-                    that.updateHash("line")
-                    that.updateEditable()
+            .on("click", function () {
+                that.inflection.yax = that.baseyax;
+                that.yAx()
+                that.updateHash("line")
+                that.updateEditable()
 
             });
-        
-            d3.select("#yax-div").append("p").html("back to original")
-                .style("margin-top", "6px")
-                .style("font-size", "13px");
+
+        d3.select("#yax-div").append("p").html("back to original")
+            .style("margin-top", "6px")
+            .style("font-size", "13px");
 
         // Lines
         d3.select(".inflect_ui").append("div")
-        .attr("class", "infl-ui-div")
-        .attr("id", "line-div");
+            .attr("class", "infl-ui-div")
+            .attr("id", "line-div");
 
         d3.select("#line-div").append("button")
             .attr("class", "infl-buttons").html("Add Line")
-            .on("click", function() {
-                    let lines = that.inflection.line
-                    var list = lines.split(",");
-                    if(list.length > 0 && list[0].length > 0) {
-                        lines += ","
-                    }
-                    lines += "120-330-80-80"
-                    that.inflection.line = lines;
-                    that.line()
-                    that.updateHash("line")
-                    that.updateEditable()
+            .on("click", function () {
+                let lines = that.inflection.line
+                var list = lines.split(",");
+                if (list.length > 0 && list[0].length > 0) {
+                    lines += ","
+                }
+                lines += "120-330-80-80"
+                that.inflection.line = lines;
+                that.line()
+                that.updateHash("line")
+                that.updateEditable()
 
             });
-        
-            d3.select("#line-div").append("p").html("appears in a random place")
-                .style("margin-top", "6px")
-                .style("font-size", "13px");
+
+        d3.select("#line-div").append("p").html("appears in a random place")
+            .style("margin-top", "6px")
+            .style("font-size", "13px");
 
         // Annotations
         d3.select(".inflect_ui").append("div")
-        .attr("class", "infl-ui-div")
-        .attr("id", "annotation-div");
+            .attr("class", "infl-ui-div")
+            .attr("id", "annotation-div");
 
         d3.select("#annotation-div").append("button")
             .attr("class", "infl-buttons").html("Add Annotation")
@@ -285,21 +285,21 @@ function Inflection() {
 
         // now define button behaviour
         d3.select("#ann-button")
-            .on("click", function() {
-                    let anns = that.inflection.ann
-                    var list = anns.split(",");
-                    if(list.length > 0 && list[0].length > 0) {
-                        anns += ","
-                    }
-                    let text = d3.select("#infl-text-input").property("value")
-                    if(text == "") {
-                        text = "text"
-                    }
-                    anns += ("140-70-"+text.replace(" ", "_"));
-                    that.inflection.ann = anns;
-                    that.ann()
-                    that.updateHash("ann")
-                    that.updateEditable()
+            .on("click", function () {
+                let anns = that.inflection.ann
+                var list = anns.split(",");
+                if (list.length > 0 && list[0].length > 0) {
+                    anns += ","
+                }
+                let text = d3.select("#infl-text-input").property("value")
+                if (text == "") {
+                    text = "text"
+                }
+                anns += ("140-70-" + text.replace(" ", "_"));
+                that.inflection.ann = anns;
+                that.ann()
+                that.updateHash("ann")
+                that.updateEditable()
 
             });
 
@@ -318,21 +318,21 @@ function Inflection() {
 
     }
 
-    this.updateEditable = function(){
+    this.updateEditable = function () {
         let that = this;
 
-        if(this.editable) {
+        if (that.editable) {
 
             // lines
             var lineGroup = d3.selectAll("g.infl-line");
 
-            lineGroup.each(function() {
+            lineGroup.each(function () {
                 // Select all the lines inside the group
                 var linegroup = d3.select(this);
 
                 var line = linegroup.select(".single-line");
                 // Append circles to the line ends
-                    
+
                 // Get the start and end points of the line
                 var left_data = {
                     x1: +line.attr("x1"),
@@ -361,7 +361,7 @@ function Inflection() {
                     .attr("cy", d => d.y2)
                     .attr("r", 10)
                     .attr("class", "infl-handle line right")
-                
+
             });
 
             // remove line
@@ -374,20 +374,20 @@ function Inflection() {
             //             // .ease(d3.easeLinear)
             //             .remove();
             //         that.updateHash("line")
-                    
+
             //     });
 
 
             // change highlight
             d3.select("svg").selectAll(".bars rect")
                 .style("cursor", "pointer")
-                .on("mousedown", function(event, d) {
+                .on("mousedown", function (event, d) {
                     let highlight = d.type;
                     let current_col = d3.select(this).attr("fill");
-                    if(current_col[0] != "#") {
+                    if (current_col[0] != "#") {
                         current_col = rgbToHex(current_col)
                     }
-                    if(current_col == highlight_colour.toUpperCase()) {
+                    if (current_col == highlight_colour.toUpperCase()) {
                         that.inflection.high = "";
                     } else {
                         that.inflection.high = highlight
@@ -397,9 +397,9 @@ function Inflection() {
                     that.updateHash("high")
                     // that.highlight()
                 })
-            
+
             // scale y-Axis
-        
+
             var yaxis_placement = d3.select(".myYaxis").node().getBoundingClientRect()
 
             d3.select("svg").selectAll(".infl-drag-area")
@@ -414,161 +414,138 @@ function Inflection() {
                 .style("fill", "none")
                 .style("pointer-events", "all")
                 .style("cursor", "n-resize")
-              
 
-                
-        }
-        else { //not editable
-            d3.selectAll(".infl-handle")
-            .transition()
-                    .duration(200)
-                    .ease(d3.easeLinear)
-                .remove()
+            // ann text
+            d3.selectAll(".infl-ann-text")
+                .style("cursor", "move")
+                .call(d3.drag()
+                    .on("start", function (event) {
+                        // var text_object = d3.select(this)
+                        // text_object
+                        //     .attr("x", event.sourceEvent.clientX)
+                        //     .attr("y", event.sourceEvent.clientY);
+                    })
+                    .on("drag", function (event) {
+                        var text_object = d3.select(this);
 
-            d3.select("svg").selectAll("rect")
-                .style("cursor", "default")
-                .on("mousedown", function(event, d) {//do nothing
-                    });
-            
-            d3.select("g.myYaxis")
-                .style("cursor", "auto")
+                        var text_current_pos = {
+                            x: +text_object.attr("x"),
+                            y: +text_object.attr("y"),
+                        }
+                        const xdragAmount = event.dx;
+                        const ydragAmount = event.dy;
 
-            d3.select(".infl-drag-area").remove()
-            
-        }
+                        text_object
+                            .attr("x", text_current_pos.x + xdragAmount)
+                            .attr("y", text_current_pos.y + ydragAmount);
+                    })
+                    .on("end", function () {
+                        that.updateHash("ann")
+                    }))
 
-        // define events
-        // lines
-        d3.select(".single-line")
-            .call(d3.drag()
-                .on("start", function(event){
-                    console.log(event.x)
-                    console.log(event.y)
-                })
-                .on("drag", function(event) {
-                    var line = d3.select(this);
-                    
-                    var line_current_pos = {
-                        x1: +line.attr("x1"),
-                        y1: +line.attr("y1"),
-                        x2: +line.attr("x2"),
-                        y2: +line.attr("y2"),
-
-                    }
-                    const xdragAmount = event.dx;
-                    const ydragAmount = event.dy;
-
-                    line
-                        .attr("x1", line_current_pos.x1 + xdragAmount)
-                        .attr("y1", line_current_pos.y1 + ydragAmount)
-                        .attr("x2", line_current_pos.x2 + xdragAmount)
-                        .attr("y2", line_current_pos.y2 + ydragAmount);
-
-                    //handles
-                    d3.select(this.parentNode).selectAll(".infl-handle")
-                        .each(function(d) {
-                            var handle = d3.select(this);
-                            var handle_current_pos = {
-                                cx: +handle.attr("cx"),
-                                cy: +handle.attr("cy"),
-                            }
-
-                            handle
-                                .attr("cx", handle_current_pos.cx + xdragAmount)
-                                .attr("cy", handle_current_pos.cy + ydragAmount);
-                        })
-
-                })
-                .on("end", function() {
-                        that.updateHash("line")
-                })
-            );
-
-        //handles of lines
-        d3.selectAll(".infl-handle").call(d3.drag()
-            .on("start", function(event) {
-                var text_object = d3.select(this)
-                console.log(event.x + " " + event.y)
-                console.log(text_object.attr("cx") + " " + text_object.attr("cy"))
-
-            })
-            .on("drag", function (event, d) {
-            // console.log(d);
-                d3.select(this)
-                    .attr("cx", event.x)
-                    .attr("cy", event.y);
-
-                if(this.classList[2] == "left") {
-                    d3.select(this.parentNode).select(".single-line")
-                        .attr("x1", event.x)
-                        .attr("y1", event.y);
-                } else if(this.classList[2] == "right") {
-                    d3.select(this.parentNode).select(".single-line")
-                        .attr("x2", event.x)
-                        .attr("y2", event.y);
-                }
-
-                
-            })
-            .on("end", function() {
-                    that.updateHash("line")
-
-            })
-        )
-
-        d3.selectAll(".infl-handle")
-                .on("dblclick", function(){
-                    d3.select(this.parentNode)
-                    .remove();
-                that.updateHash("line")
-    
+            d3.selectAll(".infl-ann-text")
+                .on("dblclick", function () {
+                    d3.select(this)
+                        .remove();
+                    that.updateHash("ann")
                 });
 
-        // ann text
-        d3.selectAll(".infl-ann-text")
+            // lines
+            d3.selectAll(".single-line")
+                .style("cursor", "move")
+                .call(d3.drag()
+                    .on("drag", function (event) {
+                        var line = d3.select(this);
+
+                        var line_current_pos = {
+                            x1: +line.attr("x1"),
+                            y1: +line.attr("y1"),
+                            x2: +line.attr("x2"),
+                            y2: +line.attr("y2"),
+
+                        }
+                        const xdragAmount = event.dx;
+                        const ydragAmount = event.dy;
+
+                        line
+                            .attr("x1", line_current_pos.x1 + xdragAmount)
+                            .attr("y1", line_current_pos.y1 + ydragAmount)
+                            .attr("x2", line_current_pos.x2 + xdragAmount)
+                            .attr("y2", line_current_pos.y2 + ydragAmount);
+
+                        //also drag handles
+                        d3.select(this.parentNode).selectAll(".infl-handle")
+                            .each(function (d) {
+                                var handle = d3.select(this);
+                                var handle_current_pos = {
+                                    cx: +handle.attr("cx"),
+                                    cy: +handle.attr("cy"),
+                                }
+
+                                handle
+                                    .attr("cx", handle_current_pos.cx + xdragAmount)
+                                    .attr("cy", handle_current_pos.cy + ydragAmount);
+                            })
+
+                    })
+                    .on("end", function () {
+                        that.updateHash("line")
+                    })
+                );
+
+            //handles of lines
+            d3.selectAll(".infl-handle")
+            .on("dblclick", function () {
+                d3.select(this.parentNode)
+                    .remove();
+                that.updateHash("line")
+
+            })            
             .call(d3.drag()
-            .on("start", function(event) {
-                var text_object = d3.select(this)
-                console.log(event.sourceEvent.clientX + " " + event.sourceEvent.clientY)
-                console.log(text_object.attr("x") + " " + text_object.attr("y"))
+                .on("start", function (event) {
+                    var text_object = d3.select(this)
+                    console.log(event.x + " " + event.y)
+                    console.log(text_object.attr("cx") + " " + text_object.attr("cy"))
 
-                text_object
-                    .attr("x", event.sourceEvent.clientX)
-                    .attr("y", event.sourceEvent.clientY);
-            })
-            .on("drag", function(event) {
-                d3.select(this)
-                    .attr("x", event.sourceEvent.clientX)
-                    .attr("y", event.sourceEvent.clientY);
-            })
-            .on("end", function() {
-                that.updateHash("ann")
-            })
-        )
-        
-        d3.selectAll(".infl-ann-text")
-            .on("dblclick", function(){
-                d3.select(this)
-                .remove();
-            that.updateHash("ann")
+                })
+                .on("drag", function (event, d) {
+                    // console.log(d);
+                    d3.select(this)
+                        .attr("cx", event.x)
+                        .attr("cy", event.y);
 
-        });
+                    if (this.classList[2] == "left") {
+                        d3.select(this.parentNode).select(".single-line")
+                            .attr("x1", event.x)
+                            .attr("y1", event.y);
+                    } else if (this.classList[2] == "right") {
+                        d3.select(this.parentNode).select(".single-line")
+                            .attr("x2", event.x)
+                            .attr("y2", event.y);
+                    }
+                })
+                .on("end", function () {
+                    that.updateHash("line")
+                })
+            )
+
                 
-        // yaxis drag
 
-            var yScaleReconstructed = d3.scaleLinear()
-                
+            // yaxis drag
+
+        var yScaleReconstructed = d3.scaleLinear()
+
 
         // define drag of axis
         d3.select(".infl-drag-area")
             .call(d3.drag()
-                .on("start", function(){
+                .on("start", function () {
                     var curYAxValue = determineCurrentYax()
                     yScaleReconstructed
                         .domain([0, curYAxValue])
                         .range([that.SVGheight, 0]);
                 })
-                .on("drag", function(event) {
+                .on("drag", function (event) {
                     // Calculate the change in the y-axis based on the drag
                     const dragAmount = event.dy;
 
@@ -587,34 +564,71 @@ function Inflection() {
                     d3.select("svg").selectAll(".infl-label")
                         .attr("y", (d) => yScaleReconstructed(d.value))
                 })
-                .on("end", function() {
-                        that.updateHash("yax")
+                .on("end", function () {
+                    that.updateHash("yax")
                 })
             );
-    }   
-    
 
-    
+        }
+        else { //not editable
+            d3.selectAll(".infl-handle")
+                .remove()
 
-    this.updateHash = function(kind){
-        
-        if(kind == "line") {
+            d3.select("svg").selectAll("rect")
+                .style("cursor", "default")
+                .on("mousedown", function (event, d) {//do nothing
+                });
+
+            d3.select("g.myYaxis")
+                .style("cursor", "auto")
+
+            d3.select(".infl-drag-area").remove()
+
+            d3.selectAll(".infl-ann-text")
+                .style("cursor", "default")
+                .on("dblclick", function () {})
+                .call(d3.drag()
+                    .on("start", function () {
+                    })
+                    .on("drag", function () {
+                    })
+                    .on("end", function () {
+                    }))
+            
+            d3.select(".single-line")
+                .style("cursor", "default")
+                .call(d3.drag()
+                    .on("start", function () {})
+                    .on("drag", function () {})
+                    .on("end", function () {})
+                );
+
+        }
+
+    }
+
+
+
+
+    this.updateHash = function (kind) {
+
+        if (kind == "line") {
             var lines = [];
             d3.select("svg").selectAll(".single-line")
-            .each(function(d) {
-                let line = d3.select(this)
-                lines.push(
-                    {
-                        x1: line.attr("x1"),
-                        x2: line.attr("x2"),
-                        y1: line.attr("y1"),
-                        y2: line.attr("y2"),
-                    }
-                )
-            })
+                .each(function (d) {
+                    let line = d3.select(this)
+                    lines.push(
+                        {
+                            x1: line.attr("x1"),
+                            x2: line.attr("x2"),
+                            y1: line.attr("y1"),
+                            y2: line.attr("y2"),
+                        }
+                    )
+                })
             let linetext = ""
             lines.forEach((element, i) => {
-                if(i > 0) {linetext += ","}
+                if (i > 0) { linetext += "," }
                 linetext += element.x1
                 linetext += "-"
                 linetext += element.x2
@@ -622,41 +636,41 @@ function Inflection() {
                 linetext += element.y1
                 linetext += "-"
                 linetext += element.y2
-    
+
             })
             this.inflection.line = linetext;
         }
-        if(kind == "high") {
-            
+        if (kind == "high") {
+
         }
-        if(kind == "ann") {
+        if (kind == "ann") {
             var anns = [];
             d3.select("svg").selectAll(".infl-ann-text")
-            .each(function(d) {
-                let text_object = d3.select(this)
-                anns.push(
-                    {
-                        x: text_object.attr("x"),
-                        y: text_object.attr("y"),
-                        text: text_object.text().replace(" ", "_")
-                    }
-                )
-            })
+                .each(function (d) {
+                    let text_object = d3.select(this)
+                    anns.push(
+                        {
+                            x: text_object.attr("x"),
+                            y: text_object.attr("y"),
+                            text: text_object.text().replace(" ", "_")
+                        }
+                    )
+                })
 
             let anntext = ""
             anns.forEach((element, i) => {
-                if(i > 0) {anntext += ","}
+                if (i > 0) { anntext += "," }
                 anntext += element.x
                 anntext += "-"
                 anntext += element.y
                 anntext += "-"
                 anntext += element.text
-    
+
             })
             this.inflection.ann = anntext;
 
         }
-        if(kind == "yax") {
+        if (kind == "yax") {
             this.inflection.yax = determineCurrentYax().toString();
         }
         this.hash =
@@ -669,15 +683,15 @@ function Inflection() {
 
 
 
-    this.line = function(){
+    this.line = function () {
 
         let place = this.inflection.line
 
         if (place == "") {
             d3.selectAll(".infl-line")
-            .transition()
-                    .duration(200)
-                    .ease(d3.easeLinear)
+                .transition()
+                .duration(200)
+                .ease(d3.easeLinear)
                 .remove()
         }
         else {
@@ -690,52 +704,52 @@ function Inflection() {
                 let x2value = splitted[1]
                 let y1value = splitted[2]
                 let y2value = splitted[3]
-                
+
                 data.push(
-                {
-                    x1: x1value,
-                    x2: x2value,
-                    y1: y1value,
-                    y2: y2value,
-                })
+                    {
+                        x1: x1value,
+                        x2: x2value,
+                        y1: y1value,
+                        y2: y2value,
+                    })
 
             });
 
-            
+
 
             d3.select(".line-group").selectAll(".infl-line")
-            .data(data)
-            .join("g").attr("class", "infl-line")
-            .each(function(d) {
-                var g = d3.select(this);
-        
-                g.selectAll(".single-line")
-                    .data([d])
-                    .join("line")
-                    .attr("x1", d => d.x1)
-                    .attr("x2", d => d.x2)
-                    .attr("y1", d => d.y1)
-                    .attr("y2", d => d.y2)
-                    .attr("class", "single-line")
-                    .transition()
+                .data(data)
+                .join("g").attr("class", "infl-line")
+                .each(function (d) {
+                    var g = d3.select(this);
+
+                    g.selectAll(".single-line")
+                        .data([d])
+                        .join("line")
+                        .attr("x1", d => d.x1)
+                        .attr("x2", d => d.x2)
+                        .attr("y1", d => d.y1)
+                        .attr("y2", d => d.y2)
+                        .attr("class", "single-line")
+                        .transition()
                         .duration(200)
                         .ease(d3.easeLinear)
                         .attr("stroke", "#C8532E")
-            });
+                });
 
         }
     }
 
-    this.ann = function(){
+    this.ann = function () {
         // notation: x-y-text
 
         let ann = this.inflection.ann
         if (ann == "") {
             d3.selectAll(".infl-ann")
-            .transition()
-                    .duration(200)
-                    .ease(d3.easeLinear)
-            .remove()
+                .transition()
+                .duration(200)
+                .ease(d3.easeLinear)
+                .remove()
         }
         else {
             var annlist = ann.split(",");
@@ -749,7 +763,8 @@ function Inflection() {
                 data.push({
                     x: xvalue,
                     y: yvalue,
-                    text: text})
+                    text: text
+                })
 
             });
 
@@ -763,44 +778,44 @@ function Inflection() {
                 .transition()
                 .duration(200)
                 .ease(d3.easeLinear)
-                    .attr("x", d => d.x)
-                    .attr("y", d => d.y)
+                .attr("x", d => d.x)
+                .attr("y", d => d.y)
             // })
 
 
         }
     }
 
-    this.highlight = function(){
+    this.highlight = function () {
         //add 50% line
         let highlight = this.inflection.high
         if (highlight == "") {
             d3.selectAll("rect")
-            .transition()
+                .transition()
                 .duration(200)
                 .ease(d3.easeLinear)
-            .attr("fill", "#" + this.basecol)
+                .attr("fill", "#" + this.basecol)
 
             d3.selectAll(".infl-label")
-            .transition()
+                .transition()
                 .duration(200)
                 .ease(d3.easeLinear)
                 .remove()
         }
         else {
             d3.select("svg").selectAll(".bars rect").filter(d => d.type == highlight)
-            .transition()
-            .duration(200)
-            .ease(d3.easeLinear)
+                .transition()
+                .duration(200)
+                .ease(d3.easeLinear)
                 .attr("fill", highlight_colour)
 
             d3.select("svg").selectAll(".bars rect").filter(d => d.type != highlight)
                 .transition()
                 .duration(200)
                 .ease(d3.easeLinear)
-                    .attr("fill", "#" + this.basecol)
+                .attr("fill", "#" + this.basecol)
 
-                //add bar labels
+            //add bar labels
             var rect = d3.selectAll(".bars rect").filter(d => d.type == highlight);
             var label_data = [{
                 x: +rect.attr("x"),
@@ -819,76 +834,76 @@ function Inflection() {
                 .attr("dy", "-1em")
                 .style("text-anchor", "middle")
                 .text(d => d.value)
-                    // .transition()
-                    // .duration(200)
-                    // .ease(d3.easeLinear)
-                    .attr("x", (d) => d.x + d.width / 2)
-                    .attr("y", (d) => d.y);
+                // .transition()
+                // .duration(200)
+                // .ease(d3.easeLinear)
+                .attr("x", (d) => d.x + d.width / 2)
+                .attr("y", (d) => d.y);
         }
     }
 
-    this.yAx = function(){
+    this.yAx = function () {
         var that = this;
         var yAxValue = that.inflection.yax
         var newYScale = d3.scaleLinear()
-                .domain([0, yAxValue])
-                .range([that.SVGheight, 0]);
+            .domain([0, yAxValue])
+            .range([that.SVGheight, 0]);
 
-            // Update the y-axis
-            d3.select(".myYaxis")
+        // Update the y-axis
+        d3.select(".myYaxis")
             .transition()
-                .duration(200)
-                .ease(d3.easeLinear)
+            .duration(200)
+            .ease(d3.easeLinear)
             .call(d3.axisLeft(newYScale));
-            
-            d3.select("svg").selectAll(".infl-label")
-                // .transition()
-                // .duration(200)
-                // .ease(d3.easeLinear)
-                .attr("y", (d) => newYScale(d.value));
 
-            // Update the bars with the new y-scale
-            d3.select("svg").selectAll(".bars rect")
-                // .transition()
-                // .duration(200)
-                // .ease(d3.easeLinear)
-                .attr("y", d => newYScale(d.value))
-                .attr("height", d => that.SVGheight - newYScale(d.value))
+        d3.select("svg").selectAll(".infl-label")
+            // .transition()
+            // .duration(200)
+            // .ease(d3.easeLinear)
+            .attr("y", (d) => newYScale(d.value));
 
-     }
-    
+        // Update the bars with the new y-scale
+        d3.select("svg").selectAll(".bars rect")
+            // .transition()
+            // .duration(200)
+            // .ease(d3.easeLinear)
+            .attr("y", d => newYScale(d.value))
+            .attr("height", d => that.SVGheight - newYScale(d.value))
+
+    }
+
 
     function rgbToHex(rgb) {
         // Extract the RGB values using a regular expression
         var rgbValues = rgb.match(/\d+/g); // Matches all numbers in the string
-    
+
         // Convert each RGB component to a 2-digit hex value
         var r = parseInt(rgbValues[0]).toString(16).padStart(2, '0'); // Red
         var g = parseInt(rgbValues[1]).toString(16).padStart(2, '0'); // Green
         var b = parseInt(rgbValues[2]).toString(16).padStart(2, '0'); // Blue
-    
+
         // Combine into the hex format
         return `#${r}${g}${b}`.toUpperCase(); // Uppercase for consistency
     }
 
-    function determineCurrentYax(){
+    function determineCurrentYax() {
         var axisSelection = d3.select(".myYaxis");
 
-            // Extract tick values (domain points)
-            var tickValues = axisSelection.selectAll(".tick text")
-                .data()
-                .map(d => +d);
+        // Extract tick values (domain points)
+        var tickValues = axisSelection.selectAll(".tick text")
+            .data()
+            .map(d => +d);
 
-            var tickPositions = axisSelection.selectAll(".tick")
-                .nodes()
-                .map(tick => {
-                    const transform = d3.select(tick).attr("transform");
-                    const translateY = transform.match(/translate\(.*?,([^\)]+)\)/)[1]; // Extract Y value from translate(0,Y)
-                    return +translateY;
-                });
+        var tickPositions = axisSelection.selectAll(".tick")
+            .nodes()
+            .map(tick => {
+                const transform = d3.select(tick).attr("transform");
+                const translateY = transform.match(/translate\(.*?,([^\)]+)\)/)[1]; // Extract Y value from translate(0,Y)
+                return +translateY;
+            });
 
-            var yaxValue = d3.max(tickValues) + (d3.min(tickPositions) / ((d3.max(tickPositions) - d3.min(tickPositions)) / d3.max(tickValues)))
-            return Math.round(10*yaxValue)/10
+        var yaxValue = d3.max(tickValues) + (d3.min(tickPositions) / ((d3.max(tickPositions) - d3.min(tickPositions)) / d3.max(tickValues)))
+        return Math.round(10 * yaxValue) / 10
 
     }
 
