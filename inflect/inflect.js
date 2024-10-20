@@ -37,17 +37,22 @@ function Inflection() {
         this.baseurl = document.URL.split("#")[0];
         // that.col = that.hash.split("_")[0]
         var hashA = this.hash.split("&");
-        this.draw(which)
+
         var transformation = d3.select("svg").select("g").attr("transform")
+        
         d3.select("svg").append("g").attr("class", "line-group")
         d3.select("svg").append("g").attr("class", "ann-group")
         d3.select("svg").append("g").attr("class", "label-group").attr("transform", transformation)
 
-        this.basecol = d3.select("svg").select(".bars rect").attr("fill").split("#")[1]
+        this.basecol = d3.select(".mark-rect").select("path").attr("fill").split("#")[1]
 
         this.baseyax = determineCurrentYax().toString()
         this.inflection.yax = this.baseyax;
-        this.SVGheight = d3.select(".myYaxis").select(".tick").attr("transform").match(/translate\(.*?,([^\)]+)\)/)[1]
+
+        this.SVGheight = +d3.selectAll("g.mark-group.role-axis").filter(function() {
+            return String(d3.select(this).attr("aria-label")).includes("Y-axis")
+        }).select(".role-axis-domain").select("line").attr("transform").match(/translate\(.*?,([^\)]+)\)/)[1]; // get length in y-direction of y-axis line
+
 
         // add switch to toggle editability
 
@@ -57,6 +62,7 @@ function Inflection() {
         } else {
             // Not top level. An iframe, popup or something
             that.editable = false;
+            d3.select("details").remove()
         }
 
 
@@ -156,13 +162,6 @@ function Inflection() {
 
 
 
-
-    this.draw = function (fun) {
-        window[fun]();
-        // myfirstVis()
-
-    }
-
     this.addUI = function () {
 
         var that = this;
@@ -256,7 +255,7 @@ function Inflection() {
                 if (list.length > 0 && list[0].length > 0) {
                     lines += ","
                 }
-                lines += "120-330-80-80"
+                lines += "42-226-40-41"
                 that.inflection.line = lines;
                 that.line()
                 that.updateHash("line")
@@ -379,11 +378,19 @@ function Inflection() {
 
 
             // change highlight
-            d3.select("svg").selectAll(".bars rect")
+            d3.selectAll("path")
+                .filter(function() {
+                    return d3.select(this).attr("aria-roledescription") == "bar"
+                    })
                 .style("cursor", "pointer")
-                .on("mousedown", function (event, d) {
-                    let highlight = d.type;
-                    let current_col = d3.select(this).attr("fill");
+                .on("mousedown", function () {
+                    var path = d3.select(this)
+                    // get x value of bar to store it
+                    let descr = path.attr("aria-label")
+                    let regex = /\b\w+:\s*([\w]+)\b/;
+            
+                    let highlight = descr.match(regex)[1];
+                    let current_col = path.attr("fill");
                     if (current_col[0] != "#") {
                         current_col = rgbToHex(current_col)
                     }
@@ -399,8 +406,12 @@ function Inflection() {
                 })
 
             // scale y-Axis
-
-            var yaxis_placement = d3.select(".myYaxis").node().getBoundingClientRect()
+            // d3.selectAll("g.mark-group.role-axis").filter(function() {
+                    //     return d3.select(this).attr("aria-hidden") != "true";
+                    //   }).select("g").attr("transform")
+            var yaxis_placement = d3.selectAll("g.mark-group.role-axis").filter(function() {
+                return String(d3.select(this).attr("aria-label")).includes("Y-axis")
+                }).select("g").node().getBoundingClientRect()
 
             d3.select("svg").selectAll(".infl-drag-area")
                 .data([""])
@@ -453,6 +464,11 @@ function Inflection() {
             // lines
             d3.selectAll(".single-line")
                 .style("cursor", "move")
+                .on("dblclick", function () {
+                    d3.select(this.parentNode)
+                        .remove();
+                    that.updateHash("line")
+                })            
                 .call(d3.drag()
                     .on("drag", function (event) {
                         var line = d3.select(this);
@@ -538,6 +554,11 @@ function Inflection() {
 
         // define drag of axis
         d3.select(".infl-drag-area")
+            .on("dblclick", function(){
+                that.inflection.yax = that.baseyax;
+                that.yAx()
+                that.updateHash("line")
+            })
             .call(d3.drag()
                 .on("start", function () {
                     var curYAxValue = determineCurrentYax()
@@ -550,19 +571,21 @@ function Inflection() {
                     const dragAmount = event.dy;
 
                     // Adjust the domain of the y-scale
-                    const newMaxY = yScaleReconstructed.domain()[1] + dragAmount * (yScaleReconstructed.domain()[1] / that.SVGheight); // Adjust the domain proportionally
+                    // const newMaxY = yScaleReconstructed.domain()[1] + dragAmount * (yScaleReconstructed.domain()[1] / that.SVGheight); // Adjust the domain proportionally
+                    const currentDomain = yScaleReconstructed.domain();
+                    const rangeExtent = yScaleReconstructed.range();
+                    const domainExtent = currentDomain[1] - currentDomain[0]; // The current range of the Y-axis domain
+
+                    // Map the pixel drag amount to the data scale
+                    const dataDragAmount = (dragAmount / (rangeExtent[0] - rangeExtent[1])) * domainExtent;
+
+                    // Calculate the new maximum Y-axis value
+                    const newMaxY = currentDomain[1] + dataDragAmount;  
+                    // Update the domain of the scale
                     yScaleReconstructed.domain([0, newMaxY]);
-
-                    // Update the y-axis
-                    d3.select(".myYaxis").call(d3.axisLeft(yScaleReconstructed));
-
-                    // Update the bars with the new y-scale
-                    d3.select("svg").selectAll(".bars rect")
-                        .attr("y", d => yScaleReconstructed(d.value))
-                        .attr("height", d => yScaleReconstructed.range()[0] - yScaleReconstructed(d.value))
-
-                    d3.select("svg").selectAll(".infl-label")
-                        .attr("y", (d) => yScaleReconstructed(d.value))
+                    
+                    that.inflection.yax = newMaxY
+                    that.yAx()
                 })
                 .on("end", function () {
                     that.updateHash("yax")
@@ -574,10 +597,14 @@ function Inflection() {
             d3.selectAll(".infl-handle")
                 .remove()
 
-            d3.select("svg").selectAll("rect")
+            //bar/highlight behaviour
+            d3.selectAll("path")
+                .filter(function() {
+                    return d3.select(this).attr("aria-roledescription") == "bar"
+                    })
                 .style("cursor", "default")
                 .on("mousedown", function (event, d) {//do nothing
-                });
+                    });
 
             d3.select("g.myYaxis")
                 .style("cursor", "auto")
@@ -597,6 +624,7 @@ function Inflection() {
             
             d3.select(".single-line")
                 .style("cursor", "default")
+                .on("dblclick", function () {})
                 .call(d3.drag()
                     .on("start", function () {})
                     .on("drag", function () {})
@@ -775,11 +803,11 @@ function Inflection() {
                 .style("text-anchor", "middle")
                 .attr("class", "infl-ann-text")
                 .text(d => d.text)
+                .attr("x", d => d.x)
+                .attr("y", d => d.y)
                 .transition()
                 .duration(200)
                 .ease(d3.easeLinear)
-                .attr("x", d => d.x)
-                .attr("y", d => d.y)
             // })
 
 
@@ -787,10 +815,14 @@ function Inflection() {
     }
 
     this.highlight = function () {
-        //add 50% line
+        // bar rects are defined as paths like this:
+        // <path aria-label="a: A; b: 28" role="graphics-symbol" aria-roledescription="bar" d="M1,144h18v56h-18Z" fill="#4c78a8"></path>
         let highlight = this.inflection.high
         if (highlight == "") {
-            d3.selectAll("rect")
+            d3.selectAll("path")
+                .filter(function() {
+                    return d3.select(this).attr("aria-roledescription") == "bar"
+                    })
                 .transition()
                 .duration(200)
                 .ease(d3.easeLinear)
@@ -803,29 +835,49 @@ function Inflection() {
                 .remove()
         }
         else {
-            d3.select("svg").selectAll(".bars rect").filter(d => d.type == highlight)
-                .transition()
-                .duration(200)
-                .ease(d3.easeLinear)
+            // select correct path of bar that has to be highlighted
+
+            var path = d3.selectAll("path")
+                .filter(function() {
+                    return d3.select(this).attr("aria-roledescription") == "bar" && String(d3.select(this).attr("aria-label")).includes(highlight)
+                    })
+
+            path
+                // .transition()
+                // .duration(200)
+                // .ease(d3.easeLinear)
                 .attr("fill", highlight_colour)
+            
+            // var i = 0;
+            // while(path.attr("fill") != highlight_colour) {
+            //     i++;
+            // }
 
-            d3.select("svg").selectAll(".bars rect").filter(d => d.type != highlight)
-                .transition()
-                .duration(200)
-                .ease(d3.easeLinear)
-                .attr("fill", "#" + this.basecol)
+            var aria_label = path.attr("aria-label") // e.g. "a: D; b: 91"
+            // filter y value
+            let yvalue = aria_label.match(/\b\w+:\s*(\d+)\b/)[1];  // "91" 
 
-            //add bar labels
-            var rect = d3.selectAll(".bars rect").filter(d => d.type == highlight);
-            var label_data = [{
-                x: +rect.attr("x"),
-                y: +rect.attr("y"),
-                width: +rect.attr("width"),
-                value: +rect.data()[0].value
-            }]
+            // get x-and y-position
+            let path_descr = path.attr("d")
 
+            let match = path_descr.match(/M(\d+),([0-9.]+)h(\d+)/);
 
-            d3.select(".label-group")
+    
+
+            if (match) {
+                let topLeftX = parseFloat(match[1]); // X coordinate (top-left corner)
+                let topLeftY = parseFloat(match[2]); // Y coordinate (top-left corner)
+                let width = parseFloat(match[3]);    // Width from the `h` command
+
+                //add bar labels
+                var label_data = [{
+                    x: topLeftX,
+                    y: topLeftY,
+                    width: width,
+                    value: +yvalue
+                }]
+
+                d3.select(".label-group")
                 .selectAll("text.infl-label")
                 .data(label_data)
                 .join("text")
@@ -839,36 +891,139 @@ function Inflection() {
                 // .ease(d3.easeLinear)
                 .attr("x", (d) => d.x + d.width / 2)
                 .attr("y", (d) => d.y);
+            }
+            
+            // colour non-highlight bars back to normal
+            d3.selectAll("path")
+                .filter(function() {
+                    return d3.select(this).attr("aria-roledescription") == "bar" && !String(d3.select(this).attr("aria-label")).includes(highlight)
+                    })
+                // .transition()
+                // .duration(200)
+                // .ease(d3.easeLinear)
+                .attr("fill", "#" + this.basecol)
+                
+
         }
     }
 
     this.yAx = function () {
         var that = this;
         var yAxValue = that.inflection.yax
+        var oldYScale = d3.scaleLinear()
+            .domain([0, determineCurrentYax()])
+            .range([that.SVGheight, 0]);
+
         var newYScale = d3.scaleLinear()
             .domain([0, yAxValue])
             .range([that.SVGheight, 0]);
 
-        // Update the y-axis
-        d3.select(".myYaxis")
-            .transition()
-            .duration(200)
-            .ease(d3.easeLinear)
-            .call(d3.axisLeft(newYScale));
+        var YaxisSelection = d3.selectAll("g.mark-group.role-axis").filter(function() {
+                return String(d3.select(this).attr("aria-label")).includes("Y-axis")
+            })
 
+        // Update the y-axis
+            // Update tick lines
+            YaxisSelection.selectAll('.mark-rule.role-axis-tick line') // Select all tick lines
+            .each(function(d, i) {
+                // Get the original tick value from its y-position
+                var transform = d3.select(this).attr('transform');
+                var original_y = +transform.match(/translate\(.*?,([^\)]+)\)/)[1];
+
+                // extract tick value from original y
+                var tick_value = oldYScale.invert(original_y)
+                
+                // Use tick value to calculate the new position
+                var newYPosition = newYScale(tick_value);
+
+                if (newYPosition < 0) {
+                    d3.select(this)
+                    // .transition()
+                    // .duration(200)
+                    // .ease(d3.easeLinear)
+                    .remove()
+                } else {
+                    // Update the transform attribute with the new Y position
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .ease(d3.easeLinear)
+                        .attr('transform', 'translate(0,' + newYPosition + ')');
+                }
+            });
+
+            // Update tick labels
+            YaxisSelection.selectAll('.mark-text.role-axis-label text') // Select all tick labels
+            .each(function(d, i) {
+                // Get the original tick value from its y-position
+                var transform = d3.select(this).attr('transform');
+                var original_y = +transform.match(/translate\(.*?,([^\)]+)\)/)[1];
+
+                var tick_value = +d3.select(this).text()
+                
+                // Use newYScale to calculate the new position
+                var newYPosition = newYScale(tick_value) + 3;
+
+                if (newYPosition < 0) {
+                    d3.select(this)
+                    .remove()
+                } else {
+                    // Update the transform attribute with the new Y position
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .ease(d3.easeLinear)
+                        .attr('transform', 'translate(-7,' + newYPosition + ')');
+                }
+            });
+
+            // add ticks and labels that are now missing
+
+
+
+        // Update labels
         d3.select("svg").selectAll(".infl-label")
             // .transition()
             // .duration(200)
             // .ease(d3.easeLinear)
             .attr("y", (d) => newYScale(d.value));
 
-        // Update the bars with the new y-scale
-        d3.select("svg").selectAll(".bars rect")
-            // .transition()
-            // .duration(200)
-            // .ease(d3.easeLinear)
-            .attr("y", d => newYScale(d.value))
-            .attr("height", d => that.SVGheight - newYScale(d.value))
+        d3.selectAll("path")
+            .filter(function() {
+                    return d3.select(this).attr("aria-roledescription") == "bar"
+            })
+            .each(function(){
+                var bar = d3.select(this)
+                var aria_label = bar.attr("aria-label") // e.g. "a: D; b: 91"
+
+                // filter y value
+                var yvalue = aria_label.match(/\b\w+:\s*(\d+)\b/)[1];  // "91" 
+
+                var path = bar.attr("d") // e.g. "M1,144h18v56h-18Z"
+
+                let regex = /M(\d+),(-?[0-9.]+)h(\d+)v(\d+)/;
+                let match = path.match(regex);
+        
+                if (match) {
+                    let topLeftX = parseFloat(match[1]); // X coordinate (top-left corner)
+                    let topLeftY = parseFloat(match[2]); // Y coordinate (top-left corner)
+                    let width = parseFloat(match[3]);    // Width from the `h` command
+                    let old_height = parseFloat(match[4]);   // Height from the `v` command
+        
+                    let new_height = newYScale(yvalue)
+
+                    // Replace the original height (v command) with the new height
+                    let newPath = `M${topLeftX},${new_height}h${width}v${that.SVGheight - new_height}h-${width}Z`;
+                    
+                    bar
+                        .transition()
+                        .duration(200)
+                        .ease(d3.easeLinear)
+                            .attr("d", newPath)
+                    
+                }
+            })
+    
 
     }
 
@@ -887,20 +1042,26 @@ function Inflection() {
     }
 
     function determineCurrentYax() {
-        var axisSelection = d3.select(".myYaxis");
+        var axisSelection = d3.selectAll("g.mark-group.role-axis").filter(function() {
+            return String(d3.select(this).attr("aria-label")).includes("Y-axis")
+        })
+
+        // get length of y-axis 
+        // get distance between ticks
+        
+        var tickPositions = axisSelection.select(".role-axis-tick").selectAll("line")
+        .nodes()
+        .map(tick => {
+            const transform = d3.select(tick).attr("transform");
+            const translateY = transform.match(/translate\(.*?,([^\)]+)\)/)[1]; // Extract Y value from translate(0,Y)
+            return +translateY;
+        });
 
         // Extract tick values (domain points)
-        var tickValues = axisSelection.selectAll(".tick text")
+        var tickValues = axisSelection.select(".role-axis-label").selectAll("text")
             .data()
-            .map(d => +d);
+            .map(d => +d.text);
 
-        var tickPositions = axisSelection.selectAll(".tick")
-            .nodes()
-            .map(tick => {
-                const transform = d3.select(tick).attr("transform");
-                const translateY = transform.match(/translate\(.*?,([^\)]+)\)/)[1]; // Extract Y value from translate(0,Y)
-                return +translateY;
-            });
 
         var yaxValue = d3.max(tickValues) + (d3.min(tickPositions) / ((d3.max(tickPositions) - d3.min(tickPositions)) / d3.max(tickValues)))
         return Math.round(10 * yaxValue) / 10
