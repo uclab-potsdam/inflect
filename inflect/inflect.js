@@ -860,7 +860,7 @@ function Inflection() {
             // get x-and y-position
             let path_descr = path.attr("d")
 
-            let match = path_descr.match(/M(\d+),([0-9.]+)h(\d+)/);
+            let match = path_descr.match(/M(\d+),(-?[0-9.]+)h(\d+)/);
 
     
 
@@ -910,9 +910,6 @@ function Inflection() {
     this.yAx = function () {
         var that = this;
         var yAxValue = that.inflection.yax
-        var oldYScale = d3.scaleLinear()
-            .domain([0, determineCurrentYax()])
-            .range([that.SVGheight, 0]);
 
         var newYScale = d3.scaleLinear()
             .domain([0, yAxValue])
@@ -922,66 +919,83 @@ function Inflection() {
                 return String(d3.select(this).attr("aria-label")).includes("Y-axis")
             })
 
-        // Update the y-axis
-            // Update tick lines
-            YaxisSelection.selectAll('.mark-rule.role-axis-tick line') // Select all tick lines
-            .each(function(d, i) {
-                // Get the original tick value from its y-position
-                var transform = d3.select(this).attr('transform');
-                var original_y = +transform.match(/translate\(.*?,([^\)]+)\)/)[1];
 
-                // extract tick value from original y
-                var tick_value = oldYScale.invert(original_y)
-                
-                // Use tick value to calculate the new position
-                var newYPosition = newYScale(tick_value);
-
-                if (newYPosition < 0) {
-                    d3.select(this)
-                    // .transition()
-                    // .duration(200)
-                    // .ease(d3.easeLinear)
-                    .remove()
-                } else {
-                    // Update the transform attribute with the new Y position
-                    d3.select(this)
-                        .transition()
-                        .duration(200)
-                        .ease(d3.easeLinear)
-                        .attr('transform', 'translate(0,' + newYPosition + ')');
-                }
-            });
-
-            // Update tick labels
+            // Update tick labels and lines
+            var line_nodeArray = YaxisSelection.selectAll('.mark-rule.role-axis-tick line').nodes()
             YaxisSelection.selectAll('.mark-text.role-axis-label text') // Select all tick labels
             .each(function(d, i) {
                 // Get the original tick value from its y-position
-                var transform = d3.select(this).attr('transform');
-                var original_y = +transform.match(/translate\(.*?,([^\)]+)\)/)[1];
+                // var transform = d3.select(this).attr('transform');
+                // var original_y = +transform.match(/translate\(.*?,([^\)]+)\)/)[1];
+                
+                
+                var tick_line = d3.select(line_nodeArray[i])
 
                 var tick_value = +d3.select(this).text()
                 
                 // Use newYScale to calculate the new position
-                var newYPosition = newYScale(tick_value) + 3;
+                var newYPosition = newYScale(tick_value);
 
                 if (newYPosition < 0) {
                     d3.select(this)
                     .remove()
+
+                    tick_line.remove()
                 } else {
                     // Update the transform attribute with the new Y position
-                    d3.select(this)
+                    d3.select(this) //label
                         .transition()
                         .duration(200)
                         .ease(d3.easeLinear)
-                        .attr('transform', 'translate(-7,' + newYPosition + ')');
+                        .attr('transform', 'translate(-7,' + (newYPosition + 3) + ')');
+
+                    tick_line
+                        .transition()
+                        .duration(200)
+                        .ease(d3.easeLinear)
+                        .attr('transform', 'translate(0,' + newYPosition + ')');
+                
                 }
             });
 
+            
             // add ticks and labels that are now missing
+            var label_nodeArray = YaxisSelection.selectAll('.mark-text.role-axis-label text').nodes()
+            var curr_num_of_ticks  = label_nodeArray.length
+            var max_tick_value = +d3.select(label_nodeArray[curr_num_of_ticks-1]).text()
+            var tick_val_dist = max_tick_value - +d3.select(label_nodeArray[curr_num_of_ticks-2]).text()
+
+            if((yAxValue - tick_val_dist) > max_tick_value) {
+                var new_tick_val = max_tick_value + tick_val_dist
+                var new_tick_pos = newYScale(new_tick_val)
+
+                YaxisSelection.select('.mark-text.role-axis-label')
+                // <text text-anchor="end" transform="translate(-7,203)" font-family="sans-serif" font-size="10px" fill="#000" opacity="1">0</text>
+                .append("text")
+                .attr("text-anchor", "end")
+                .attr("transform", 'translate(-7,' + (new_tick_pos + 3) + ')')
+                .attr("font-family", "sans-serif")
+                .attr("font-size", "10px")
+                .attr("fill", "#000")
+                .attr("opacity", 1)
+                .text(new_tick_val)
+
+                
+                YaxisSelection.select('.mark-rule.role-axis-tick')
+                    .append("line")
+                    .attr("transform", 'translate(0,' + new_tick_pos + ')')
+                        // <line transform="translate(0,200)" x2="-5" y2="0" stroke="#888" stroke-width="1" opacity="1"></line>
+                    .attr("x2", "-5")
+                    .attr("y2", "0")
+                    .attr("stroke", "#888")
+                    .attr("stroke-width", "1")
+                    .attr("opacity", "1")
+            }
+            
+            
 
 
-
-        // Update labels
+        // Update bar labels
         d3.select("svg").selectAll(".infl-label")
             // .transition()
             // .duration(200)
@@ -1010,7 +1024,7 @@ function Inflection() {
                     let width = parseFloat(match[3]);    // Width from the `h` command
                     let old_height = parseFloat(match[4]);   // Height from the `v` command
         
-                    let new_height = newYScale(yvalue)
+                    let new_height = Math.max(newYScale(yvalue),0)
 
                     // Replace the original height (v command) with the new height
                     let newPath = `M${topLeftX},${new_height}h${width}v${that.SVGheight - new_height}h-${width}Z`;
@@ -1053,17 +1067,19 @@ function Inflection() {
         .nodes()
         .map(tick => {
             const transform = d3.select(tick).attr("transform");
-            const translateY = transform.match(/translate\(.*?,([^\)]+)\)/)[1]; // Extract Y value from translate(0,Y)
+            var translateY = 0;
+            if(transform != "") {
+                translateY = transform.match(/translate\(.*?,([^\)]+)\)/)[1]; // Extract Y value from translate(0,Y)
+            }
             return +translateY;
         });
 
-        // Extract tick values (domain points)
-        var tickValues = axisSelection.select(".role-axis-label").selectAll("text")
-            .data()
-            .map(d => +d.text);
+        var label_nodeArray = axisSelection.selectAll('.mark-text.role-axis-label text').nodes()
+        var curr_num_of_ticks  = label_nodeArray.length
+        var max_tick_value = +d3.select(label_nodeArray[curr_num_of_ticks-1]).text()
 
 
-        var yaxValue = d3.max(tickValues) + (d3.min(tickPositions) / ((d3.max(tickPositions) - d3.min(tickPositions)) / d3.max(tickValues)))
+        var yaxValue = max_tick_value + (d3.min(tickPositions) / ((d3.max(tickPositions) - d3.min(tickPositions)) / max_tick_value))
         return Math.round(10 * yaxValue) / 10
 
     }
