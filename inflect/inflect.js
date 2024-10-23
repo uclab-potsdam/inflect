@@ -197,10 +197,10 @@ function Inflection() {
             });
 
         // define toggle div
-        d3.select(".inflect_ui").append("div")
-            .attr("class", "infl-ui-div")
-            .attr("id", "toggle")
-        // .style("display", "block")
+        // d3.select(".inflect_ui").append("div")
+        //     .attr("class", "infl-ui-div")
+        //     .attr("id", "toggle")
+        // // .style("display", "block")
 
         // d3.select("#toggle")
         // .append("p")
@@ -224,23 +224,23 @@ function Inflection() {
             .attr("class", "slider");
 
         // reset axis
-        d3.select(".inflect_ui").append("div")
-            .attr("class", "infl-ui-div")
-            .attr("id", "yax-div");
+        // d3.select(".inflect_ui").append("div")
+        //     .attr("class", "infl-ui-div")
+        //     .attr("id", "yax-div");
 
-        d3.select("#yax-div").append("button")
-            .attr("class", "infl-buttons").html("Reset Y-Axis")
-            .on("click", function () {
-                that.inflection.yax = that.baseyax;
-                that.yAx()
-                that.updateHash("line")
-                that.updateEditable()
+        // d3.select("#yax-div").append("button")
+        //     .attr("class", "infl-buttons").html("Reset Y-Axis")
+        //     .on("click", function () {
+        //         that.inflection.yax = that.baseyax;
+        //         that.yAx()
+        //         that.updateHash("line")
+        //         that.updateEditable()
 
-            });
+        //     });
 
-        d3.select("#yax-div").append("p").html("back to original")
-            .style("margin-top", "6px")
-            .style("font-size", "13px");
+        // d3.select("#yax-div").append("p").html("back to original")
+        //     .style("margin-top", "6px")
+        //     .style("font-size", "13px");
 
         // Lines
         d3.select(".inflect_ui").append("div")
@@ -308,7 +308,7 @@ function Inflection() {
             .append("div")
             .attr("class", "infl-ui-div")
             // .attr("id", "annotation-div")
-            .append("p").html("double click on handle to remove element")
+            .append("p").html("double click on element to remove/reset")
             // .style("margin-top", "12px")
             .style("font-size", "13px")
             .style("float", "right")
@@ -321,6 +321,21 @@ function Inflection() {
         let that = this;
 
         if (that.editable) {
+
+            var shiftPressed = false;
+
+            // Listen for keydown and keyup events to track the shift key
+            d3.select(window)
+                .on("keydown", function(event) {
+                    if (event.key === "Shift") {
+                        shiftPressed = true;
+                    }
+                })
+                .on("keyup", function(event) {
+                    if (event.key === "Shift") {
+                        shiftPressed = false;
+                    }
+                });
 
             // lines
             var lineGroup = d3.selectAll("g.infl-line");
@@ -343,6 +358,7 @@ function Inflection() {
                     y2: +line.attr("y2")
                 }
 
+                // Append circle at the end of the line
                 linegroup.selectAll(".infl-handle.line.left")
                     .data([left_data])
                     .join("circle")
@@ -518,27 +534,42 @@ function Inflection() {
 
             })            
             .call(d3.drag()
-                .on("start", function (event) {
-                    var text_object = d3.select(this)
-                    console.log(event.x + " " + event.y)
-                    console.log(text_object.attr("cx") + " " + text_object.attr("cy"))
-
-                })
                 .on("drag", function (event, d) {
-                    // console.log(d);
-                    d3.select(this)
-                        .attr("cx", event.x)
-                        .attr("cy", event.y);
 
-                    if (this.classList[2] == "left") {
-                        d3.select(this.parentNode).select(".single-line")
-                            .attr("x1", event.x)
-                            .attr("y1", event.y);
-                    } else if (this.classList[2] == "right") {
-                        d3.select(this.parentNode).select(".single-line")
-                            .attr("x2", event.x)
-                            .attr("y2", event.y);
+                    let line = d3.select(this.parentNode).select(".single-line");
+                    let x1 = +line.attr("x1");
+                    let y1 = +line.attr("y1");
+                    let x2 = +line.attr("x2");
+                    let y2 = +line.attr("y2");
+                    
+                    // Determine if the handle is "left" or "right"
+                    let isLeft = this.classList.contains("left");
+                    let cx = event.x;
+                    let cy = event.y;
+                    
+                    // Snap to angles when shift key is pressed
+                    if (shiftPressed) {
+                        let referencePoint = isLeft ? { x: x2, y: y2 } : { x: x1, y: y1 };
+                        let dx = cx - referencePoint.x;
+                        let dy = cy - referencePoint.y;
+                        let snapped = snapAngle(dx, dy);
+        
+                        cx = Math.round(referencePoint.x + snapped.dx);
+                        cy = Math.round(referencePoint.y + snapped.dy);
                     }
+        
+                    // Update the position of the handle
+                    d3.select(this)
+                        .attr("cx", cx)
+                        .attr("cy", cy);
+        
+                    // Update the line endpoint
+                    if (isLeft) {
+                        line.attr("x1", cx).attr("y1", cy);
+                    } else {
+                        line.attr("x2", cx).attr("y2", cy);
+                    }
+
                 })
                 .on("end", function () {
                     that.updateHash("line")
@@ -571,7 +602,6 @@ function Inflection() {
                     const dragAmount = event.dy;
 
                     // Adjust the domain of the y-scale
-                    // const newMaxY = yScaleReconstructed.domain()[1] + dragAmount * (yScaleReconstructed.domain()[1] / that.SVGheight); // Adjust the domain proportionally
                     const currentDomain = yScaleReconstructed.domain();
                     const rangeExtent = yScaleReconstructed.range();
                     const domainExtent = currentDomain[1] - currentDomain[0]; // The current range of the Y-axis domain
@@ -591,6 +621,8 @@ function Inflection() {
                     that.updateHash("yax")
                 })
             );
+
+
 
         }
         else { //not editable
@@ -758,7 +790,7 @@ function Inflection() {
                         .attr("x2", d => d.x2)
                         .attr("y1", d => d.y1)
                         .attr("y2", d => d.y2)
-                        .attr("class", "single-line")
+                        .attr("class", "mark-line single-line")
                         .transition()
                         .duration(200)
                         .ease(d3.easeLinear)
@@ -920,16 +952,14 @@ function Inflection() {
             })
 
 
-            // Update tick labels and lines
+        // Update tick labels and lines and grid
             var line_nodeArray = YaxisSelection.selectAll('.mark-rule.role-axis-tick line').nodes()
+            var grid_nodeArray = d3.selectAll('.mark-rule.role-axis-grid line').nodes()
             YaxisSelection.selectAll('.mark-text.role-axis-label text') // Select all tick labels
             .each(function(d, i) {
-                // Get the original tick value from its y-position
-                // var transform = d3.select(this).attr('transform');
-                // var original_y = +transform.match(/translate\(.*?,([^\)]+)\)/)[1];
-                
                 
                 var tick_line = d3.select(line_nodeArray[i])
+                var grid_line = d3.select(grid_nodeArray[i])
 
                 var tick_value = +d3.select(this).text()
                 
@@ -941,6 +971,7 @@ function Inflection() {
                     .remove()
 
                     tick_line.remove()
+                    grid_line.remove()
                 } else {
                     // Update the transform attribute with the new Y position
                     d3.select(this) //label
@@ -950,6 +981,12 @@ function Inflection() {
                         .attr('transform', 'translate(-7,' + (newYPosition + 3) + ')');
 
                     tick_line
+                        .transition()
+                        .duration(200)
+                        .ease(d3.easeLinear)
+                        .attr('transform', 'translate(0,' + newYPosition + ')');
+
+                    grid_line
                         .transition()
                         .duration(200)
                         .ease(d3.easeLinear)
@@ -969,27 +1006,26 @@ function Inflection() {
                 var new_tick_val = max_tick_value + tick_val_dist
                 var new_tick_pos = newYScale(new_tick_val)
 
-                YaxisSelection.select('.mark-text.role-axis-label')
-                // <text text-anchor="end" transform="translate(-7,203)" font-family="sans-serif" font-size="10px" fill="#000" opacity="1">0</text>
-                .append("text")
-                .attr("text-anchor", "end")
-                .attr("transform", 'translate(-7,' + (new_tick_pos + 3) + ')')
-                .attr("font-family", "sans-serif")
-                .attr("font-size", "10px")
-                .attr("fill", "#000")
-                .attr("opacity", 1)
-                .text(new_tick_val)
+                //clone attributes of existing labels and lines
+                var one_label = YaxisSelection.select('.mark-text.role-axis-label text')
 
+                YaxisSelection.select('.mark-text.role-axis-label text').clone().call(function(sel) {
+                    sel.attr("transform", 'translate(-7,' + (new_tick_pos + 3) + ')')
+                    sel.text(new_tick_val)
+                    sel.node().parentNode.appendChild(sel.node()); //append as last child
+                });
+
+                YaxisSelection.select('.mark-rule.role-axis-tick line').clone().call(function(sel) {
+                    sel.attr("transform", 'translate(0,' + new_tick_pos + ')')
+                    sel.node().parentNode.appendChild(sel.node()); //append as last child
+                });
                 
-                YaxisSelection.select('.mark-rule.role-axis-tick')
-                    .append("line")
-                    .attr("transform", 'translate(0,' + new_tick_pos + ')')
-                        // <line transform="translate(0,200)" x2="-5" y2="0" stroke="#888" stroke-width="1" opacity="1"></line>
-                    .attr("x2", "-5")
-                    .attr("y2", "0")
-                    .attr("stroke", "#888")
-                    .attr("stroke-width", "1")
-                    .attr("opacity", "1")
+
+                d3.select('.mark-rule.role-axis-grid line').clone().call(function(sel) {
+                    sel.attr("transform", 'translate(0,' + new_tick_pos + ')')
+                    sel.node().parentNode.appendChild(sel.node()); //append as last child
+                });
+     
             }
             
             
@@ -1041,6 +1077,7 @@ function Inflection() {
 
     }
 
+    // helper functions
 
     function rgbToHex(rgb) {
         // Extract the RGB values using a regular expression
@@ -1082,6 +1119,27 @@ function Inflection() {
         var yaxValue = max_tick_value + (d3.min(tickPositions) / ((d3.max(tickPositions) - d3.min(tickPositions)) / max_tick_value))
         return Math.round(10 * yaxValue) / 10
 
+    }
+
+    function snapAngle(dx, dy) {
+        // Calculate the angle of the line in degrees
+        let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+    
+        // Snap to nearest multiple of 22.5 degrees
+        const snapAngles = [0, 22.5, 45, 67.5, 90, 112.5, 135, 157.5, 180, -22.5, -45, -67.5, -90, -112.5, -135, -157.5, -180];
+        let closestAngle = snapAngles.reduce((prev, curr) => 
+            Math.abs(curr - angle) < Math.abs(prev - angle) ? curr : prev
+        );
+    
+        // Convert snapped angle back to radians
+        let rad = closestAngle * (Math.PI / 180);
+        
+        // Calculate new dx and dy based on the snapped angle
+        let distance = Math.sqrt(dx * dx + dy * dy);
+        return {
+            dx: distance * Math.cos(rad),
+            dy: distance * Math.sin(rad)
+        };
     }
 
     return this
