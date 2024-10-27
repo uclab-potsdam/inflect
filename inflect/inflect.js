@@ -1003,7 +1003,10 @@ function Inflection() {
             var tick_val_dist = max_tick_value - +d3.select(label_nodeArray[curr_num_of_ticks-2]).text()
 
             if((yAxValue - tick_val_dist) > max_tick_value) {
-                var new_tick_val = max_tick_value + tick_val_dist
+                var num_of_missin_ticks = Math.floor((+yAxValue - max_tick_value) / tick_val_dist);
+                for (let i = 0; i < num_of_missin_ticks; i++) {
+                    
+                    var new_tick_val = max_tick_value + (i+1)*tick_val_dist
                 var new_tick_pos = newYScale(new_tick_val)
 
                 //clone attributes of existing labels and lines
@@ -1025,6 +1028,7 @@ function Inflection() {
                     sel.attr("transform", 'translate(0,' + new_tick_pos + ')')
                     sel.node().parentNode.appendChild(sel.node()); //append as last child
                 });
+                }  
      
             }
             
