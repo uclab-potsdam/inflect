@@ -38,7 +38,7 @@
         };
 
         
-        vegaEmbed("#vis", spec, {mode: "vega-lite"}).then(console.log).catch(console.warn);
+        var result = vegaEmbed("#vis", spec, {mode: "vega-lite"}).then().catch(console.warn);
     </script>
     
     <script>

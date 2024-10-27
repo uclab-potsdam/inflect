@@ -15,6 +15,7 @@ function Inflection() {
 
     this.editable = true;
     this.SVGheight = 0;
+    this.SVGwidth = 0;
 
 
 
@@ -40,9 +41,29 @@ function Inflection() {
 
         var transformation = d3.select("svg").select("g").attr("transform")
         
+        let border_y = 27 + 0 + 0.5;
+        let border_x = 45 + 0 + 0.5;
         d3.select("svg").append("g").attr("class", "line-group")
+        .attr("transform", "translate(" + border_x + "," + border_y + ")")
+
+        // 53.48
+        // 34.98
         d3.select("svg").append("g").attr("class", "ann-group")
-        d3.select("svg").append("g").attr("class", "label-group").attr("transform", transformation)
+        .attr("transform", "translate(" + border_x + "," + border_y + ")")
+        // d3.select(".ann-group").append("rect")
+        //     // .attr("x", border_x)
+        //     // .attr("y", border_y)
+        //     .attr("x", 0)
+        //     .attr("y", 0)
+        //     .attr("width", 180)
+        //     .attr("height", 200)
+        //     .attr("border", "black")
+        //     .style("fill", "red")
+        //     .style("opacity", 0.2)
+
+        d3.select("svg").append("g").attr("class", "label-group")
+        .attr("transform", "translate(" + border_x + "," + border_y + ")")
+
 
         this.basecol = d3.select(".mark-rect").select("path").attr("fill").split("#")[1]
 
@@ -53,6 +74,9 @@ function Inflection() {
             return String(d3.select(this).attr("aria-label")).includes("Y-axis")
         }).select(".role-axis-domain").select("line").attr("transform").match(/translate\(.*?,([^\)]+)\)/)[1]; // get length in y-direction of y-axis line
 
+        this.SVGwidth = +d3.selectAll("g.mark-group.role-axis").filter(function() {
+            return String(d3.select(this).attr("aria-label")).includes("X-axis")
+        }).select(".role-axis-domain").select("line").attr("x2")
 
         // add switch to toggle editability
 
@@ -294,7 +318,7 @@ function Inflection() {
                 if (text == "") {
                     text = "text"
                 }
-                anns += ("140-70-" + text.replace(" ", "_"));
+                anns += ("140-80-" + text.replace(" ", "_"));
                 that.inflection.ann = anns;
                 that.ann()
                 that.updateHash("ann")
@@ -467,6 +491,12 @@ function Inflection() {
                             .attr("y", text_current_pos.y + ydragAmount);
                     })
                     .on("end", function () {
+                        var curr_y_pos = d3.select(this).attr("y")
+                        var currYScale = d3.scaleLinear()
+                            .domain([0, determineCurrentYax()])
+                            .range([that.SVGheight, 0]);
+
+                        d3.select(this).data()[0].yData = Math.round(10*currYScale.invert(+curr_y_pos))/10;
                         that.updateHash("ann")
                     }))
 
@@ -671,6 +701,10 @@ function Inflection() {
 
 
     this.updateHash = function (kind) {
+        //transform to data coordinates
+        var currYScale = d3.scaleLinear()
+        .domain([0, determineCurrentYax()])
+        .range([this.SVGheight, 0]);
 
         if (kind == "line") {
             var lines = [];
@@ -711,7 +745,7 @@ function Inflection() {
                     anns.push(
                         {
                             x: text_object.attr("x"),
-                            y: text_object.attr("y"),
+                            y: Math.round(10*currYScale.invert(text_object.attr("y")))/10,
                             text: text_object.text().replace(" ", "_")
                         }
                     )
@@ -802,6 +836,7 @@ function Inflection() {
 
     this.ann = function () {
         // notation: x-y-text
+        var that = this;
 
         let ann = this.inflection.ann
         if (ann == "") {
@@ -813,6 +848,10 @@ function Inflection() {
         }
         else {
             var annlist = ann.split(",");
+                        //transform to data coordinates
+            var currYScale = d3.scaleLinear()
+                        .domain([0, determineCurrentYax()])
+                        .range([that.SVGheight, 0]);
 
             let data = [];
             annlist.forEach(element => {
@@ -822,13 +861,16 @@ function Inflection() {
                 let text = splitted[2].replace("_", " ")
                 data.push({
                     x: xvalue,
-                    y: yvalue,
+                    y: Math.round(10*currYScale(+yvalue))/10,
+                    yData: yvalue,
                     text: text
                 })
 
             });
 
 
+
+            
             d3.select(".ann-group").selectAll(".infl-ann-text")
                 .data(data)
                 .join("text")
@@ -909,6 +951,7 @@ function Inflection() {
                     value: +yvalue
                 }]
 
+                // label
                 d3.select(".label-group")
                 .selectAll("text.infl-label")
                 .data(label_data)
@@ -1007,27 +1050,25 @@ function Inflection() {
                 for (let i = 0; i < num_of_missin_ticks; i++) {
                     
                     var new_tick_val = max_tick_value + (i+1)*tick_val_dist
-                var new_tick_pos = newYScale(new_tick_val)
+                    var new_tick_pos = newYScale(new_tick_val)
 
-                //clone attributes of existing labels and lines
-                var one_label = YaxisSelection.select('.mark-text.role-axis-label text')
+                    //clone attributes of existing labels and lines
+                    YaxisSelection.select('.mark-text.role-axis-label text').clone().call(function(sel) {
+                        sel.attr("transform", 'translate(-7,' + (new_tick_pos + 3) + ')')
+                        sel.text(new_tick_val)
+                        sel.node().parentNode.appendChild(sel.node()); //append as last child
+                    });
 
-                YaxisSelection.select('.mark-text.role-axis-label text').clone().call(function(sel) {
-                    sel.attr("transform", 'translate(-7,' + (new_tick_pos + 3) + ')')
-                    sel.text(new_tick_val)
-                    sel.node().parentNode.appendChild(sel.node()); //append as last child
-                });
+                    YaxisSelection.select('.mark-rule.role-axis-tick line').clone().call(function(sel) {
+                        sel.attr("transform", 'translate(0,' + new_tick_pos + ')')
+                        sel.node().parentNode.appendChild(sel.node()); //append as last child
+                    });
+                    
 
-                YaxisSelection.select('.mark-rule.role-axis-tick line').clone().call(function(sel) {
-                    sel.attr("transform", 'translate(0,' + new_tick_pos + ')')
-                    sel.node().parentNode.appendChild(sel.node()); //append as last child
-                });
-                
-
-                d3.select('.mark-rule.role-axis-grid line').clone().call(function(sel) {
-                    sel.attr("transform", 'translate(0,' + new_tick_pos + ')')
-                    sel.node().parentNode.appendChild(sel.node()); //append as last child
-                });
+                    d3.select('.mark-rule.role-axis-grid line').clone().call(function(sel) {
+                        sel.attr("transform", 'translate(0,' + new_tick_pos + ')')
+                        sel.node().parentNode.appendChild(sel.node()); //append as last child
+                    });
                 }  
      
             }
@@ -1042,6 +1083,19 @@ function Inflection() {
             // .ease(d3.easeLinear)
             .attr("y", (d) => newYScale(d.value));
 
+        //annotations
+        d3.select("svg").selectAll(".infl-ann-text")
+            // .transition()
+            // .duration(200)
+            // .ease(d3.easeLinear)
+            .attr("y", (d) => newYScale(d.yData));
+
+  
+        console.log(that.invertXScale(70))
+        console.log(that.invertXScale(35))
+
+        
+        // update bars
         d3.selectAll("path")
             .filter(function() {
                     return d3.select(this).attr("aria-roledescription") == "bar"
@@ -1122,8 +1176,8 @@ function Inflection() {
 
         var yaxValue = max_tick_value + (d3.min(tickPositions) / ((d3.max(tickPositions) - d3.min(tickPositions)) / max_tick_value))
         return Math.round(10 * yaxValue) / 10
-
     }
+    
 
     function snapAngle(dx, dy) {
         // Calculate the angle of the line in degrees
@@ -1145,6 +1199,44 @@ function Inflection() {
             dy: distance * Math.sin(rad)
         };
     }
+    
+
+    this.invertXScale = function (position) {
+        that = this;
+        var scale = that.getXAxisScale()
+        var eachBand = scale.step();
+        var index = Math.floor((position / eachBand));
+        var val = scale.domain()[index];
+        var extra = (position - scale(val)) / eachBand
+
+        return [val, extra]
+        
+    }
+
+    this.getXAxisScale = function () {
+        that = this;
+        var axisSelection = d3.selectAll("g.mark-group.role-axis").filter(function() {
+            return String(d3.select(this).attr("aria-label")).includes("X-axis")
+        })
+
+        var axis_labels = axisSelection.select(".mark-text.role-axis-label").selectAll("text")
+            .nodes()
+            .map(d => d.textContent)
+        
+        var x = d3.scaleBand() // X axis
+            .range([0, that.SVGwidth])
+            .domain(axis_labels);
+            // .padding(0.2);
+
+            var x_value = x("A")
+            d3.select(".single-line").attr("x1", x_value) 
+
+         return x    
+        
+
+    }
+
+
 
     return this
 }
