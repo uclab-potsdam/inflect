@@ -177,6 +177,7 @@ function Inflection() {
     this.addUI = function () {
 
         var that = this;
+        var icon_button_width = 27;
         // Top level window
         d3.select("body").append("div").attr("class", "inflect_ui");
         d3.select(".inflect_ui").append("div").attr("class", "infl-tooltip")
@@ -232,8 +233,8 @@ function Inflection() {
         //         that.updateEditable();
         //     });
 
-        d3.select(".switch").append("span")
-            .attr("class", "slider");
+        // d3.select(".switch").append("span")
+        //     .attr("class", "slider");
 
         // reset axis
         // d3.select(".inflect_ui").append("div")
@@ -259,15 +260,32 @@ function Inflection() {
             .attr("class", "infl-ui-div")
             .attr("id", "line-div");
 
-        d3.select("#line-div").append("button")
-            .attr("class", "infl-buttons").html("Add Line")
+        d3.select("#line-div").append("svg")
+            .attr("class", "icon-button")
+            .attr("id", "line-button")
+            .attr("width", icon_button_width)
+            .attr("height", icon_button_width)
+            // .style("float", "left")
+            .style("margin-right", "15px")
+            .style("cursor", "pointer")
+            .on("mouseover", function () {
+                tooltip.style("visibility", "visible").text("Add line");
+            })
+            .on("mousemove", function (event) {
+                tooltip.style("top", (event.pageY - 35) + "px")
+                    .style("left", (event.pageX - 20) + "px");
+            })
+            .on("mouseout", function () {
+                tooltip.style("visibility", "hidden");
+            })
             .on("click", function () {
                 let lines = that.inflection.line
                 var list = lines.split(",");
                 if (list.length > 0 && list[0].length > 0) {
                     lines += ","
                 }
-                lines += "42-226-40-41"
+                // TODO randomise this, adapt to different scales
+                lines += "A-0.2-I-0.88-26.8-27.5"
                 that.inflection.line = lines;
                 that.line()
                 that.updateHash("line")
@@ -275,24 +293,103 @@ function Inflection() {
 
             });
 
-        d3.select("#line-div").append("p").html("appears in a random place")
-            .style("margin-top", "6px")
-            .style("font-size", "13px");
+        d3.select("#line-button")
+            .append("rect")
+                .attr("width", icon_button_width)
+                .attr("height", icon_button_width)
+                .style("stroke-width", "2.5px")
+                .style("stroke", "black")
+                .style("fill", highlight_colour)
+                .style("fill-opacity", 0.3);
+        
+        var dist = 5;
+        d3.select("#line-button")
+            .append("line")
+            .attr("x1", dist)
+            .attr("x2", icon_button_width - dist)
+            .attr("y1", icon_button_width - dist)
+            .attr("y2", dist)
+            .style("stroke", "black")
+            .style("stroke-width", "3px")
+            .style("stroke-linecap", "round")
+        
+                
+
+        // d3.select("#line-div").append("button")
+        //     .attr("class", "infl-buttons").html("Add Line")
+        //     .on("click", function () {
+        //         let lines = that.inflection.line
+        //         var list = lines.split(",");
+        //         if (list.length > 0 && list[0].length > 0) {
+        //             lines += ","
+        //         }
+        //         // TODO randomise this, adapt to different scales
+        //         lines += "A-0.2-I-0.88-26.8-27.5"
+        //         that.inflection.line = lines;
+        //         that.line()
+        //         that.updateHash("line")
+        //         that.updateEditable()
+
+        //     });
+
+        // d3.select("#line-div").append("p").html("appears in a random place")
+        //     .style("margin-top", "6px")
+        //     .style("font-size", "13px");
 
         // Annotations
         d3.select(".inflect_ui").append("div")
             .attr("class", "infl-ui-div")
             .attr("id", "annotation-div");
 
-        d3.select("#annotation-div").append("button")
-            .attr("class", "infl-buttons").html("Add Annotation")
+        d3.select("#annotation-div").append("svg")
+            .attr("class", "icon-button")
             .attr("id", "ann-button")
+            .attr("width", icon_button_width)
+            .attr("height", icon_button_width)
+            .style("float", "left")
+            .style("margin-right", "15px")
+            .style("cursor", "pointer")
+            .on("mouseover", function () {
+                tooltip.style("visibility", "visible").text("Add annotation");
+            })
+            .on("mousemove", function (event) {
+                tooltip.style("top", (event.pageY - 35) + "px")
+                    .style("left", (event.pageX - 20) + "px");
+            })
+            .on("mouseout", function () {
+                tooltip.style("visibility", "hidden");
+            })
+        
+        d3.select("#ann-button")
+            .append("rect")
+                .attr("width", icon_button_width)
+                .attr("height", icon_button_width)
+                .style("stroke-width", "2.5px")
+                .style("stroke", "black")
+                .style("fill", highlight_colour)
+                .style("fill-opacity", 0.3);
+        
+        var dist = 5;
+        d3.select("#ann-button")
+            .append("text")
+            .attr("x", icon_button_width/2)
+            .attr("y", icon_button_width/2)
+            .attr("dy", "0.35em")
+            .style("font-family", "Ubuntu")
+            .style("font-size", "10px")
+            .style("text-anchor", "middle")
+
+            .text("text")
+
+        // d3.select("#annotation-div").append("button")
+        //     .attr("class", "infl-buttons").html("Add Annotation")
+        //     .attr("id", "ann-button")
 
         d3.select("#annotation-div").append("input")
             .attr("id", "infl-text-input")
             .attr("type", "text")
-            .attr("placeholder", "annotation text")
-            .style("margin-top", "2px")
+            .attr("placeholder", "input")
+            .style("margin-top", "3px")
 
         // now define button behaviour
         d3.select("#ann-button")
