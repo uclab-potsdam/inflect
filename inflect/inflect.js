@@ -112,7 +112,12 @@ function Inflection() {
                 let cat = splitted[0]
                 let value = splitted[1]
                 switch (cat) {
-
+                    case "yax":
+                        if (value != that.inflection.yax) {
+                            that.inflection.yax = value;
+                            that.yAx();
+                        }
+                        break;                   
                     case "line":
                         if (value != that.inflection.line) {
                             that.inflection.line = value;
@@ -125,18 +130,13 @@ function Inflection() {
                             that.ann();
                         }
                         break;
-                    case "yax":
-                        if (value != that.inflection.yax) {
-                            that.inflection.yax = value;
-                            that.yAx();
-                        }
-                        break;
                     case "high":
                         if (value != that.inflection.high) {
                             that.inflection.high = value;
                             that.highlight();
                         }
                         break;
+
                     default:
                         break;
                 }
@@ -163,10 +163,10 @@ function Inflection() {
         }
 
 
+        this.yAx();
         this.line();
         this.ann();
         this.highlight();
-        this.yAx();
 
         this.updateEditable();
 
@@ -292,7 +292,7 @@ function Inflection() {
                 that.updateEditable()
 
             });
-
+        
         d3.select("#line-button")
             .append("rect")
                 .attr("width", icon_button_width)
@@ -572,8 +572,8 @@ function Inflection() {
                         const ydragAmount = event.dy;
 
                         text_object
-                            .attr("x", text_current_pos.x + xdragAmount)
-                            .attr("y", text_current_pos.y + ydragAmount);
+                            .attr("x", clampToWidth(text_current_pos.x + xdragAmount))
+                            .attr("y", clampToHeight(text_current_pos.y + ydragAmount));
                     })
                     .on("end", function () {
                         var curr_y_pos = d3.select(this).attr("y")
@@ -994,20 +994,20 @@ function Inflection() {
                 .each(function (d) {
                     var g = d3.select(this);
 
+                    // TODO figure out transitions!!! This one messes up the addition of the handles
                     g.selectAll(".single-line")
                         .data([d])
                         .join("line")
+                        .attr("class", "mark-line single-line")
+                        // .transition()
+                        // .duration(200)
+                        // .ease(d3.easeLinear)
+                        .attr("stroke", "#C8532E")
                         .attr("x1", d => d.x1)
                         .attr("x2", d => d.x2)
                         .attr("y1", d => d.y1)
                         .attr("y2", d => d.y2)
-                        .attr("class", "mark-line single-line")
-                        .transition()
-                        .duration(200)
-                        .ease(d3.easeLinear)
-                        .attr("stroke", "#C8532E")
                 });
-
         }
     }
 
@@ -1057,22 +1057,18 @@ function Inflection() {
             });
 
             
-        
-
-
-
-            
             d3.select(".ann-group").selectAll(".infl-ann-text")
                 .data(data)
                 .join("text")
                 .style("text-anchor", "middle")
                 .attr("class", "infl-ann-text")
+                // .transition()
+                // .duration(200)
+                // .ease(d3.easeLinear)
                 .text(d => d.text)
                 .attr("x", d => d.x)
                 .attr("y", d => d.y)
-                .transition()
-                .duration(200)
-                .ease(d3.easeLinear)
+                // 
             // })
 
 
@@ -1143,37 +1139,39 @@ function Inflection() {
                 }]
 
                 // label
-                d3.select(".label-group")
-                .selectAll("text.infl-label")
-                .data(label_data)
-                .join("text")
-                .attr("class", "infl-label")
-                // .text(function(d) {console.log(d)})
-                .attr("dy", "-1em")
-                .style("text-anchor", "middle")
-                .text(d => d.value)
-                // .transition()
-                // .duration(200)
-                // .ease(d3.easeLinear)
-                .attr("x", (d) => d.x + d.width / 2)
-                .attr("y", (d) => d.y);
+                 d3.select(".label-group")
+                    .selectAll("text.infl-label")
+                    .data(label_data)
+                    .join("text")
+                    .attr("class", "infl-label")
+                    // .text(function(d) {console.log(d)})
+                    .attr("dy", "-1em")
+                    .style("text-anchor", "middle")
+                    // .transition()
+                    // .duration(200)
+                    // .ease(d3.easeLinear)
+                    .text(d => d.value)
+                    .attr("x", (d) => d.x + d.width / 2)
+                    .attr("y", (d) => d.y)
+                    
             }
             
             // colour non-highlight bars back to normal
-            d3.selectAll("path")
+             d3.selectAll("path")
                 .filter(function() {
                     return d3.select(this).attr("aria-roledescription") == "bar" && !String(d3.select(this).attr("aria-label")).includes(highlight)
                     })
-                // .transition()
-                // .duration(200)
-                // .ease(d3.easeLinear)
+                .transition()
+                .duration(200)
+                .ease(d3.easeLinear)
                 .attr("fill", "#" + this.basecol)
+                
                 
 
         }
     }
 
-    this.yAx = function () {
+    this.yAx = async function () {
         var that = this;
         var yAxValue = that.inflection.yax
 
@@ -1190,7 +1188,7 @@ function Inflection() {
             var line_nodeArray = YaxisSelection.selectAll('.mark-rule.role-axis-tick line').nodes()
             var grid_nodeArray = d3.selectAll('.mark-rule.role-axis-grid line').nodes()
             YaxisSelection.selectAll('.mark-text.role-axis-label text') // Select all tick labels
-            .each(function(d, i) {
+            .each( function(d, i) {
                 
                 var tick_line = d3.select(line_nodeArray[i])
                 var grid_line = d3.select(grid_nodeArray[i])
@@ -1213,19 +1211,20 @@ function Inflection() {
                         .transition()
                         .duration(200)
                         .ease(d3.easeLinear)
-                        .attr('transform', 'translate(-7,' + (newYPosition + 3) + ')');
+                        .attr('transform', 'translate(-7,' + (newYPosition + 3) + ')')
 
                     tick_line
                         .transition()
                         .duration(200)
                         .ease(d3.easeLinear)
-                        .attr('transform', 'translate(0,' + newYPosition + ')');
+                        .attr('transform', 'translate(0,' + newYPosition + ')')
 
-                    grid_line
+                     grid_line
                         .transition()
                         .duration(200)
                         .ease(d3.easeLinear)
-                        .attr('transform', 'translate(0,' + newYPosition + ')');
+                        .attr('transform', 'translate(0,' + newYPosition + ')')
+                        
                 
                 }
             });
@@ -1265,45 +1264,6 @@ function Inflection() {
                 }  
      
             }
-            
-            
-
-
-        // Update bar labels
-        d3.select("svg").selectAll(".infl-label")
-            // .transition()
-            // .duration(200)
-            // .ease(d3.easeLinear)
-            .attr("y", (d) => newYScale(d.value));
-
-        //annotations
-        d3.select("svg").selectAll(".infl-ann-text")
-            // .transition()
-            // .duration(200)
-            // .ease(d3.easeLinear)
-            .attr("y", (d) => newYScale(d.yData));
-
-        //annotations
-        d3.select("svg").selectAll(".single-line")
-            // .transition()
-            // .duration(200)
-            // .ease(d3.easeLinear)
-            .attr("y1", (d) => newYScale(d.y1Data))
-            .attr("y2", (d) => newYScale(d.y2Data));
-
-        d3.select("svg").selectAll(".infl-handle")
-            .each(function() {
-                let line = d3.select(this.parentNode).select(".single-line");
-                // Determine if the handle is "left" or "right"
-                let isLeft = this.classList.contains("left");
-                if(isLeft) {
-                    d3.select(this).attr("cy", newYScale(+line.data()[0].y1Data))
-                } else {
-                    d3.select(this).attr("cy", newYScale(+line.data()[0].y2Data))
-            }
-            })
-           
-
   
 
         
@@ -1312,7 +1272,7 @@ function Inflection() {
             .filter(function() {
                     return d3.select(this).attr("aria-roledescription") == "bar"
             })
-            .each(function(){
+            .each(async function(){
                 var bar = d3.select(this)
                 var aria_label = bar.attr("aria-label") // e.g. "a: D; b: 91"
 
@@ -1336,11 +1296,68 @@ function Inflection() {
                     let newPath = `M${topLeftX},${new_height}h${width}v${SVGheight - new_height}h-${width}Z`;
                     
                     bar
-                        .transition()
-                        .duration(200)
-                        .ease(d3.easeLinear)
-                            .attr("d", newPath)
+                        // .transition()
+                        // .duration(200)
+                        // .ease(d3.easeLinear)
+                            .attr("d", newPath);
+
+
                     
+                }
+            })
+
+            // var anyActive = true;
+            // while(anyActive) {
+            // anyActive = false;
+            // d3.selectAll("path")
+            //     .filter(function() {
+            //             return d3.select(this).attr("aria-roledescription") == "bar"
+            //     })
+            //     .each(function() {
+            //         if (d3.active(this)) {
+            //             anyActive = true;
+            //         }
+            //     });
+
+            // console.log(anyActive)
+            // }
+            
+        // Update bar labels
+
+        d3.select("svg").selectAll(".infl-label")
+            // .transition()
+            // .duration(200)
+            // .ease(d3.easeLinear)
+            .attr("y", (d) => newYScale(d.value))
+        
+
+
+        //annotations
+        d3.select("svg").selectAll(".infl-ann-text")
+            // .transition()
+            // .duration(200)
+            // .ease(d3.easeLinear)
+            .attr("y", (d) => newYScale(d.yData))
+
+        //annotations
+        d3.select("svg").selectAll(".single-line")
+            // .transition()
+            // .duration(200)
+            // .ease(d3.easeLinear)
+            .attr("y1", (d) => newYScale(d.y1Data))
+            .attr("y2", (d) => newYScale(d.y2Data))
+
+        d3.select("svg").selectAll(".infl-handle")
+            .each(function() {
+                let line = d3.select(this.parentNode).select(".single-line");
+                // Determine if the handle is "left" or "right"
+                let isLeft = this.classList.contains("left");
+                if(isLeft) {
+                    d3.select(this)
+                        .attr("cy", newYScale(+line.data()[0].y1Data))
+                } else {
+                    d3.select(this)
+                        .attr("cy", newYScale(+line.data()[0].y2Data))
                 }
             })
     

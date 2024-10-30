@@ -46,6 +46,7 @@
     border: 2px solid #c8522e7b;
     -webkit-transition: .2s;
     transition: .2s;
+    width: 80px;
 }
 #infl-text-input:focus {
     /* background-color: #c8522e46; */
@@ -53,11 +54,11 @@
 }
 
 .infl-handle {
-    fill: white;
-    fill-opacity: 0;
+    /* fill: white;
+    fill-opacity: 0; */
 
-    /* fill: #C8532E;
-    fill-opacity: 0.2; */
+    fill: #C8532E;
+    fill-opacity: 0.2;
     cursor: move;
     stroke: none;
 }
