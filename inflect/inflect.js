@@ -17,6 +17,8 @@ function Inflection() {
     var SVGheight = 0;
     var SVGwidth = 0;
 
+    var promises = []; // Array to store promises for transitions
+
 
 
 
@@ -374,9 +376,8 @@ function Inflection() {
                 var yAxValue = that.inflection.yax;
                 var randomXEntry = x_domain[Math.floor(Math.random() * x_domain.length)];
                 var randomYEntry = Math.round(10*Math.random() * yAxValue)/10;
-                anns += randomXEntry + "-0.2-" + randomYEntry + "-" + text.replace(" ", "_")
+                anns += randomXEntry + "-0.2-" + randomYEntry + "-" + encodeURIComponent(text)
           
-                // anns += ("E-0.5-80-" + text.replace(" ", "_"));
                 that.inflection.ann = anns;
                 that.ann()
                 that.updateHash("ann")
@@ -419,7 +420,10 @@ function Inflection() {
 
     }
 
-    this.updateEditable = function () {
+    this.updateEditable = async function () {
+        await Promise.all(promises);
+        promises = [];
+
         let that = this;
 
         if (that.editable) {
@@ -446,18 +450,18 @@ function Inflection() {
                 // Select all the lines inside the group
                 var linegroup = d3.select(this);
 
-                var line = linegroup.select(".single-line");
+                var linedata = linegroup.select(".single-line").data()[0];
                 // Append circles to the line ends
 
                 // Get the start and end points of the line
                 var left_data = {
-                    x1: +line.attr("x1"),
-                    y1: +line.attr("y1")
+                    x1: +linedata.x1,
+                    y1: +linedata.y1
                 }
 
                 var right_data = {
-                    x2: +line.attr("x2"),
-                    y2: +line.attr("y2")
+                    x2: +linedata.x2,
+                    y2: +linedata.y2
                 }
 
                 // Append circle at the end of the line
@@ -481,18 +485,6 @@ function Inflection() {
 
             });
 
-            // remove line
-            // d3.selectAll(".infl-line")
-            //     .style("cursor", "pointer")
-            //     .on("dblclick", function(){
-            //         d3.select(this.parentNode)
-            //             // .transition()
-            //             // .duration(200)
-            //             // .ease(d3.easeLinear)
-            //             .remove();
-            //         that.updateHash("line")
-
-            //     });
 
 
             // change highlight
@@ -512,7 +504,7 @@ function Inflection() {
                     if (current_col[0] != "#") {
                         current_col = rgbToHex(current_col)
                     }
-                    if (current_col == highlight_colour.toUpperCase()) {
+                    if (current_col.toUpperCase() == highlight_colour.toUpperCase()) {
                         that.inflection.high = "";
                     } else {
                         that.inflection.high = highlight
@@ -841,11 +833,9 @@ function Inflection() {
 
 
 
-    this.updateHash = function (kind) {
-        //transform to data coordinates
-        var currYScale = d3.scaleLinear()
-        .domain([0, determineCurrentYax()])
-        .range([SVGheight, 0]);
+    this.updateHash = async function (kind) {
+        await Promise.all(promises);
+        promises = [];
 
         if (kind == "line") {
             var lines = [];
@@ -894,9 +884,10 @@ function Inflection() {
                             xd: text_object.data()[0].xData[0],
                             xb: text_object.data()[0].xData[1],
                             y: text_object.data()[0].yData,
-                            text: text_object.text().replace(" ", "_")
+                            text: encodeURIComponent(text_object.text())
                         }
                     )
+                    
                 })
 
             let anntext = ""
@@ -927,8 +918,8 @@ function Inflection() {
 
 
 
-    this.line = function () {
-
+    this.line = async function () {
+        
         var that = this;
         let place = that.inflection.line
 
@@ -940,6 +931,9 @@ function Inflection() {
                 .remove()
         }
         else {
+            await Promise.all(promises);
+            promises = [];
+
             var placelist = place.split(",");
 
             var currYScale = d3.scaleLinear()
@@ -988,24 +982,24 @@ function Inflection() {
                 .each(function (d) {
                     var g = d3.select(this);
 
-                    // TODO figure out transitions!!! This one messes up the addition of the handles
-                    g.selectAll(".single-line")
-                        .data([d])
-                        .join("line")
-                        .attr("class", "mark-line single-line")
-                        // .transition()
-                        // .duration(200)
-                        // .ease(d3.easeLinear)
-                        .attr("stroke", highlight_colour)
-                        .attr("x1", d => d.x1)
-                        .attr("x2", d => d.x2)
-                        .attr("y1", d => d.y1)
-                        .attr("y2", d => d.y2)
+                        g.selectAll(".single-line")
+                            .data([d])
+                            .join("line")
+                            .attr("class", "mark-line single-line")
+                            .transition("move-line")
+                            .duration(200)
+                            .ease(d3.easeLinear)
+                                .attr("stroke", highlight_colour)
+                                .attr("x1", d => d.x1)
+                                .attr("x2", d => d.x2)
+                                .attr("y1", d => d.y1)
+                                .attr("y2", d => d.y2)
                 });
+
         }
     }
 
-    this.ann = function () {
+    this.ann = async function () {
         // notation: x-y-text
         var that = this;
 
@@ -1018,6 +1012,9 @@ function Inflection() {
                 .remove()
         }
         else {
+            await Promise.all(promises);
+            promises = [];
+
             var annlist = ann.split(",");
                         //transform to data coordinates
             var currYScale = d3.scaleLinear()
@@ -1033,7 +1030,7 @@ function Inflection() {
                 let x_data_pos = splitted[0]
                 let x_between = +splitted[1]
                 let y_data_pos = splitted[2]
-                let text = splitted[3].replace("_", " ")
+                let text = decodeURIComponent(splitted[3])
 
                 // calculate postition in pixel space
                 var y_value = Math.round(10*currYScale(y_data_pos))/10
@@ -1057,12 +1054,12 @@ function Inflection() {
                 .style("text-anchor", "middle")
                 .attr("class", "infl-ann-text")
                 .style("fill", highlight_colour)
-                // .transition()
-                // .duration(200)
-                // .ease(d3.easeLinear)
-                .text(d => d.text)
-                .attr("x", d => d.x)
-                .attr("y", d => d.y)
+                .transition("move-ann")
+                .duration(200)
+                .ease(d3.easeLinear)
+                    .text(d => d.text)
+                    .attr("x", d => d.x)
+                    .attr("y", d => d.y)
                 // 
             // })
 
@@ -1070,7 +1067,7 @@ function Inflection() {
         }
     }
 
-    this.highlight = function () {
+    this.highlight = async function () {
         // bar rects are defined as paths like this:
         // <path aria-label="a: A; b: 28" role="graphics-symbol" aria-roledescription="bar" d="M1,144h18v56h-18Z" fill="#4c78a8"></path>
         let highlight = this.inflection.high
@@ -1093,15 +1090,21 @@ function Inflection() {
         else {
             // select correct path of bar that has to be highlighted
 
+            // while(barTransitionActive) {
+            //     console.log(barTransitionActive)
+            // }
+            await Promise.all(promises);
+            promises = [];
+
             var path = d3.selectAll("path")
                 .filter(function() {
                     return d3.select(this).attr("aria-roledescription") == "bar" && String(d3.select(this).attr("aria-label")).includes(highlight)
                     })
 
             path
-                // .transition()
-                // .duration(200)
-                // .ease(d3.easeLinear)
+                .transition("trans-high")
+                .duration(200)
+                .ease(d3.easeLinear)
                 .attr("fill", highlight_colour)
             
             // var i = 0;
@@ -1133,6 +1136,7 @@ function Inflection() {
                     value: +yvalue
                 }]
 
+
                 // label
                  d3.select(".label-group")
                     .selectAll("text.infl-label")
@@ -1143,12 +1147,12 @@ function Inflection() {
                     .attr("dy", "-1em")
                     .style("text-anchor", "middle")
                     .style("fill", highlight_colour)
-                    // .transition()
-                    // .duration(200)
-                    // .ease(d3.easeLinear)
-                    .text(d => d.value)
-                    .attr("x", (d) => d.x + d.width / 2)
-                    .attr("y", (d) => d.y)
+                    .transition("trans-high")
+                    .duration(200)
+                    .ease(d3.easeLinear)
+                        .text(d => d.value)
+                        .attr("x", (d) => d.x + d.width / 2)
+                        .attr("y", (d) => d.y)
                     
             }
             
@@ -1168,6 +1172,8 @@ function Inflection() {
     }
 
     this.yAx = function () {
+        promises = [];
+     
         var that = this;
         var yAxValue = that.inflection.yax
 
@@ -1264,11 +1270,12 @@ function Inflection() {
 
         
         // update bars
+
         d3.selectAll("path")
             .filter(function() {
                     return d3.select(this).attr("aria-roledescription") == "bar"
             })
-            .each(async function(){
+            .each(function(){
                 var bar = d3.select(this)
                 var aria_label = bar.attr("aria-label") // e.g. "a: D; b: 91"
 
@@ -1291,57 +1298,47 @@ function Inflection() {
                     // Replace the original height (v command) with the new height
                     let newPath = `M${topLeftX},${new_height}h${width}v${SVGheight - new_height}h-${width}Z`;
                     
-                    bar
-                        // .transition()
-                        // .duration(200)
-                        // .ease(d3.easeLinear)
-                            .attr("d", newPath);
-
-
+                    const barPromise = new Promise((resolve) => {
+                          bar
+                              .transition("move-y")
+                              .duration(200)
+                              .ease(d3.easeLinear)
+                                  .attr("d", newPath)
+                              .on("end", () => resolve());
+                      });
+                    
+                    promises.push(barPromise);
                     
                 }
-            })
+            });
 
-            // var anyActive = true;
-            // while(anyActive) {
-            // anyActive = false;
-            // d3.selectAll("path")
-            //     .filter(function() {
-            //             return d3.select(this).attr("aria-roledescription") == "bar"
-            //     })
-            //     .each(function() {
-            //         if (d3.active(this)) {
-            //             anyActive = true;
-            //         }
-            //     });
-
-            // console.log(anyActive)
-            // }
+    
             
         // Update bar labels
-
         d3.select("svg").selectAll(".infl-label")
-            // .transition()
-            // .duration(200)
-            // .ease(d3.easeLinear)
-            .attr("y", (d) => newYScale(d.value))
+            .transition("move-y")
+            .duration(200)
+            .ease(d3.easeLinear)
+                .attr("y", (d) => newYScale(d.value))
         
 
 
         //annotations
         d3.select("svg").selectAll(".infl-ann-text")
-            // .transition()
-            // .duration(200)
-            // .ease(d3.easeLinear)
+            .transition("move-y")
+            .duration(200)
+            .ease(d3.easeLinear)
             .attr("y", (d) => newYScale(d.yData))
 
-        //annotations
+        //lines
         d3.select("svg").selectAll(".single-line")
-            // .transition()
-            // .duration(200)
-            // .ease(d3.easeLinear)
+            .transition("move-y")
+            .duration(200)
+            .ease(d3.easeLinear)
             .attr("y1", (d) => newYScale(d.y1Data))
             .attr("y2", (d) => newYScale(d.y2Data))
+
+
 
         d3.select("svg").selectAll(".infl-handle")
             .each(function() {
@@ -1356,7 +1353,9 @@ function Inflection() {
                         .attr("cy", newYScale(+line.data()[0].y2Data))
                 }
             })
-    
+
+        // console.log(promises)
+
 
     }
 
