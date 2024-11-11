@@ -15,70 +15,52 @@
 
 }
 
-.infl-buttons {
-    /* display: block; */
-    float: left;
-    border-radius: 0px;
-    background-color: #C8532E;
-    border: 0px;
-    /* width: 80px; */
-    height: 28px;
-    cursor: pointer;
-    font-family: "Ubuntu";
-    font-size: 16px;
-    /* margin-top: 7px; */
-    margin-right: 15px;
-
-}
-
-.infl-buttons:hover {
-    background-color: #c8522e99;
-  }
-
-.infl-buttons:active {
-    background-color: #b63d18a9;
-}
 
 #infl-text-input {
     /* background-color: #c8522e46; */
     border-radius: 0px;
     outline: none;
-    border: 2px solid #c8522e7b;
+    border-width: 2px;
+    border-style: solid;
     -webkit-transition: .2s;
     transition: .2s;
     width: 80px;
 }
-#infl-text-input:focus {
-    /* background-color: #c8522e46; */
-    border: 2px solid #C8532E;
+/* #infl-text-input:focus {
+    border-color: #C8532E;
+} */
+
+.infl-col-input {
+  border: none;
 }
 
 .infl-handle {
-    /* fill: white;
-    fill-opacity: 0; */
+    fill: white;
+    fill-opacity: 0;
 
-    fill: #C8532E;
-    fill-opacity: 0.2;
+    /* fill: #C8532E;
+    fill-opacity: 0.2; */
+
     cursor: move;
     stroke: none;
 }
 
 .single-line {
-    stroke: #71260f;
+    filter:brightness(80%);
     stroke-width: 2px;
 }
 
 .infl-label {
   font-family: "Ubuntu";
   font-size: 13px;
-  fill: #C8532E;
-
+  filter:brightness(80%);
 }
 
 .infl-ann-text {
     font-family: "Ubuntu";
     font-size: 14px;
     fill: black;
+    filter:brightness(80%);
     /* fill: #C8532E; */
 }
 
@@ -93,63 +75,6 @@
     padding: 5px;
     margin-bottom: 12px;
 }
-.switch {
-    position: relative;
-    display: inline-block;
-    width: 46px;
-    height: 25px;
-    margin-left: 15px;
-    margin-top: 0px;
-    
-  }
-  
-  /* Hide default HTML checkbox */
-  .switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-  
-  /* The slider */
-  .slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    -webkit-transition: .2s;
-    transition: .2s;
-    border-radius: 25px;
-  }
-  
-  .slider:before {
-    position: absolute;
-    content: "";
-    height: 17px;
-    width: 17px;
-    left: 4px;
-    bottom: 4px;
-    background-color: white;
-    -webkit-transition: .2s;
-    transition: .2s;
-    border-radius: 50%;
-  }
-  
-  input:checked + .slider {
-    background-color: #C8532E;
-  }
-  
-  /* input:focus + .slider {
-    box-shadow: 0 0 1px #2196F3;
-  } */
-  
-  input:checked + .slider:before {
-    -webkit-transform: translateX(20px);
-    -ms-transform: translateX(20px);
-    transform: translateX(20px);
-  }
 
   .infl-tooltip {
     font-family: "Ubuntu";

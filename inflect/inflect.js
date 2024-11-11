@@ -9,7 +9,7 @@ function Inflection() {
         high: "",
         yax: ""
     };
-    var highlight_colour = "#C8532E"
+    var highlight_colour = "#00F05E"
     this.basecol = "";
     this.baseyax = "";
 
@@ -39,9 +39,16 @@ function Inflection() {
         // that.col = that.hash.split("_")[0]
         var hashA = this.hash.split("&");
 
-        // TODO get theses values
-        let border_y = 27 + 0 + 0.5;
-        let border_x = 45 + 0 + 0.5;
+        // establish borders
+        let first_transform = d3.select("svg").select("g").attr("transform");
+        let second_transform = d3.select("svg").select("g").select("g").select("g").attr("transform");
+        let third_transform = d3.select(".mark-group.role-axis").select("g").attr("transform")
+        let expr_y = /translate\(.*?,([^\)]+)\)/
+        let expr_x = /translate\(([^,]+),/
+        let border_y = +first_transform.match(expr_y)[1] + +second_transform.match(expr_y)[1] + +third_transform.match(expr_y)[1];
+        let border_x = +first_transform.match(expr_x)[1] + +second_transform.match(expr_x)[1] + +third_transform.match(expr_x)[1];
+
+        // append groups to insert lines and annotations
         d3.select("svg").append("g").attr("class", "line-group")
         .attr("transform", "translate(" + border_x + "," + border_y + ")")
 
@@ -209,52 +216,6 @@ function Inflection() {
 
             });
 
-        // define toggle div
-        // d3.select(".inflect_ui").append("div")
-        //     .attr("class", "infl-ui-div")
-        //     .attr("id", "toggle")
-        // // .style("display", "block")
-
-        // d3.select("#toggle")
-        // .append("p")
-        // .attr("class", "infl-ui-titles")
-        //     .html("Toggle editability")
-        //     .style("margin-top", "3px")
-        //     .style("margin-bottom", "0px");
-
-        // d3.select("#toggle").append("label")
-        // .attr("class", "switch");
-
-        // d3.select(".switch").append("input")
-        //     .attr("type", "checkbox")
-        //     .attr("checked", true)
-        //     .on("change", function() {
-        //         that.editable = this.checked;
-        //         that.updateEditable();
-        //     });
-
-        // d3.select(".switch").append("span")
-        //     .attr("class", "slider");
-
-        // reset axis
-        // d3.select(".inflect_ui").append("div")
-        //     .attr("class", "infl-ui-div")
-        //     .attr("id", "yax-div");
-
-        // d3.select("#yax-div").append("button")
-        //     .attr("class", "infl-buttons").html("Reset Y-Axis")
-        //     .on("click", function () {
-        //         that.inflection.yax = that.baseyax;
-        //         that.yAx()
-        //         that.updateHash("line")
-        //         that.updateEditable()
-
-        //     });
-
-        // d3.select("#yax-div").append("p").html("back to original")
-        //     .style("margin-top", "6px")
-        //     .style("font-size", "13px");
-
         // Lines
         d3.select(".inflect_ui").append("div")
             .attr("class", "infl-ui-div")
@@ -285,7 +246,20 @@ function Inflection() {
                     lines += ","
                 }
                 // TODO randomise this, adapt to different scales
-                lines += "A-0.2-I-0.88-26.8-27.5"
+                var xscale = getXAxisScale()
+                var x_domain = xscale.domain()
+                var randomEntry1 = x_domain[Math.floor(Math.random() * x_domain.length)];
+                var randomEntry2 = x_domain[Math.floor(Math.random() * x_domain.length)];
+                while (randomEntry1 == randomEntry2) {
+                    randomEntry2 = x_domain[Math.floor(Math.random() * x_domain.length)];
+                }
+
+                var yAxValue = that.inflection.yax;
+
+                lines += randomEntry1 + "-0.2-" + randomEntry2 + "-0.88-" + 
+                        Math.round(10*Math.random() * yAxValue)/10 + "-" +
+                        Math.round(10*Math.random() * yAxValue)/10
+
                 that.inflection.line = lines;
                 that.line()
                 that.updateHash("line")
@@ -295,6 +269,7 @@ function Inflection() {
         
         d3.select("#line-button")
             .append("rect")
+                .attr("class", "button-bg")
                 .attr("width", icon_button_width)
                 .attr("height", icon_button_width)
                 .style("stroke-width", "2.5px")
@@ -313,28 +288,6 @@ function Inflection() {
             .style("stroke-width", "3px")
             .style("stroke-linecap", "round")
         
-                
-
-        // d3.select("#line-div").append("button")
-        //     .attr("class", "infl-buttons").html("Add Line")
-        //     .on("click", function () {
-        //         let lines = that.inflection.line
-        //         var list = lines.split(",");
-        //         if (list.length > 0 && list[0].length > 0) {
-        //             lines += ","
-        //         }
-        //         // TODO randomise this, adapt to different scales
-        //         lines += "A-0.2-I-0.88-26.8-27.5"
-        //         that.inflection.line = lines;
-        //         that.line()
-        //         that.updateHash("line")
-        //         that.updateEditable()
-
-        //     });
-
-        // d3.select("#line-div").append("p").html("appears in a random place")
-        //     .style("margin-top", "6px")
-        //     .style("font-size", "13px");
 
         // Annotations
         d3.select(".inflect_ui").append("div")
@@ -362,6 +315,7 @@ function Inflection() {
         
         d3.select("#ann-button")
             .append("rect")
+                .attr("class", "button-bg")
                 .attr("width", icon_button_width)
                 .attr("height", icon_button_width)
                 .style("stroke-width", "2.5px")
@@ -390,6 +344,16 @@ function Inflection() {
             .attr("type", "text")
             .attr("placeholder", "input")
             .style("margin-top", "3px")
+            .style("border-color", highlight_colour)
+            .on("focus", function() {
+                d3.select(this)
+                    .style("border-color", "black")
+            })
+            .on("blur", function() {
+                d3.select(this)
+                    .style("border-color", highlight_colour);
+            });
+
 
         // now define button behaviour
         d3.select("#ann-button")
@@ -403,13 +367,42 @@ function Inflection() {
                 if (text == "") {
                     text = "text"
                 }
-                anns += ("E-0.5-80-" + text.replace(" ", "_"));
+
+                // randomize, adapt to scale
+                var xscale = getXAxisScale()
+                var x_domain = xscale.domain()
+                var yAxValue = that.inflection.yax;
+                var randomXEntry = x_domain[Math.floor(Math.random() * x_domain.length)];
+                var randomYEntry = Math.round(10*Math.random() * yAxValue)/10;
+                anns += randomXEntry + "-0.2-" + randomYEntry + "-" + text.replace(" ", "_")
+          
+                // anns += ("E-0.5-80-" + text.replace(" ", "_"));
                 that.inflection.ann = anns;
                 that.ann()
                 that.updateHash("ann")
                 that.updateEditable()
 
             });
+
+        // Colour
+        d3.select(".inflect_ui").append("div")
+            .attr("class", "infl-ui-div")
+            .attr("id", "colour-div");
+
+            // <input type="color" id="head" name="head" value="#e66465" />
+        d3.select("#colour-div").append("input")
+            .attr("class", "infl-col-input")
+            .attr("type", "color")
+            .attr("value", highlight_colour)
+            .on("change", function(d) {
+                var new_col = d3.select(this).property("value")
+                highlight_colour = new_col
+                that.highlight();
+                that.ann();
+                that.line();
+                d3.selectAll(".button-bg").style("fill", new_col)
+                d3.select("#infl-text-input").style("border-color", new_col)
+            })
 
 
         // note about double click
@@ -549,7 +542,7 @@ function Inflection() {
                 .attr("y", yaxis_placement.y)
                 .style("fill", "none")
                 .style("pointer-events", "all")
-                .style("cursor", "n-resize")
+                .style("cursor", "ns-resize")
 
             // ann text
             d3.selectAll(".infl-ann-text")
@@ -936,7 +929,8 @@ function Inflection() {
 
     this.line = function () {
 
-        let place = this.inflection.line
+        var that = this;
+        let place = that.inflection.line
 
         if (place == "") {
             d3.selectAll(".infl-line")
@@ -1002,7 +996,7 @@ function Inflection() {
                         // .transition()
                         // .duration(200)
                         // .ease(d3.easeLinear)
-                        .attr("stroke", "#C8532E")
+                        .attr("stroke", highlight_colour)
                         .attr("x1", d => d.x1)
                         .attr("x2", d => d.x2)
                         .attr("y1", d => d.y1)
@@ -1062,6 +1056,7 @@ function Inflection() {
                 .join("text")
                 .style("text-anchor", "middle")
                 .attr("class", "infl-ann-text")
+                .style("fill", highlight_colour)
                 // .transition()
                 // .duration(200)
                 // .ease(d3.easeLinear)
@@ -1147,6 +1142,7 @@ function Inflection() {
                     // .text(function(d) {console.log(d)})
                     .attr("dy", "-1em")
                     .style("text-anchor", "middle")
+                    .style("fill", highlight_colour)
                     // .transition()
                     // .duration(200)
                     // .ease(d3.easeLinear)
@@ -1171,7 +1167,7 @@ function Inflection() {
         }
     }
 
-    this.yAx = async function () {
+    this.yAx = function () {
         var that = this;
         var yAxValue = that.inflection.yax
 
