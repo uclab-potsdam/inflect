@@ -7,13 +7,15 @@ function Inflection() {
         line: "",
         ann: "",
         high: "",
-        yax: ""
+        yax: "",
+        col: ""
     };
-    var highlight_colour = "#00F05E"
-    this.basecol = "";
+
+    this.default_infl_col = "#00F05E"
+    this.basecol = ""; // colour of the bars
     this.baseyax = "";
 
-    this.editable = true;
+    this.editable = true; // in iframe or separate window with UI
     var SVGheight = 0;
     var SVGwidth = 0;
 
@@ -66,6 +68,7 @@ function Inflection() {
 
         this.baseyax = determineCurrentYax().toString()
         this.inflection.yax = this.baseyax;
+        this.inflection.col = this.default_infl_col
 
         SVGheight = +d3.selectAll("g.mark-group.role-axis").filter(function() {
             return String(d3.select(this).attr("aria-label")).includes("Y-axis")
@@ -119,14 +122,14 @@ function Inflection() {
                 // console.log(element)
                 let splitted = element.split("=")
                 let cat = splitted[0]
-                let value = splitted[1]
+                let value = decodeURIComponent(splitted[1])
                 switch (cat) {
                     case "yax":
                         if (value != that.inflection.yax) {
                             that.inflection.yax = value;
                             that.yAx();
                         }
-                        break;                   
+                        break; 
                     case "line":
                         if (value != that.inflection.line) {
                             that.inflection.line = value;
@@ -145,12 +148,23 @@ function Inflection() {
                             that.highlight();
                         }
                         break;
+                    case "col":
+                        if (value != that.inflection.col) {
+                            that.inflection.col = value;
+                            that.col();
+                        }
+                        break;      
 
                     default:
                         break;
                 }
                 cats_in_hash.push(cat)
             });
+
+            if ((!cats_in_hash.includes("col") && that.inflection.col != that.default_infl_col) | that.inflection.col == "") {
+                that.inflection.col = that.default_infl_col
+                that.col();
+            }
 
             if (!cats_in_hash.includes("line") && that.inflection.line != "") {
                 that.inflection.line = ""
@@ -276,7 +290,7 @@ function Inflection() {
                 .attr("height", icon_button_width)
                 .style("stroke-width", "2.5px")
                 .style("stroke", "black")
-                .style("fill", highlight_colour)
+                .style("fill", that.inflection.col)
                 .style("fill-opacity", 0.3);
         
         var dist = 5;
@@ -322,7 +336,7 @@ function Inflection() {
                 .attr("height", icon_button_width)
                 .style("stroke-width", "2.5px")
                 .style("stroke", "black")
-                .style("fill", highlight_colour)
+                .style("fill", that.inflection.col)
                 .style("fill-opacity", 0.3);
         
         var dist = 5;
@@ -346,14 +360,14 @@ function Inflection() {
             .attr("type", "text")
             .attr("placeholder", "input")
             .style("margin-top", "3px")
-            .style("border-color", highlight_colour)
+            .style("border-color", that.inflection.col)
             .on("focus", function() {
                 d3.select(this)
                     .style("border-color", "black")
             })
             .on("blur", function() {
                 d3.select(this)
-                    .style("border-color", highlight_colour);
+                    .style("border-color", that.inflection.col);
             });
 
 
@@ -376,7 +390,7 @@ function Inflection() {
                 var yAxValue = that.inflection.yax;
                 var randomXEntry = x_domain[Math.floor(Math.random() * x_domain.length)];
                 var randomYEntry = Math.round(10*Math.random() * yAxValue)/10;
-                anns += randomXEntry + "-0.2-" + randomYEntry + "-" + encodeURIComponent(text)
+                anns += randomXEntry + "-0.2-" + randomYEntry + "-" + text
           
                 that.inflection.ann = anns;
                 that.ann()
@@ -394,15 +408,13 @@ function Inflection() {
         d3.select("#colour-div").append("input")
             .attr("class", "infl-col-input")
             .attr("type", "color")
-            .attr("value", highlight_colour)
+            .attr("value", that.inflection.col)
             .on("change", function(d) {
                 var new_col = d3.select(this).property("value")
-                highlight_colour = new_col
-                that.highlight();
-                that.ann();
-                that.line();
-                d3.selectAll(".button-bg").style("fill", new_col)
-                d3.select("#infl-text-input").style("border-color", new_col)
+                // highlight_colour = new_col
+                that.inflection.col = new_col
+                that.col()
+                that.updateHash("col")
             })
 
 
@@ -504,7 +516,7 @@ function Inflection() {
                     if (current_col[0] != "#") {
                         current_col = rgbToHex(current_col)
                     }
-                    if (current_col.toUpperCase() == highlight_colour.toUpperCase()) {
+                    if (current_col.toUpperCase() == that.inflection.col.toUpperCase()) {
                         that.inflection.high = "";
                     } else {
                         that.inflection.high = highlight
@@ -884,7 +896,7 @@ function Inflection() {
                             xd: text_object.data()[0].xData[0],
                             xb: text_object.data()[0].xData[1],
                             y: text_object.data()[0].yData,
-                            text: encodeURIComponent(text_object.text())
+                            text: text_object.text()
                         }
                     )
                     
@@ -908,10 +920,14 @@ function Inflection() {
         if (kind == "yax") {
             this.inflection.yax = determineCurrentYax().toString();
         }
+        if (kind == "col") {
+            
+        }
         this.hash =
+            "col=" + encodeURIComponent(this.inflection.col) + "&" +
             "yax=" + this.inflection.yax + "&" +
             "line=" + this.inflection.line + "&" +
-            "ann=" + this.inflection.ann + "&" +
+            "ann=" + encodeURIComponent(this.inflection.ann) + "&" +
             "high=" + this.inflection.high;
         window.location.hash = "#" + this.hash
     }
@@ -989,7 +1005,7 @@ function Inflection() {
                             .transition("move-line")
                             .duration(200)
                             .ease(d3.easeLinear)
-                                .attr("stroke", highlight_colour)
+                                .attr("stroke", that.inflection.col)
                                 .attr("x1", d => d.x1)
                                 .attr("x2", d => d.x2)
                                 .attr("y1", d => d.y1)
@@ -1030,7 +1046,7 @@ function Inflection() {
                 let x_data_pos = splitted[0]
                 let x_between = +splitted[1]
                 let y_data_pos = splitted[2]
-                let text = decodeURIComponent(splitted[3])
+                let text = splitted[3]
 
                 // calculate postition in pixel space
                 var y_value = Math.round(10*currYScale(y_data_pos))/10
@@ -1053,7 +1069,7 @@ function Inflection() {
                 .join("text")
                 .style("text-anchor", "middle")
                 .attr("class", "infl-ann-text")
-                .style("fill", highlight_colour)
+                .style("fill", that.inflection.col)
                 .transition("move-ann")
                 .duration(200)
                 .ease(d3.easeLinear)
@@ -1070,7 +1086,9 @@ function Inflection() {
     this.highlight = async function () {
         // bar rects are defined as paths like this:
         // <path aria-label="a: A; b: 28" role="graphics-symbol" aria-roledescription="bar" d="M1,144h18v56h-18Z" fill="#4c78a8"></path>
-        let highlight = this.inflection.high
+        var that = this;
+        let highlight = that.inflection.high
+
         if (highlight == "") {
             d3.selectAll("path")
                 .filter(function() {
@@ -1105,12 +1123,9 @@ function Inflection() {
                 .transition("trans-high")
                 .duration(200)
                 .ease(d3.easeLinear)
-                .attr("fill", highlight_colour)
+                .attr("fill", that.inflection.col)
             
-            // var i = 0;
-            // while(path.attr("fill") != highlight_colour) {
-            //     i++;
-            // }
+
 
             var aria_label = path.attr("aria-label") // e.g. "a: D; b: 91"
             // filter y value
@@ -1146,7 +1161,7 @@ function Inflection() {
                     // .text(function(d) {console.log(d)})
                     .attr("dy", "-1em")
                     .style("text-anchor", "middle")
-                    .style("fill", highlight_colour)
+                    .style("fill", that.inflection.col)
                     .transition("trans-high")
                     .duration(200)
                     .ease(d3.easeLinear)
@@ -1356,6 +1371,23 @@ function Inflection() {
 
         // console.log(promises)
 
+
+    }
+
+    this.col = function () {
+     
+        var that = this;
+        var colour = that.inflection.col
+
+        that.highlight();
+        that.ann();
+        that.line();
+
+        //Change UI
+        d3.select(".infl-col-input")
+            .attr("value", colour)
+        d3.selectAll(".button-bg").style("fill", colour)
+        d3.select("#infl-text-input").style("border-color", colour)
 
     }
 
