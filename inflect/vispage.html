@@ -1,5 +1,10 @@
 <!DOCTYPE html>
 <head>
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon_io/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon_io/favicon-16x16.png">
+    <link rel="manifest" href="favicon_io/site.webmanifest">
+
     <!-- <script src="https://d3js.org/d3.v7.min.js" type="text/javascript"></script> -->
     <script src="../src/d3.v7.min.js" type="text/javascript"></script>
     <link href="inflectstyle.css" type="text/css" rel="stylesheet">
@@ -8,7 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.20.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.26.0"></script>
     <script src="inflect.js" type="text/javascript"></script>
-    <script src="vis/myvis.js" type="text/javascript"></script>
+    <!-- <script src="vis/barchart.json" type="text/json"></script> -->
 
 
 </head>
@@ -16,36 +21,34 @@
     <div id="vis"> </div>
     <script type="text/javascript">
         // console.log(document.URL)
+        // https://github.com/vega/vega-lite-v1/tree/master/data
         
-        const spec = {
-        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-        "usermeta": {"embedOptions": {"renderer": "svg"}},
-        "description": "A simple bar chart with embedded data.",
-        "title": "Interesting Data",
-        "data": {
-            "values": [
-            {"a": "A", "b": 28}, {"a": "B", "b": 55}, {"a": "C", "b": 43},
-            {"a": "D", "b": 91}, {"a": "E", "b": 81}, {"a": "F", "b": 53},
-            {"a": "G", "b": 19}, {"a": "H", "b": 87}, {"a": "I", "b": 52}
-            ]
-        },
-        "mark": "bar",
-        "encoding": {
-            "x": {"field": "a", "type": "nominal", "axis": {"labelAngle": 0}},
-            "y": {"field": "b", "type": "quantitative"}
-        },
-        "config": {}
-        };
+        var spec = [];
+        // fetch('vis/column_chart.json')
+        fetch('vis/column_chart.json')
+            .then(response => {return response.json()})
+            .then(data => spec = data)
+            .then(
+                function() {
+                var result = vegaEmbed("#vis", spec, {mode: "vega-lite"}).then(
+                    function() {
+                        var vis;
+                        vis = new Inflection();	
+                        vis.init("columnchart"); //barchart or columnchart
+                    }
+                ).catch(console.warn);
+                }
+            )   
 
         
-        var result = vegaEmbed("#vis", spec, {mode: "vega-lite"}).then().catch(console.warn);
+        
     </script>
     
     <script>
-        var vis;
-        // var which = document.URL.split("?")[1].split("#")[0];
-        vis = new Inflection();	
-        vis.init("barchart");
+        // var vis;
+        // // var which = document.URL.split("?")[1].split("#")[0];
+        // vis = new Inflection();	
+        // vis.init("barchart");
         
     </script>
     
