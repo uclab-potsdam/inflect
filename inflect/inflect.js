@@ -47,7 +47,7 @@ function Inflection() {
         var that = this;
         this.baseurl = document.URL.split("#")[0];
         // that.col = that.hash.split("_")[0]
-        var hashA = this.hash.split("&");
+        
 
         // establish borders
         let first_transform = d3.select("svg").select("g").attr("transform");
@@ -130,8 +130,7 @@ function Inflection() {
 
 
 
-
-        checkHash(hashA)
+        checkHash(that.hash)
 
 
         setInterval(function () {
@@ -142,11 +141,9 @@ function Inflection() {
 
                 that.hash = newhash;
 
-                // var mode = parseInt(hashA[0]);
-                var hashA = that.hash.split("&");
-                checkHash(hashA);
+                checkHash(that.hash);
                 that.updateEditable()
-                d3.selectAll(".annotation-group").raise()
+                // d3.selectAll(".annotation-group").raise()
 
 
             }
@@ -154,21 +151,22 @@ function Inflection() {
             , 500);
 
         function checkHash(hash) {
+            var hash_elements = hash.split("&");
             var cats_in_hash = [];
-            hash.forEach(element => {
+            hash_elements.forEach(element => {
                 // console.log(element)
                 let splitted = element.split("=")
                 let cat = splitted[0]
                 let value = decodeURIComponent(splitted[1])
                 switch (cat) {
                     case "yax":
-                        if (value != that.inflection.yax && this.yAxEditable) {
+                        if (value != that.inflection.yax && that.yAxEditable) {
                             that.inflection.yax = value;
                             that.yAx();
                         }
                         break; 
                     case "xax":
-                            if (value != that.inflection.xax && this.xAxEditable) {
+                            if (value != that.inflection.xax && that.xAxEditable) {
                                 that.inflection.xax = value;
                                 that.xAx();
                             }
@@ -1182,6 +1180,7 @@ function Inflection() {
             
         }
         this.hash =
+            "vis=" + this.charttype + "&" +
             "col=" + encodeURIComponent(this.inflection.col) + "&"
 
         if (this.yAxEditable) {

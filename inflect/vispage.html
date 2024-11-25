@@ -22,19 +22,30 @@
     <script type="text/javascript">
         // console.log(document.URL)
         // https://github.com/vega/vega-lite-v1/tree/master/data
-        
+        let hash_array = document.URL.split("#")[1].split("&");
+        var which_definition = hash_array.find(function(d) {return d.includes("vis")})
         var spec = [];
+        try {
+            var which = which_definition.split("=")[1]
+        } catch (error) {
+            console.error(error)
+            console.error("You forgot to define which visualisation to use!")
+        }
+    
+    
+        
         // fetch('vis/column_chart.json')
-        fetch('vis/column_chart.json')
+        fetch('vis/' + which + '.json')
             .then(response => {return response.json()})
             .then(data => spec = data)
             .then(
                 function() {
+                    
                 var result = vegaEmbed("#vis", spec, {mode: "vega-lite"}).then(
                     function() {
                         var vis;
                         vis = new Inflection();	
-                        vis.init("columnchart"); //barchart or columnchart
+                        vis.init(which); //barchart or columnchart
                     }
                 ).catch(console.warn);
                 }
