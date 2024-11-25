@@ -38,6 +38,7 @@
     -webkit-transition: .2s;
     transition: .2s;
     width: 80px;
+    float: left;
 }
 /* #infl-text-input:focus {
     border-color: #C8532E;

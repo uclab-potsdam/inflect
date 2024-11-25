@@ -108,6 +108,17 @@ function Inflection() {
                     this.basexax = determineMaxOfEditableAx("xax").toString()
                     this.inflection.xax = this.basexax;
                     break;
+
+            case "scatterplot":
+                this.yAxEditable = true;
+                this.xAxEditable = true;
+
+                this.basexax = determineMaxOfEditableAx("xax").toString()
+                this.inflection.xax = this.basexax;
+
+                this.baseyax = determineMaxOfEditableAx("yax").toString()
+                this.inflection.yax = this.baseyax;
+                break;
         
             default:
                 this.yAxEditable = true;
@@ -382,13 +393,28 @@ function Inflection() {
             .attr("class", "infl-ui-div")
             .attr("id", "annotation-div");
 
+        d3.select("#annotation-div").append("input")
+            .attr("id", "infl-text-input")
+            .attr("type", "text")
+            .attr("placeholder", "input")
+            .style("margin-top", "3px")
+            .style("border-color", that.inflection.col)
+            .on("focus", function() {
+                d3.select(this)
+                    .style("border-color", "black")
+            })
+            .on("blur", function() {
+                d3.select(this)
+                    .style("border-color", that.inflection.col);
+            });
+
         d3.select("#annotation-div").append("svg")
             .attr("class", "icon-button")
             .attr("id", "ann-button")
             .attr("width", icon_button_width)
             .attr("height", icon_button_width)
-            .style("float", "left")
-            .style("margin-right", "15px")
+            // .style("float", "left")
+            .style("margin-left", "15px")
             .style("cursor", "pointer")
             .on("mouseover", function () {
                 tooltip.style("visibility", "visible").text("Add annotation");
@@ -420,27 +446,13 @@ function Inflection() {
             .style("font-family", "Ubuntu")
             .style("font-size", "10px")
             .style("text-anchor", "middle")
-
-            .text("text")
+            .text("text");
 
         // d3.select("#annotation-div").append("button")
         //     .attr("class", "infl-buttons").html("Add Annotation")
         //     .attr("id", "ann-button")
 
-        d3.select("#annotation-div").append("input")
-            .attr("id", "infl-text-input")
-            .attr("type", "text")
-            .attr("placeholder", "input")
-            .style("margin-top", "3px")
-            .style("border-color", that.inflection.col)
-            .on("focus", function() {
-                d3.select(this)
-                    .style("border-color", "black")
-            })
-            .on("blur", function() {
-                d3.select(this)
-                    .style("border-color", that.inflection.col);
-            });
+
 
 
         // now define button behaviour to add annotation
