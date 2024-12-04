@@ -17,19 +17,24 @@
 
 
 </head>
+
 <body>
     <div id="vis"> </div>
     <script type="text/javascript">
         // console.log(document.URL)
         // https://github.com/vega/vega-lite-v1/tree/master/data
-        let hash_array = document.URL.split("#")[1].split("&");
-        var which_definition = hash_array.find(function(d) {return d.includes("vis")})
-        var spec = [];
-        try {
-            var which = which_definition.split("=")[1]
-        } catch (error) {
-            console.error(error)
-            console.error("You forgot to define which visualisation to use!")
+        if(document.URL.split("#")[1]) {
+            var hash_array = document.URL.split("#")[1].split("&");
+            var which_definition = hash_array.find(function(d) {return d.includes("vis")})
+            var spec = [];
+            try {
+                var which = which_definition.split("=")[1]
+            } catch (error) {
+                console.warning("You forgot to define which visualisation to use!")
+                var which = "barchart";
+            }
+        } else {
+            var which = "barchart";
         }
     
     

@@ -102,12 +102,20 @@ function Inflection() {
                 this.inflection.yax = this.baseyax;
                 break;
             case "columnchart":
-                    this.yAxEditable = false;
-                    this.xAxEditable = true;
+                this.yAxEditable = false;
+                this.xAxEditable = true;
 
-                    this.basexax = determineMaxOfEditableAx("xax").toString()
-                    this.inflection.xax = this.basexax;
-                    break;
+                this.basexax = determineMaxOfEditableAx("xax").toString()
+                this.inflection.xax = this.basexax;
+                break;
+
+            case "stacked_barchart":
+                this.yAxEditable = false;
+                this.xAxEditable = false;
+
+                // this.baseyax = determineMaxOfEditableAx("yax").toString()
+                // this.inflection.yax = this.baseyax;
+                break;
 
             case "scatterplot":
                 this.yAxEditable = true;
@@ -170,6 +178,11 @@ function Inflection() {
                 let cat = splitted[0]
                 let value = decodeURIComponent(splitted[1])
                 switch (cat) {
+                    case "vis":
+                        if (value != that.charttype) {
+                            location.reload() //reload page!
+                        }
+                        break;
                     case "yax":
                         if (value != that.inflection.yax && that.yAxEditable) {
                             that.inflection.yax = value;
@@ -1519,7 +1532,18 @@ function Inflection() {
                                 .style("fill", that.inflection.col)
                         break;
                 
-                    default:
+                    default: //barchart
+                        that.charttype = "barchart"
+                        d3.selectAll(".infl-label")
+                            .attr("dy", "-1em")
+                            .style("text-anchor", "middle")
+                            .transition("trans-high")
+                            .duration(200)
+                            .ease(d3.easeLinear)
+                                .text(d => d.value)
+                                .attr("x", (d) => d.x + d.width / 2)
+                                .attr("y", (d) => d.y)
+                                .style("fill", that.inflection.col)
                         break;
                 }
                     
