@@ -3,7 +3,47 @@
     <meta charset="UTF-8">
     <title>Inflect!</title>
     
-    <link href="src/style.css" type="text/css" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: "HelveticaNeueLight", "HelveticaNeue-Light", "Helvetica Neue Light", "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Arial", sans-serif;
+            font-weight: 200;
+            font-size: calc(1vw + 1vh);
+            background: #ddd;
+            margin: 0;
+            padding: 0;
+        }
+
+        iframe {
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 50%;
+            position: fixed;
+            background: #fff;
+            border: 0;
+        }
+
+        p {
+            font-size: 1em;
+            left: 50%;
+            width: 40%;
+            min-height: 100%;
+            margin: 0;
+            padding: 40vh 5vh;
+            position: relative;
+        }
+
+        a.inflect {
+            color: black;
+            text-decoration: none;    
+        }
+
+        a.active {
+            background: white;
+        }
+
+    </style>
 </head>
 
 <body>
@@ -11,26 +51,26 @@
     <iframe id="if"></iframe>
 
     <!-- todo: change ?, place myfirstVis afterVis! -->
-    <p>Look, a <a class="inflect" href="inflect/vispage.html#vis=scatterplot">scatterplot!</a>
+    <p>Look, a <a class="inflect" href="vis/index.html#vis=scatterplot">scatterplot!</a>
     </p>
 
-    <p><a class="inflect" href="inflect/vispage.html">This</a> is a visualisation that is inflectable!
+    <p><a class="inflect" href="vis/index.html">This</a> is a visualisation that is inflectable!
     </p>
 
-    <p>I can tell you something interesting about the <a class="inflect" href="inflect/vispage.html#vis=barchart&col=%23ec7d04&yax=100&line=A-0-I-1-55-0-55-0&ann=F-0.1-90-0-text&high=B">left</a> bar.
+    <p>I can tell you something interesting about the <a class="inflect" href="vis/index.html#vis=barchart&col=%23ec7d04&yax=100&line=A-0-I-1-55-0-55-0&ann=F-0.1-90-0-text&high=B">left</a> bar.
     </p>
 
-    <p>And now you can see an explanation of <a class="inflect" href="inflect/vispage.html#vis=barchart&col=%23ec7d04&yax=125&line=F-0.53-G-0.43-96.9-0-38.7-0&ann=E-0.5-103.6-0-19%20is%20an%20interesting%20number&high=G">another</a> bar.
+    <p>And now you can see an explanation of <a class="inflect" href="vis/index.html#vis=barchart&col=%23ec7d04&yax=125&line=F-0.53-G-0.43-96.9-0-38.7-0&ann=E-0.5-103.6-0-19%20is%20an%20interesting%20number&high=G">another</a> bar.
     </p>
 
-    <p>One more <a class="inflect" href="inflect/vispage.html#vis=barchart&col=%2300F05E&yax=121.2&line=A-0.9-H-0.5-107.5-0-19.7-0,A-0.68-I-0.48-14.2-0-87-0&ann=G-0.3-107.7-0-attention!&high=D">thing</a>!
+    <p>One more <a class="inflect" href="vis/index.html#vis=barchart&col=%2300F05E&yax=121.2&line=A-0.9-H-0.5-107.5-0-19.7-0,A-0.68-I-0.48-14.2-0-87-0&ann=G-0.3-107.7-0-attention!&high=D">thing</a>!
     </p>
 
-    <p>And this is a <a class="inflect" href="inflect/vispage.html#vis=columnchart&col=%2300F05E&xax=28690671.2&line=15421235.8-0-11117635.1-0-60-0.74-65-0.44&ann=18333338.9-0-60-0.85-text&high=7268299">columnchart</a>
+    <p>And this is a <a class="inflect" href="vis/index.html#vis=columnchart&col=%2300F05E&xax=28690671.2&line=15421235.8-0-11117635.1-0-60-0.74-65-0.44&ann=18333338.9-0-60-0.85-text&high=7268299">columnchart</a>
         now!
     </p>
 
-    <p>And this is a <a class="inflect" href="inflect/vispage.html#vis=stacked_barchart">stacked barchart</a>
+    <p>And this is a <a class="inflect" href="vis/index.html#vis=stacked_barchart">stacked barchart</a>
         now!
     </p>
     
@@ -69,6 +109,54 @@
     
     
     
-    <script src="src/inflectconfig.js" type="text/javascript"></script>
+    <script>
+        // with IntersectionObserver we can check what is visible
+        const observer = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    let iframe = document.getElementById('if');
+
+                    // remove active class from all links
+                    document.querySelectorAll('a.inflect').forEach(a => {
+                        a.classList.remove('active');
+                    });
+
+                    // add active class only to the visible link
+                    let visibleLink = entry.target;
+                    visibleLink.classList.add('active');
+
+                    // update iframe to match visible link
+                    iframe.src = visibleLink.href;
+                }
+            });
+        });
+
+        // all inflect links in the document
+        let inflectLinks = document.querySelectorAll('a.inflect');
+
+        // add observer to each inflect link
+        inflectLinks.forEach(link => {
+            observer.observe(link);
+            
+            // add event listener to deactivate link on click
+            link.addEventListener('click', function(event) {
+                // prevent the link from navigating
+                event.preventDefault();
+                let iframe = document.getElementById('if');
+                iframe.src = link.href;
+                document.querySelectorAll('a.inflect').forEach(a => {
+                    a.classList.remove('active');
+                });
+                link.classList.add('active');
+            });
+        });
+
+        // scroll up when pressing escape
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        });
+    </script>
 
 </body>
