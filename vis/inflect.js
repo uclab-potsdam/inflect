@@ -291,8 +291,8 @@ function Inflection() {
         d3.select(".inflect_ui")
             // .append("a")
             // .attr("href", that.hash)
-            .append("img").attr("src", "../img/link.png")
-            .style("width", "20px")
+            .append("span").text("🔗")
+            .style("font-size", "20px")
             .style("float", "right")
             .style("cursor", "pointer")
             .on("mouseover", function () {
