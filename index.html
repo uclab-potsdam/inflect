@@ -4,7 +4,7 @@
 
     <meta charset="UTF-8">
     <title>Inflect!</title>
-    
+    <script src="src/marked.min.js"></script>
     
     <style>
         body {
@@ -36,7 +36,7 @@
             position: relative;
         }
 
-        a.inflect {
+        a {
             color: black;
             text-decoration: none;    
         }
@@ -50,115 +50,73 @@
 
 <body>
 
-    <iframe id="if"></iframe>
+<iframe id="if"></iframe>
 
-    <!-- todo: change ?, place myfirstVis afterVis! -->
-    <p>Look, a <a class="inflect" href="vis/index.html#vis=scatterplot">scatterplot!</a>
-    </p>
+<main></main>
 
-    <p><a class="inflect" href="vis/index.html">This</a> is a visualisation that is inflectable!
-    </p>
+<!-- todo: change ?, place myfirstVis afterVis! -->
 
-    <p>I can tell you something interesting about the <a class="inflect" href="vis/index.html#vis=barchart&col=%23ec7d04&yax=100&line=A-0-I-1-55-0-55-0&ann=F-0.1-90-0-text&high=B">left</a> bar.
-    </p>
+<script>
 
-    <p>And now you can see an explanation of <a class="inflect" href="vis/index.html#vis=barchart&col=%23ec7d04&yax=125&line=F-0.53-G-0.43-96.9-0-38.7-0&ann=E-0.5-103.6-0-19%20is%20an%20interesting%20number&high=G">another</a> bar.
-    </p>
+    // Function to fetch and render the markdown
+    async function renderMarkdown() {
+        try {
+            const response = await fetch('README.md'); 
+            const readme = await response.text();
+            const html = marked.parse(readme); 
+            document.querySelector('main').innerHTML = html;
 
-    <p>One more <a class="inflect" href="vis/index.html#vis=barchart&col=%2300F05E&yax=121.2&line=A-0.9-H-0.5-107.5-0-19.7-0,A-0.68-I-0.48-14.2-0-87-0&ann=G-0.3-107.7-0-attention!&high=D">thing</a>!
-    </p>
+            initializeObservers();
+        } catch (error) {
+            console.error('Error fetching or rendering the markdown file:', error);
+        }
+    }
 
-    <p>And this is a <a class="inflect" href="vis/index.html#vis=columnchart&col=%2300F05E&xax=28690671.2&line=15421235.8-0-11117635.1-0-60-0.74-65-0.44&ann=18333338.9-0-60-0.85-text&high=7268299">columnchart</a>
-        now!
-    </p>
+    // with IntersectionObserver we can check what is visible    
+    function initializeObservers() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const iframe = document.getElementById('if');
 
-    <p>And this is a <a class="inflect" href="vis/index.html#vis=stacked_barchart">stacked barchart</a>
-        now!
-    </p>
-    
-    <p>Linguistically speaking an <a class="inflect" href="https://en.wiktionary.org/wiki/inflection">inflection</a>
-        refers to a modification of a word to convey grammatical information.<br><br>We are trying to adjust visualizations for the purpose of explanation and argumentation. Let's try it out with some existing visualizations…</p>
-    
+                        // Remove active class from all links
+                        document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
 
-    <p><a class="inflect" href="https://mariandoerk.de/monadicexploration/demo/#-1:00000">Beautiful Trouble</a> is a book for activists, organizers, and anyone interested in creating social change.<br><br> With this visual interface, the chapters can be navigated in a relational way.</p>
+                        // Add active class only to the visible link
+                        const visibleLink = entry.target;
+                        visibleLink.classList.add('active');
 
-    <p><a class="inflect" href="https://mariandoerk.de/monadicexploration/demo/#200158:00000">Each entry is connected with many other chapters.</a> Those that are more related are pulled towards the center.</p>
-
-    <p>For example, <a class="inflect" href="https://mariandoerk.de/monadicexploration/demo/#300204:00000">points of intervention</a> is a theory that refers to specific situations where change becomes possible.</p>
-
-    <p>The tactic of <a class="inflect" href="https://mariandoerk.de/monadicexploration/demo/#100239:00000">prefigurative intervention</a> is to graspably foreshadow the good things to come in the future…</p>
-
-    <p>The book combines <a class="inflect" href="https://mariandoerk.de/monadicexploration/demo/#-1:00000">five types of chapters</a>: tactics, principles, theories, case studies, and profiles of practitioners to offer a toolkit for confronting injustice and advocating for progressive causes.</p>
-
-    <p>It is possible to focus on a subset, e.g., just the <a class="inflect" href="https://mariandoerk.de/monadicexploration/demo/#-1:00011">tactics, principles, and theories</a>.</p>
-
-
-    <p><a class="inflect" href="https://mariandoerk.de/edgemaps/demo/#phils;map;;">EdgeMaps</a> is a visualization technique that integrates the representation of explicit and implicit data relations. Explicit relations are specific connections between entities already present in a given dataset, while implicit relations are based on the similarity measures derived from shared properties in multidimensional data. EdgeMaps combine spatialization and graph drawing techniques to visualize both types of relations. By activating only one node at a time and distinguishing between incoming and outgoing edges, interesting visual patterns emerge resembling fireworks and waves.</p>
-
-    <p><a class="inflect" href="https://mariandoerk.de/edgemaps/demo/#phils;map;;/en/karl_marx;">Karl Marx</a></p>
-    Prefigurative intervention
-    <p><a class="inflect" href="https://mariandoerk.de/edgemaps/demo/#phils;map;;/en/immanuel_kant;">Immanuel Kant</a></p>
-
-    <p><a class="inflect" href="https://mariandoerk.de/edgemaps/demo/#phils;map;;/en/hannah_arendt;">Hannah Arendt</a></p>
-
-    <p><a class="inflect" href="https://uclab.fh-potsdam.de/closeupcloud/#/viz">Close-up Cloud</a> enables the viewer to visually explore a collection of historical glass negatives. The overview of close-ups encourages familiarity with the collection and facilitates exploration of its wealth of detail. The sizes of the images illustrate the quantitative distribution of iconographic details in the collection. The close-ups serve as visual navigation elements, enabling the user to explore the collection.!</p>
-
-    <p><a class="inflect" href="https://uclab.fh-potsdam.de/closeupcloud/#/viz/tag/Buchstaben,%20Alphabet,%20Schrift">Buchstaben</a> </p>
-
-    <p><a class="inflect" href="https://uclab.fh-potsdam.de/closeupcloud/#/viz/detail/P2017.3.212">Esther Truhe</a> </p>
-
-    
-    
-    
-    
-    <script>
-        // with IntersectionObserver we can check what is visible
-        const observer = new IntersectionObserver((entries, observer) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    let iframe = document.getElementById('if');
-
-                    // remove active class from all links
-                    document.querySelectorAll('a.inflect').forEach(a => {
-                        a.classList.remove('active');
-                    });
-
-                    // add active class only to the visible link
-                    let visibleLink = entry.target;
-                    visibleLink.classList.add('active');
-
-                    // update iframe to match visible link
-                    iframe.src = visibleLink.href;
-                }
-            });
-        });
-
-        // all inflect links in the document
-        let inflectLinks = document.querySelectorAll('a.inflect');
-
-        // add observer to each inflect link
-        inflectLinks.forEach(link => {
-            observer.observe(link);
-            
-            // add event listener to deactivate link on click
-            link.addEventListener('click', function(event) {
-                // prevent the link from navigating
-                event.preventDefault();
-                let iframe = document.getElementById('if');
-                iframe.src = link.href;
-                document.querySelectorAll('a.inflect').forEach(a => {
-                    a.classList.remove('active');
+                        // Update iframe to match visible link
+                        iframe.src = visibleLink.href;
+                    }
                 });
-                link.classList.add('active');
             });
-        });
 
-        // scroll up when pressing escape
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
-        });
-    </script>
+            // Add observer to all inflect links
+            const inflectLinks = document.querySelectorAll('a');
+            inflectLinks.forEach(link => {
+                observer.observe(link);
+
+                // Add event listener to deactivate link on click
+                link.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    const iframe = document.getElementById('if');
+                    iframe.src = link.href;
+                    document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
+                    link.classList.add('active');
+                });
+            });
+        }
+
+    // scroll up when pressing escape
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    });
+
+    // load, parse, and display markdown on page load
+    renderMarkdown();
+</script>
 
 </body>
