@@ -1442,11 +1442,13 @@ function Inflection() {
         // <path aria-label="a: A; b: 28" role="graphics-symbol" aria-roledescription="bar" d="M1,144h18v56h-18Z" fill="#4c78a8"></path>
         var that = this;
         let highlight = that.inflection.high
+        
 
         if (highlight == "") {
             d3.selectAll("path")
                 .filter(function() {
-                    return d3.select(this).attr("aria-roledescription") == "bar"
+                    let role_descr = d3.select(this).attr("aria-roledescription");
+                    return (role_descr == "bar") || (role_descr == "point")
                     })
                 .transition()
                 .duration(200)
@@ -1464,9 +1466,26 @@ function Inflection() {
             await Promise.all(promises);
             promises = [];
 
+            var splitted = highlight.split("-")
+            var x_of_high = splitted[0]
+            var y_of_high = splitted[1]
+
             var path = d3.selectAll("path")
                 .filter(function() {
-                    return d3.select(this).attr("aria-roledescription") == "bar" && String(d3.select(this).attr("aria-label")).includes(highlight)
+                    let role_descr = d3.select(this).attr("aria-roledescription");
+                    var ismarker = (role_descr == "bar") || (role_descr == "point")
+
+                    let aria_label = d3.select(this).attr("aria-label") // e.g. "a: D; b: 91"
+                    if(aria_label) {
+                        let xvalue = aria_label.match(/\b\w+:\s*(\d+)\b/)[1]; 
+                        let yvalue = aria_label.match(/(?:\b\w+:\s*\w+;?\s*)\b\w+:\s*(\d+)/)[1]; 
+                        var isx = (xvalue === x_of_high)
+                        var isy =(yvalue === y_of_high)
+                        return  ismarker && isx && isy
+                    } else {
+                        return false;
+                    }
+
                     })
 
             path
