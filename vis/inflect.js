@@ -1663,7 +1663,7 @@ function Inflection() {
                 }).nodes()
 
                 // get translates in x-direction (stays fixed)
-                // var grid_x_transf = get_x_translate(d3.select(grid_lines_nodeArray[0]).attr("transform"))
+                var grid_x_transf = get_x_translate(d3.select(grid_lines_nodeArray[1]).attr("transform"))
                 var label_x_transf = get_x_translate(YaxisSelection.select('.mark-text.role-axis-label text').attr("transform"))
 
 
@@ -1708,7 +1708,7 @@ function Inflection() {
                             .transition()
                             .duration(200)
                             .ease(d3.easeLinear)
-                            .attr('transform', 'translate(0,' + newYPosition + ')')
+                            .attr('transform', 'translate(' + grid_x_transf + ',' + newYPosition + ')')
                             
                     
                     }
@@ -1747,7 +1747,7 @@ function Inflection() {
                         
 
                         d3.select(grid_lines_nodeArray[0]).clone().call(function(sel) {
-                            sel.attr("transform", 'translate(0,' + new_tick_pos + ')')
+                            sel.attr("transform", 'translate(' + grid_x_transf + ',' + new_tick_pos + ')')
                             sel.node().parentNode.appendChild(sel.node()); //append as last child
                         });
                     }  
@@ -1896,7 +1896,7 @@ function Inflection() {
                     return +d3.select(this).attr("x2") == 0
                 }).nodes()
                 // get translates in y-direction (stays fixed)
-                var grid_y_transf = get_y_translate(d3.select(grid_lines_nodeArray[0]).attr("transform"))
+                var grid_y_transf = get_y_translate(d3.select(grid_lines_nodeArray[1]).attr("transform"))
                 var label_y_transf = get_y_translate(XaxisSelection.select('.mark-text.role-axis-label text').attr("transform"))
 
                 XaxisSelection.selectAll('.mark-text.role-axis-label text') // Select all tick labels
@@ -2217,7 +2217,9 @@ function Inflection() {
                 return +translateY;
             });
 
-            var label_nodeArray = axisSelection.selectAll('.mark-text.role-axis-label text').nodes()
+            var label_nodeArray = axisSelection.selectAll('.mark-text.role-axis-label text')
+                .filter(function() {return d3.select(this).style("visibility") === "visible"})
+                .nodes()
             var curr_num_of_ticks  = label_nodeArray.length
             var max_tick_value = +d3.select(label_nodeArray[curr_num_of_ticks-1]).text().replaceAll(",", "")
             var max_tick_pos = tickPositions[curr_num_of_ticks-1]
@@ -2251,7 +2253,9 @@ function Inflection() {
                 return +translateX;
             });
 
-            var label_nodeArray = axisSelection.selectAll('.mark-text.role-axis-label text').nodes()
+            var label_nodeArray = axisSelection.selectAll('.mark-text.role-axis-label text')
+                .filter(function() {return d3.select(this).style("visibility") === "visible"})
+                .nodes()
             var curr_num_of_ticks  = label_nodeArray.length
             var max_tick_value = +d3.select(label_nodeArray[curr_num_of_ticks-1]).text().replaceAll(",", "")
             var max_tick_pos = tickPositions[curr_num_of_ticks-1]
