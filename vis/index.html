@@ -37,7 +37,7 @@
     
         
         // fetch('vis/column_chart.json')
-        fetch('specs/' + which + '.json')
+        fetch('specs/' + which + '.json') //TODO this should be filename, not charttype!
             .then(response => {return response.json()})
             .then(data => spec = data)
             .then(
@@ -47,7 +47,7 @@
                     function() {
                         var vis;
                         vis = new Inflection();	
-                        vis.init(which); //barchart or columnchart
+                        vis.init(which); //barchart or columnchart or scatterplot //TODO this should be charttype!
                     }
                 ).catch(console.warn);
                 }
