@@ -97,71 +97,8 @@ function Inflection() {
                 this.basecol = d3.select(".mark-symbol").select("path").attr("stroke")
             }
         }
-        
+       
 
-
-
-        
-        // switch (which) {
-        //     case "barchart":
-        //         this.yAxQuant = true;
-        //         this.xAxQuant = false;
-
-        //         this.baseyax = determineMaxOfQuantAx("yax")
-        //         this.inflection.yax = this.baseyax;
-
-        //         this.basecol = d3.select(".mark-rect").select("path").attr("fill").split("#")[1]
-
-        //         break;
-        //     case "columnchart":
-        //         this.yAxQuant = false;
-        //         this.xAxQuant = true;
-
-        //         this.basexax = determineMaxOfQuantAx("xax")
-        //         this.inflection.xax = this.basexax;
-
-        //         this.basecol = d3.select(".mark-rect").select("path").attr("fill").split("#")[1]
-        //         break;
-
-        //     case "stacked_barchart":
-        //         this.yAxQuant = false;
-        //         this.xAxQuant = false;
-
-        //         // this.baseyax = determineMaxOfQuantAx("yax").toString()
-        //         // this.inflection.yax = this.baseyax;
-
-        //         // this.basecol = d3.select(".mark-rect").select("path").attr("fill").split("#")[1]
-        //         break;
-
-        //     case "scatterplot":
-        //         this.yAxQuant = true;
-        //         this.xAxQuant = true;
-
-        //         this.basexax = determineMaxOfQuantAx("xax").toString()
-        //         this.inflection.xax = this.basexax;
-
-        //         this.baseyax = determineMaxOfQuantAx("yax").toString()
-        //         this.inflection.yax = this.baseyax;
-
-        //         this.basecol = d3.select(".mark-symbol").select("path").attr("fill").split("#")[1]
-
-        //         if(typeof this.basecol == 'undefined') {
-        //             this.basecol = d3.select(".mark-symbol").select("path").attr("stroke").split("#")[1]
-        //         }
-        //         break;
-        
-        //     default:
-        //         this.yAxQuant = true;
-        //         this.xAxQuant = false;
-
-        //         this.baseyax = determineMaxOfQuantAx("yax").toString()
-        //         this.inflection.yax = this.baseyax;
-
-        //         this.basecol = d3.select(".mark-rect").select("path").attr("fill").split("#")[1]
-        //         break;
-        // }
-
-        // add switch to toggle editability
 
         if (window.top == window.self) {
             that.addUI();
@@ -171,6 +108,9 @@ function Inflection() {
             that.editable = false;
             d3.select("details").remove()
         }
+        //add tooltip on top
+        d3.select("body").append("div").attr("class", "infl-tooltip")
+        tooltip = d3.select(".infl-tooltip")
 
         checkHash(that.hash)
 <
@@ -298,11 +238,8 @@ function Inflection() {
         var icon_button_width = 27;
         // Top level window
         d3.select("body").append("div").attr("class", "inflect_ui");
-        d3.select(".inflect_ui").append("div").attr("class", "infl-tooltip")
-        var tooltip = d3.select(".infl-tooltip")
+        
         d3.select(".inflect_ui")
-            // .append("a")
-            // .attr("href", that.hash)
             .append("span").text("🔗")
             .style("font-size", "20px")
             .style("float", "right")
@@ -430,7 +367,7 @@ function Inflection() {
             .attr("class", "infl-ui-div")
             .attr("id", "annotation-div");
 
-        d3.select("#annotation-div").append("input")
+        d3.select("#annotation-div").append("textarea")
             .attr("id", "infl-text-input")
             .attr("type", "text")
             .attr("placeholder", "input")
@@ -480,7 +417,7 @@ function Inflection() {
             .attr("x", icon_button_width/2)
             .attr("y", icon_button_width/2)
             .attr("dy", "0.35em")
-            .style("font-family", "Ubuntu")
+            // .style("font-family", "sans-serif")
             .style("font-size", "10px")
             .style("text-anchor", "middle")
             .text("text");
@@ -502,7 +439,7 @@ function Inflection() {
                 }
                 let text = d3.select("#infl-text-input").property("value")
                 if (text == "") {
-                    text = "text"
+                    text = d3.select("#infl-text-input").attr("placeholder")
                 }
 
                 // randomize, adapt to scale
@@ -860,9 +797,18 @@ function Inflection() {
                     return (role_descr == "bar") || (role_descr == "point")
                     })
                 .style("cursor", "pointer")
-                // .on("mouseover", function(event) {
-                //     console.log(event)
-                // })
+                .on("mouseover", function () {
+                    var label = d3.select(this).attr("aria-label")
+                    tooltip.style("visibility", "visible")
+                        .text(label);
+                })
+                .on("mousemove", function (event) {
+                    tooltip.style("top", (event.pageY - 35) + "px")
+                        .style("left", (event.pageX - 20) + "px");
+                })
+                .on("mouseout", function () {
+                    tooltip.style("visibility", "hidden");
+                })
                 .on("mousedown", function () {
                     var path = d3.select(this)
                     // get x value of bar to store it
@@ -879,9 +825,12 @@ function Inflection() {
                         current_col = rgbToHex(current_col) //reformat to enable comparison
                     }
                     if (current_col.toUpperCase() == that.inflection.col.toUpperCase()) { //was already highlighted
+                        document.getElementById('infl-text-input').value = "";
                         that.inflection.high = ""; //reset to old colour
+                        
                     } else {
                         that.inflection.high = highlight
+                        document.getElementById('infl-text-input').value = aria_label.replace("; ", "\n");
                     }
 
                     that.highlight()
@@ -1423,11 +1372,7 @@ function Inflection() {
                     }
                 })
 
-            d3.selectAll(".infl-label")
-                .transition()
-                .duration(200)
-                .ease(d3.easeLinear)
-                .remove()
+            
         }
         else {
 
@@ -1822,13 +1767,6 @@ function Inflection() {
 
         
                 
-            // Update bar labels
-            d3.select("svg").selectAll(".infl-label")
-                .transition("move-y")
-                .duration(200)
-                .ease(d3.easeLinear)
-                    .attr("y", (d) => newYScale(d.value[1]))
-            
 
 
             //annotations
@@ -2043,16 +1981,8 @@ function Inflection() {
                     }
                 });
 
-        
-                
-            // Update bar labels
-            d3.select("svg").selectAll(".infl-label")
-                .transition("move-x")
-                .duration(200)
-                .ease(d3.easeLinear)
-                    .attr("x", (d) => newXScale(d.value))
             
-
+                
 
             //annotations
             d3.select("svg").selectAll(".infl-ann-text")
