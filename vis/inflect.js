@@ -26,6 +26,7 @@ function Inflection() {
     var SVGwidth = 0;
 
     var promises = []; // Array to store promises for transitions
+    var tooltip;
 
     //initialise
     this.init = function (chartPath, xAxQuant, yAxQuant) {
@@ -442,33 +443,17 @@ function Inflection() {
                     text = d3.select("#infl-text-input").attr("placeholder")
                 }
 
-                // randomize, adapt to scale
-                if(that.xAxQuant) {
-                    var xAxValue = that.inflection.xax;
-                    var randomXEntry = Math.round(10*Math.random() * xAxValue)/10;
-                    var randomX = randomXEntry + "-0-"
+                //position in middle
+                var mid_x_pixel = SVGwidth/2;
+                var [mid_x_data, xbetween] = that.invertXScale(mid_x_pixel)
 
-                } else {
-                    var xscale = getCatAxisScale("xax")
-                    var x_domain = xscale.domain()
-                    var randomXEntry = x_domain[Math.floor(Math.random() * x_domain.length)];
-                    var randomX = randomXEntry + "-0.2-"
-                }
+                var mid_y_pixel = SVGheight/2;
+                var [mid_y_data, ybetween] = that.invertYScale(mid_y_pixel)
 
-                if(that.yAxQuant) {
-                    var yAxValue = that.inflection.yax;
-                    var randomYEntry = Math.round(10*Math.random() * yAxValue)/10;
-                    var randomY = randomYEntry + "-0-"
-
-                } else {
-                    var yscale = getCatAxisScale("yax")
-                    var y_domain = yscale.domain()
-                    var randomYEntry = y_domain[Math.floor(Math.random() * y_domain.length)];
-                    var randomY = randomYEntry + "-0.2-"
-
-                }
-
-                anns += randomX + randomY + text
+            
+                anns += mid_x_data + "-" + xbetween + "-" +
+                        mid_y_data + "-" + ybetween + "-" +
+                        text
           
                 that.inflection.ann = anns;
                 that.ann()
@@ -650,43 +635,11 @@ function Inflection() {
 
                         var linedata = d3.select(this).data()[0]
 
-                        if(that.xAxQuant) {
-                            var currXScale = getLinAxisScale("xax")
-      
-                                
-                            var x1_data_value = Math.round(10*currXScale.invert(+curr_x1_pos))/10;
-                            var x2_data_value = Math.round(10*currXScale.invert(+curr_x2_pos))/10;
+                        linedata.x1Data = that.invertXScale(curr_x1_pos)
+                        linedata.y1Data = that.invertYScale(curr_y1_pos)
 
-                            linedata.x1Data[0] = x1_data_value;
-                            linedata.x2Data[0] = x2_data_value;
-                        
-                        } else {
-                            var [x1_data_value, between1] = invertCatScale("xax", +curr_x1_pos)
-                            var [x2_data_value, between2] = invertCatScale("xax", +curr_x2_pos)
-
-                            linedata.x1Data[0] = x1_data_value;
-                            linedata.x1Data[1] = Math.round(100*between1)/100;
-                            linedata.x2Data[0] = x2_data_value;
-                            linedata.x2Data[1] = Math.round(100*between2)/100;
-                        }
-                        if(that.yAxQuant) {
-                            var currYScale = getLinAxisScale("yax")
-
-                            var y1_data_value = Math.round(10*currYScale.invert(+curr_y1_pos))/10;
-                            var y2_data_value = Math.round(10*currYScale.invert(+curr_y2_pos))/10;
-                            
-                            linedata.y1Data[0] = y1_data_value;
-                            linedata.y2Data[0] = y2_data_value;
-
-                        } else {
-                            var [y1_data_value, between1] = invertCatScale("yax", +curr_y1_pos)
-                            var [y2_data_value, between2] = invertCatScale("yax", +curr_y2_pos)
-
-                            linedata.y1Data[0] = y1_data_value;
-                            linedata.y1Data[1] = Math.round(100*between1)/100;
-                            linedata.y2Data[0] = y2_data_value;
-                            linedata.y2Data[1] = Math.round(100*between2)/100;
-                        }
+                        linedata.x2Data = that.invertXScale(curr_x2_pos)
+                        linedata.y2Data = that.invertYScale(curr_y2_pos)
 
                         that.updateHash("line")
                     })
@@ -747,42 +700,11 @@ function Inflection() {
 
                     var linedata = line.data()[0]
 
-                    if(that.xAxQuant) {
-                        var currXScale = getLinAxisScale("xax")
-                            
-                        var x1_data_value = Math.round(10*currXScale.invert(+curr_x1_pos))/10;
-                        var x2_data_value = Math.round(10*currXScale.invert(+curr_x2_pos))/10;
+                    linedata.x1Data = that.invertXScale(curr_x1_pos)
+                    linedata.y1Data = that.invertYScale(curr_y1_pos)
 
-                        linedata.x1Data[0] = x1_data_value;
-                        linedata.x2Data[0] = x2_data_value;
-                    
-                    } else {
-                        var [x1_data_value, between1] = invertCatScale("xax", +curr_x1_pos)
-                        var [x2_data_value, between2] = invertCatScale("xax", +curr_x2_pos)
-
-                        linedata.x1Data[0] = x1_data_value;
-                        linedata.x1Data[1] = Math.round(100*between1)/100;
-                        linedata.x2Data[0] = x2_data_value;
-                        linedata.x2Data[1] = Math.round(100*between2)/100;
-                    }
-                    if(that.yAxQuant) {
-                        var currYScale = getLinAxisScale("yax")
-
-                        var y1_data_value = Math.round(10*currYScale.invert(+curr_y1_pos))/10;
-                        var y2_data_value = Math.round(10*currYScale.invert(+curr_y2_pos))/10;
-                        
-                        linedata.y1Data[0] = y1_data_value;
-                        linedata.y2Data[0] = y2_data_value;
-
-                    } else {
-                        var [y1_data_value, between1] = invertCatScale("yax", +curr_y1_pos)
-                        var [y2_data_value, between2] = invertCatScale("yax", +curr_y2_pos)
-
-                        linedata.y1Data[0] = y1_data_value;
-                        linedata.y1Data[1] = Math.round(100*between1)/100;
-                        linedata.y2Data[0] = y2_data_value;
-                        linedata.y2Data[1] = Math.round(100*between2)/100;
-                    }
+                    linedata.x2Data = that.invertXScale(curr_x2_pos)
+                    linedata.y2Data = that.invertYScale(curr_y2_pos)
 
                     that.updateHash("line")
                 })
@@ -864,33 +786,16 @@ function Inflection() {
                             .attr("y", clampToHeight(text_current_pos.y + ydragAmount));
                     })
                     .on("end", function () {
-                        var curr_y_pos = d3.select(this).attr("y")
                         var curr_x_pos = d3.select(this).attr("x")
+                        var curr_y_pos = d3.select(this).attr("y")
                         var textdata = d3.select(this).data()[0]
 
-                        if(that.xAxQuant) {
-                            var currXScale = getLinAxisScale("xax")
-                            textdata.xData[0] = Math.round(10*currXScale.invert(+curr_x_pos))/10;
-                        
-                        } else {
-                            var [x_data_value, between] = invertCatScale("xax", +curr_x_pos)
-                            textdata.xData[0] = x_data_value;
-                            textdata.xData[1] = +Math.round(100*between)/100;
-                        }
+                        textdata.xData = that.invertXScale(curr_x_pos)
+                        textdata.yData = that.invertYScale(curr_y_pos)
 
-                        if(that.yAxQuant) {
-                            var currYScale = getLinAxisScale("yax")
-                            textdata.yData[0] = Math.round(10*currYScale.invert(+curr_y_pos))/10;
-                        
-                        } else {
-                            var [y_data_value, between] = invertCatScale("yax", +curr_y_pos)
-                            textdata.yData[0] = y_data_value;
-                            textdata.yData[1] = +Math.round(100*between)/100;
-                        }
-
-
+                        //TODO hier würde es doch mehr Sinn machen, inflection.ann zu verändern, dann ann() aufzurufen,
+                        // und dann in update Hash immer nur die inflection.[...] Werte auszulesen. Oder?
                         that.updateHash("ann")
-
 
                     }))
 
@@ -2038,6 +1943,24 @@ function Inflection() {
 
     }
 
+    this.getScale = function (axis) {
+        if(axis == "xax"){
+            return this.getXAxScale()
+        }
+        else if(axis == "yax"){
+            return this.getYAxScale()
+        }
+    }
+
+    this.invertScale = function (axis, value) {
+        if(axis == "xax"){
+            return this.invertXScale(value)
+        }
+        else if(axis == "yax"){
+            return this.invertYScale(value)
+        }
+    }
+
     this.getXAxScale = function() {
         if(this.xAxQuant) { //linear x axis
             return getLinAxisScale("xax")
@@ -2051,6 +1974,25 @@ function Inflection() {
             return getLinAxisScale("yax")
         } else { // categorical y axis
             return getCatAxisScale("yax")
+        }
+    }
+
+    this.invertYScale = function(value) {
+        if(this.yAxQuant) { //linear x axis
+            var inverse = scale.invert(value)
+            return [Math.round(10*inverse)/10, 0 ]
+        } else { // categorical x axis
+            return invertCatScale("yax", value)
+        }
+    }
+
+    this.invertXScale = function(value) {
+        if(this.xAxQuant) { //linear x axis
+            var scale = this.getXAxScale()
+            var inverse = scale.invert(value)
+            return [Math.round(10*inverse)/10, 0 ]
+        } else { // categorical x axis
+            return invertCatScale("xax", value)
         }
     }
 
@@ -2228,15 +2170,14 @@ function Inflection() {
     }
 
     function invertCatScale(axis, position) {
-        var scale = getCatAxisScale(axis)
-        var eachBand = scale.step();
-        var index = Math.floor((position / eachBand));
-        var val = scale.domain()[index];
-        var extra = (position - scale(val)) / eachBand
-
-        return [val, extra, eachBand]
-        
+            var scale = getCatAxisScale(axis)
+            var step = scale.step();
+            var index = Math.floor((position / step));
+            var val = scale.domain()[index];
+            var between = (position - scale(val)) / step
+        return [val, Math.round(10*between)/10]
     }
+
 
     //transform variable to number if it contains a number, keeps it as a string if it's not a number
     function transformValue(value) {
