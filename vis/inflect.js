@@ -12,9 +12,9 @@ function Inflection() {
         col: ""
     };
 
-    this.charttype = "";
-    this.xAxEditable = false;
-    this.yAxEditable = false;
+    this.chartPath = "";
+    this.xAxQuant = false; //if axis is quantitative
+    this.yAxQuant = false;
 
     this.default_infl_col = "#00F05E"
     this.basecol = ""; // colour of the bars
@@ -27,22 +27,8 @@ function Inflection() {
 
     var promises = []; // Array to store promises for transitions
 
-
-
-
-
-    // $(window).resize(function(){
-    //     window.clearTimeout(that.resizeTimeout);
-    //     that.resizeTimeout = window.setTimeout(function(){
-    //         // window.clearTimeout(that.resizeTimeout);
-    //         that.setWindow();
-    //         that.elements();
-    //         that.draw();
-    //     }, 250);
-    // });
-
-    // hash change / history
-    this.init = function (which) {
+    //initialise
+    this.init = function (chartPath, xAxQuant, yAxQuant) {
 
         var that = this;
         this.baseurl = document.URL.split("#")[0];
@@ -59,22 +45,19 @@ function Inflection() {
         // append groups to insert lines and annotations
         d3.select("svg").append("g").attr("class", "line-group")
         .attr("transform", "translate(" + border_x + "," + border_y + ")")
-        // .append("rect").style("border", "2px solid black") //for debugging
-        // .style("width", "210px").style("height", "333px")
-        // .style("fill", "red").style("opacity", "0.4")
+        
 
         d3.select("svg").append("g").attr("class", "ann-group")
         .attr("transform", "translate(" + border_x + "," + border_y + ")")
+        // .append("rect").style("border", "2px solid black") //for debugging
+        // .style("width", "210px").style("height", "333px")
+        // .style("fill", "red").style("opacity", "0.4")
 
 
         d3.select("svg").append("g").attr("class", "label-group")
         .attr("transform", "translate(" + border_x + "," + border_y + ")")
 
-
-
-       
-
-        
+        // Establish plot area height and width
         SVGheight = +get_y_translate(d3.selectAll("g.mark-group.role-axis").filter(function() {
             return String(d3.select(this).attr("aria-label")).includes("Y-axis")
         }).select(".role-axis-domain").select("line").attr("transform")) // get length in y-direction of y-axis line
@@ -89,62 +72,94 @@ function Inflection() {
             return String(d3.select(this).attr("aria-label")).includes("X-axis")
         }).select(".role-axis-domain").select("line").attr("x2")
 
+
+        // Set Axis
         this.inflection.col = this.default_infl_col
-        this.charttype = which;
-        switch (which) {
-            case "barchart":
-                this.yAxEditable = true;
-                this.xAxEditable = false;
+        this.xAxQuant = xAxQuant;
+        this.yAxQuant = yAxQuant;
 
-                this.baseyax = determineMaxOfEditableAx("yax").toString()
-                this.inflection.yax = this.baseyax;
+        this.basexax = this.xAxQuant ? determineMaxOfQuantAx("xax") : "";
+        this.inflection.xax = this.basexax;
 
-                this.basecol = d3.select(".mark-rect").select("path").attr("fill").split("#")[1]
+        this.baseyax = this.yAxQuant ? determineMaxOfQuantAx("yax") : "";
+        this.inflection.yax = this.baseyax;
 
-                break;
-            case "columnchart":
-                this.yAxEditable = false;
-                this.xAxEditable = true;
+        this.chartPath = chartPath;
 
-                this.basexax = determineMaxOfEditableAx("xax").toString()
-                this.inflection.xax = this.basexax;
 
-                this.basecol = d3.select(".mark-rect").select("path").attr("fill").split("#")[1]
-                break;
+        //try multiple options to set basecolour of element
+        try {
+            this.basecol = d3.select(".mark-rect").select("path").attr("fill")
+        } catch {
+            this.basecol = d3.select(".mark-symbol").select("path").attr("fill")
 
-            case "stacked_barchart":
-                this.yAxEditable = false;
-                this.xAxEditable = false;
-
-                // this.baseyax = determineMaxOfEditableAx("yax").toString()
-                // this.inflection.yax = this.baseyax;
-
-                // this.basecol = d3.select(".mark-rect").select("path").attr("fill").split("#")[1]
-                break;
-
-            case "scatterplot":
-                this.yAxEditable = true;
-                this.xAxEditable = true;
-
-                this.basexax = determineMaxOfEditableAx("xax").toString()
-                this.inflection.xax = this.basexax;
-
-                this.baseyax = determineMaxOfEditableAx("yax").toString()
-                this.inflection.yax = this.baseyax;
-
-                this.basecol = d3.select(".mark-symbol").select("path").attr("fill").split("#")[1]
-                break;
-        
-            default:
-                this.yAxEditable = true;
-                this.xAxEditable = false;
-
-                this.baseyax = determineMaxOfEditableAx("yax").toString()
-                this.inflection.yax = this.baseyax;
-
-                this.basecol = d3.select(".mark-rect").select("path").attr("fill").split("#")[1]
-                break;
+            if(typeof this.basecol == 'undefined' || this.basecol == "transparent") {
+                this.basecol = d3.select(".mark-symbol").select("path").attr("stroke")
+            }
         }
+        
+
+
+
+        
+        // switch (which) {
+        //     case "barchart":
+        //         this.yAxQuant = true;
+        //         this.xAxQuant = false;
+
+        //         this.baseyax = determineMaxOfQuantAx("yax")
+        //         this.inflection.yax = this.baseyax;
+
+        //         this.basecol = d3.select(".mark-rect").select("path").attr("fill").split("#")[1]
+
+        //         break;
+        //     case "columnchart":
+        //         this.yAxQuant = false;
+        //         this.xAxQuant = true;
+
+        //         this.basexax = determineMaxOfQuantAx("xax")
+        //         this.inflection.xax = this.basexax;
+
+        //         this.basecol = d3.select(".mark-rect").select("path").attr("fill").split("#")[1]
+        //         break;
+
+        //     case "stacked_barchart":
+        //         this.yAxQuant = false;
+        //         this.xAxQuant = false;
+
+        //         // this.baseyax = determineMaxOfQuantAx("yax").toString()
+        //         // this.inflection.yax = this.baseyax;
+
+        //         // this.basecol = d3.select(".mark-rect").select("path").attr("fill").split("#")[1]
+        //         break;
+
+        //     case "scatterplot":
+        //         this.yAxQuant = true;
+        //         this.xAxQuant = true;
+
+        //         this.basexax = determineMaxOfQuantAx("xax").toString()
+        //         this.inflection.xax = this.basexax;
+
+        //         this.baseyax = determineMaxOfQuantAx("yax").toString()
+        //         this.inflection.yax = this.baseyax;
+
+        //         this.basecol = d3.select(".mark-symbol").select("path").attr("fill").split("#")[1]
+
+        //         if(typeof this.basecol == 'undefined') {
+        //             this.basecol = d3.select(".mark-symbol").select("path").attr("stroke").split("#")[1]
+        //         }
+        //         break;
+        
+        //     default:
+        //         this.yAxQuant = true;
+        //         this.xAxQuant = false;
+
+        //         this.baseyax = determineMaxOfQuantAx("yax").toString()
+        //         this.inflection.yax = this.baseyax;
+
+        //         this.basecol = d3.select(".mark-rect").select("path").attr("fill").split("#")[1]
+        //         break;
+        // }
 
         // add switch to toggle editability
 
@@ -157,13 +172,8 @@ function Inflection() {
             d3.select("details").remove()
         }
 
-
-
-
-
         checkHash(that.hash)
-
-
+<
         setInterval(function () {
             var newhash = window.location.hash.substring(1);
             // console.log(newhash)
@@ -191,18 +201,18 @@ function Inflection() {
                 let value = decodeURIComponent(splitted[1])
                 switch (cat) {
                     case "vis":
-                        if (value != that.charttype) {
+                        if (value != that.chartPath) {
                             location.reload() //reload page!
                         }
                         break;
                     case "yax":
-                        if (value != that.inflection.yax && that.yAxEditable) {
+                        if (value != that.inflection.yax && that.yAxQuant) {
                             that.inflection.yax = value;
                             that.yAx();
                         }
                         break; 
                     case "xax":
-                            if (value != that.inflection.xax && that.xAxEditable) {
+                            if (value != that.inflection.xax && that.xAxQuant) {
                                 that.inflection.xax = value;
                                 that.xAx();
                             }
@@ -247,12 +257,12 @@ function Inflection() {
                 that.inflection.line = ""
                 that.line();
             }
-            if (((!cats_in_hash.includes("yax") && that.inflection.yax != that.baseyax) | that.inflection.yax == "") && that.yAxEditable) {
+            if (((!cats_in_hash.includes("yax") && that.inflection.yax != that.baseyax) | that.inflection.yax == "") && that.yAxQuant) {
                 that.inflection.yax = that.baseyax
                 that.yAx();
             }
 
-            if (((!cats_in_hash.includes("xax") && that.inflection.xax != that.basexax) | that.inflection.xax == "") && that.xAxEditable) {
+            if (((!cats_in_hash.includes("xax") && that.inflection.xax != that.basexax) | that.inflection.xax == "") && that.xAxQuant) {
                 that.inflection.xax = that.basexax
                 that.xAx();
             }
@@ -270,9 +280,11 @@ function Inflection() {
 
 
         this.yAx();
+        this.xAx();
         this.line();
         this.ann();
         this.highlight();
+        this.col();
 
         this.updateEditable();
 
@@ -345,14 +357,14 @@ function Inflection() {
                     lines += ","
                 }
 
-                if(that.xAxEditable) {
+                if(that.xAxQuant) {
                     let xAxValue = that.inflection.xax;
                     let randomEntryX1 = Math.round(10*Math.random() * xAxValue)/10
                     let randomEntryX2 = Math.round(10*Math.random() * xAxValue)/10
                     var random_x_part = randomEntryX1 + "-0-" + randomEntryX2 + "-0-";
 
                 } else {
-                    let xscale = getCatAxsiScale("xax")
+                    let xscale = getCatAxisScale("xax")
                     let x_domain = xscale.domain()
                     var randomEntryX1 = x_domain[Math.floor(Math.random() * x_domain.length)];
                     var randomEntryX2 = x_domain[Math.floor(Math.random() * x_domain.length)];
@@ -363,13 +375,13 @@ function Inflection() {
 
                 }
 
-                if(that.yAxEditable) {
+                if(that.yAxQuant) {
                     let yAxValue = that.inflection.yax;
                     let randomEntryY1 = Math.round(10*Math.random() * yAxValue)/10
                     let randomEntryY2 = Math.round(10*Math.random() * yAxValue)/10
                     var random_y_part = randomEntryY1 + "-0-" + randomEntryY2 + "-0" ;
                 } else {
-                    let yscale = getCatAxsiScale("yax")
+                    let yscale = getCatAxisScale("yax")
                     let y_domain = yscale.domain()
                     var randomEntryY1 = y_domain[Math.floor(Math.random() * y_domain.length)];
                     var randomEntryY2 = y_domain[Math.floor(Math.random() * y_domain.length)];
@@ -494,25 +506,25 @@ function Inflection() {
                 }
 
                 // randomize, adapt to scale
-                if(that.xAxEditable) {
+                if(that.xAxQuant) {
                     var xAxValue = that.inflection.xax;
                     var randomXEntry = Math.round(10*Math.random() * xAxValue)/10;
                     var randomX = randomXEntry + "-0-"
 
                 } else {
-                    var xscale = getCatAxsiScale("xax")
+                    var xscale = getCatAxisScale("xax")
                     var x_domain = xscale.domain()
                     var randomXEntry = x_domain[Math.floor(Math.random() * x_domain.length)];
                     var randomX = randomXEntry + "-0.2-"
                 }
 
-                if(that.yAxEditable) {
+                if(that.yAxQuant) {
                     var yAxValue = that.inflection.yax;
                     var randomYEntry = Math.round(10*Math.random() * yAxValue)/10;
                     var randomY = randomYEntry + "-0-"
 
                 } else {
-                    var yscale = getCatAxsiScale("yax")
+                    var yscale = getCatAxisScale("yax")
                     var y_domain = yscale.domain()
                     var randomYEntry = y_domain[Math.floor(Math.random() * y_domain.length)];
                     var randomY = randomYEntry + "-0.2-"
@@ -701,10 +713,9 @@ function Inflection() {
 
                         var linedata = d3.select(this).data()[0]
 
-                        if(that.xAxEditable) {
-                            var currXScale = d3.scaleLinear()
-                                .domain([0, determineMaxOfEditableAx("xax")])
-                                .range([0, SVGwidth]);
+                        if(that.xAxQuant) {
+                            var currXScale = getLinAxisScale("xax")
+      
                                 
                             var x1_data_value = Math.round(10*currXScale.invert(+curr_x1_pos))/10;
                             var x2_data_value = Math.round(10*currXScale.invert(+curr_x2_pos))/10;
@@ -721,10 +732,8 @@ function Inflection() {
                             linedata.x2Data[0] = x2_data_value;
                             linedata.x2Data[1] = Math.round(100*between2)/100;
                         }
-                        if(that.yAxEditable) {
-                            var currYScale = d3.scaleLinear()
-                                .domain([0, determineMaxOfEditableAx("yax")])
-                                .range([SVGheight, 0]);
+                        if(that.yAxQuant) {
+                            var currYScale = getLinAxisScale("yax")
 
                             var y1_data_value = Math.round(10*currYScale.invert(+curr_y1_pos))/10;
                             var y2_data_value = Math.round(10*currYScale.invert(+curr_y2_pos))/10;
@@ -801,10 +810,8 @@ function Inflection() {
 
                     var linedata = line.data()[0]
 
-                    if(that.xAxEditable) {
-                        var currXScale = d3.scaleLinear()
-                            .domain([0, determineMaxOfEditableAx("xax")])
-                            .range([0, SVGwidth]);
+                    if(that.xAxQuant) {
+                        var currXScale = getLinAxisScale("xax")
                             
                         var x1_data_value = Math.round(10*currXScale.invert(+curr_x1_pos))/10;
                         var x2_data_value = Math.round(10*currXScale.invert(+curr_x2_pos))/10;
@@ -821,10 +828,8 @@ function Inflection() {
                         linedata.x2Data[0] = x2_data_value;
                         linedata.x2Data[1] = Math.round(100*between2)/100;
                     }
-                    if(that.yAxEditable) {
-                        var currYScale = d3.scaleLinear()
-                            .domain([0, determineMaxOfEditableAx("yax")])
-                            .range([SVGheight, 0]);
+                    if(that.yAxQuant) {
+                        var currYScale = getLinAxisScale("yax")
 
                         var y1_data_value = Math.round(10*currYScale.invert(+curr_y1_pos))/10;
                         var y2_data_value = Math.round(10*currYScale.invert(+curr_y2_pos))/10;
@@ -851,22 +856,30 @@ function Inflection() {
             // change highlight
             d3.selectAll("path")
                 .filter(function() {
-                    return d3.select(this).attr("aria-roledescription") == "bar"
+                    let role_descr = d3.select(this).attr("aria-roledescription");
+                    return (role_descr == "bar") || (role_descr == "point")
                     })
                 .style("cursor", "pointer")
+                // .on("mouseover", function(event) {
+                //     console.log(event)
+                // })
                 .on("mousedown", function () {
                     var path = d3.select(this)
                     // get x value of bar to store it
-                    let descr = path.attr("aria-label")
-                    let regex = /\b\w+:\s*([\w]+)\b/;
-            
-                    let highlight = descr.match(regex)[1];
+                    let aria_label = path.attr("aria-label")
+                    let xvalue = aria_label.match(/\b\w+:\s*([\w]+)\b/)[1];
+                    let yvalue = aria_label.match(/(?:\b\w+:\s*\w+;?\s*)\b\w+:\s*(\d+)/)[1]; 
+                    var highlight = xvalue + "-" + yvalue
+
                     let current_col = path.attr("fill");
-                    if (current_col[0] != "#") {
-                        current_col = rgbToHex(current_col)
+                    if (!current_col || current_col == "transparent" || current_col == 'undefined' ) {
+                        current_col = path.attr("stroke")
                     }
-                    if (current_col.toUpperCase() == that.inflection.col.toUpperCase()) {
-                        that.inflection.high = "";
+                    if (current_col[0] != "#") {
+                        current_col = rgbToHex(current_col) //reformat to enable comparison
+                    }
+                    if (current_col.toUpperCase() == that.inflection.col.toUpperCase()) { //was already highlighted
+                        that.inflection.high = ""; //reset to old colour
                     } else {
                         that.inflection.high = highlight
                     }
@@ -906,11 +919,8 @@ function Inflection() {
                         var curr_x_pos = d3.select(this).attr("x")
                         var textdata = d3.select(this).data()[0]
 
-                        if(that.xAxEditable) {
-                            var currXScale = d3.scaleLinear()
-                                .domain([0, determineMaxOfEditableAx("xax")])
-                                .range([0, SVGwidth]);
-                                
+                        if(that.xAxQuant) {
+                            var currXScale = getLinAxisScale("xax")
                             textdata.xData[0] = Math.round(10*currXScale.invert(+curr_x_pos))/10;
                         
                         } else {
@@ -919,11 +929,8 @@ function Inflection() {
                             textdata.xData[1] = +Math.round(100*between)/100;
                         }
 
-                        if(that.yAxEditable) {
-                            var currYScale = d3.scaleLinear()
-                                .domain([0, determineMaxOfEditableAx("yax")])
-                                .range([SVGheight, 0]);
-                                
+                        if(that.yAxQuant) {
+                            var currYScale = getLinAxisScale("yax")
                             textdata.yData[0] = Math.round(10*currYScale.invert(+curr_y_pos))/10;
                         
                         } else {
@@ -944,13 +951,11 @@ function Inflection() {
                         .remove();
                     that.updateHash("ann")
                 })
-                .on("mouseover", function(event) {
-                    event.preventDefault();
-                });
+
 
                 
 
-        if(that.yAxEditable) {
+        if(that.yAxQuant) {
          // scale y-Axis
             var yaxis_placement = d3.selectAll("g.mark-group.role-axis").filter(function() {
                 return String(d3.select(this).attr("aria-label")).includes("Y-axis")
@@ -983,10 +988,7 @@ function Inflection() {
                 })
                 .call(d3.drag()
                     .on("start", function () {
-                        var curYAxValue = determineMaxOfEditableAx("yax")
-                        yScaleReconstructed
-                            .domain([0, curYAxValue])
-                            .range([SVGheight, 0]);
+                        yScaleReconstructed = getLinAxisScale("yax")
                     })
                     .on("drag", function (event) {
                         // Calculate the change in the y-axis based on the drag
@@ -1015,7 +1017,7 @@ function Inflection() {
             }
 
             // x-axis drag
-            if(that.xAxEditable) {
+            if(that.xAxQuant) {
                 var xaxis_placement = d3.selectAll("g.mark-group.role-axis").filter(function() {
                     return String(d3.select(this).attr("aria-label")).includes("X-axis")
                     }).select("g").node().getBoundingClientRect()
@@ -1046,10 +1048,7 @@ function Inflection() {
                     })
                     .call(d3.drag()
                         .on("start", function () {
-                            var curXAxValue = determineMaxOfEditableAx("xax")
-                            xScaleReconstructed
-                                .domain([0, curXAxValue])
-                                .range([0, SVGwidth]);
+                            xScaleReconstructed = getLinAxisScale("xax")
                         })
                         .on("drag", function (event) {
                             // Calculate the change in the y-axis based on the drag
@@ -1058,7 +1057,7 @@ function Inflection() {
                             // Adjust the domain of the y-scale
                             const currentDomain = xScaleReconstructed.domain();
                             const rangeExtent = xScaleReconstructed.range();
-                            const domainExtent = currentDomain[1] - currentDomain[0]; // The current range of the Y-axis domain
+                            const domainExtent = currentDomain[1] - currentDomain[0]; // The current range of the X-axis domain
     
                             // Map the pixel drag amount to the data scale
                             const dataDragAmount = (dragAmount / (rangeExtent[0] - rangeExtent[1])) * domainExtent;
@@ -1087,7 +1086,8 @@ function Inflection() {
             //bar/highlight behaviour
             d3.selectAll("path")
                 .filter(function() {
-                    return d3.select(this).attr("aria-roledescription") == "bar"
+                    let role_descr = d3.select(this).attr("aria-roledescription");
+                    return (role_descr == "bar") || (role_descr == "point")
                     })
                 .style("cursor", "default")
                 .on("mousedown", function (event, d) {//do nothing
@@ -1169,7 +1169,7 @@ function Inflection() {
             })
             this.inflection.line = linetext;
         }
-        if (kind == "high") {
+        if (kind == "high") { //???
 
         }
         if (kind == "ann") {
@@ -1184,7 +1184,7 @@ function Inflection() {
                             xb: text_object_data.xData[1],
                             yd: text_object_data.yData[0],
                             yb: text_object_data.yData[1],
-                            text: text_object.text()
+                            text: text_object_data.text
                         }
                     )
                     
@@ -1208,22 +1208,22 @@ function Inflection() {
 
         }
         if (kind == "yax") {
-            this.inflection.yax = determineMaxOfEditableAx("yax").toString();
+            this.inflection.yax = determineMaxOfQuantAx("yax").toString();
         }
         if (kind == "xax") {
-            this.inflection.xax = determineMaxOfEditableAx("xax").toString();
+            this.inflection.xax = determineMaxOfQuantAx("xax").toString();
         }
         if (kind == "col") {
             
         }
         this.hash =
-            "vis=" + this.charttype + "&" +
+            "vis=" + this.chartPath + "&" +
             "col=" + encodeURIComponent(this.inflection.col) + "&"
 
-        if (this.yAxEditable) {
+        if (this.yAxQuant) {
             this.hash += "yax=" + this.inflection.yax + "&"
         }
-        if (this.xAxEditable) {
+        if (this.xAxQuant) {
             this.hash += "xax=" + this.inflection.xax + "&"
         }
         this.hash +=
@@ -1253,22 +1253,11 @@ function Inflection() {
 
             var placelist = place.split(",");
 
-            if(that.xAxEditable) {
-                var currXScale = d3.scaleLinear()
-                            .domain([0, determineMaxOfEditableAx("xax")])
-                            .range([0, SVGwidth]);
-            } else {
-                var currXScale = getCatAxsiScale("xax")
-            }
+            currXScale = that.getXAxScale()
+            currYScale = that.getYAxScale()
 
-            if(that.yAxEditable) {
-                var currYScale = d3.scaleLinear()
-                            .domain([0, determineMaxOfEditableAx("yax")])
-                            .range([SVGheight, 0]);
-            } else {
-                var currYScale = getCatAxsiScale("yax")
-            }
-
+            var xStepValue = (typeof currXScale.step === 'function') ? currXScale.step() : 0 //get step if categorical
+            var yStepValue = (typeof currYScale.step === 'function') ? currYScale.step() : 0 //get step if categorical
 
             let data = [];
             placelist.forEach(element => {
@@ -1282,26 +1271,15 @@ function Inflection() {
                 let y2_data_pos = splitted[6]
                 let y2_between = +splitted[7]
 
-                if(that.xAxEditable) {
-                    //linear scale, no between necessary
-                    var x1value = Math.round(10*currXScale(x1_data_pos))/10
-                    var x2value = Math.round(10*currXScale(x2_data_pos))/10
-                } else {
-                    // use between values to interpolate
-                    var x1value = Math.round(10*(currXScale(x1_data_pos) + currXScale.step()*x1_between))/10
-                    var x2value = Math.round(10*(currXScale(x2_data_pos) + currXScale.step()*x2_between))/10
-                }
-    
-                if(that.yAxEditable) {
-                    // calculate postition in pixel space
-                    var y1value = Math.round(10*currYScale(y1_data_pos))/10
-                    var y2value = Math.round(10*currYScale(y2_data_pos))/10
-                } else {
-                    var y1value = Math.round(10*(currYScale(y1_data_pos) + currYScale.step()*y1_between))/10
-                    var y2value = Math.round(10*(currYScale(y2_data_pos) + currYScale.step()*y2_between))/10
-                }
+                
+                var x1value = Math.round(10*(currXScale(x1_data_pos) + xStepValue*x1_between))/10
+                var x2value = Math.round(10*(currXScale(x2_data_pos) + xStepValue*x2_between))/10
 
+                
+                var y1value = Math.round(10*(currYScale(y1_data_pos) + yStepValue*y1_between))/10
+                var y2value = Math.round(10*(currYScale(y2_data_pos) + yStepValue*y2_between))/10
 
+                
                 data.push(
                     {
                         x1: x1value,
@@ -1332,7 +1310,7 @@ function Inflection() {
                             .data([d])
                             .join("line")
                             .attr("class", "mark-line single-line")
-                            .transition("move-line")
+                            .transition("move-line") // bei erstem Rendern?!
                             .duration(200)
                             .ease(d3.easeLinear)
                                 .attr("stroke", that.inflection.col)
@@ -1363,21 +1341,8 @@ function Inflection() {
 
             var annlist = ann.split(",");
                         //transform to data coordinates
-            if(that.xAxEditable) {
-                var currXScale = d3.scaleLinear()
-                .domain([0, determineMaxOfEditableAx("xax")])
-                .range([0, SVGwidth]);
-            } else {
-                var currXScale = getCatAxsiScale("xax")
-            }
-
-            if(that.yAxEditable) {
-                var currYScale = d3.scaleLinear()
-                .domain([0, determineMaxOfEditableAx("yax")])
-                .range([SVGheight, 0]);
-            } else {
-                var currYScale = getCatAxsiScale("yax")
-            }
+            currXScale = that.getXAxScale()
+            currYScale = that.getYAxScale()
             
 
             let data = [];
@@ -1390,18 +1355,10 @@ function Inflection() {
                 let text = splitted[4]
 
                 // calculate postition in pixel space
-                if(that.xAxEditable) {
-                    var x_value = Math.round(10*currXScale(x_data_pos))/10
-                } else {
-                    var x_value = Math.round(10*(currXScale(x_data_pos) + currXScale.step()*x_between))/10
-                }
-
-                if(that.yAxEditable) {
-                    var y_value = Math.round(10*currYScale(y_data_pos))/10
-                } else {
-                    var y_value = Math.round(10*(currYScale(y_data_pos) + currYScale.step()*y_between))/10
-                }
-
+                var xStepValue = (typeof currXScale.step === 'function') ? currXScale.step() : 0 //get step if categorical
+                var x_value = Math.round(10*(currXScale(x_data_pos) + xStepValue*x_between))/10
+                var yStepValue = (typeof currYScale.step === 'function') ? currYScale.step() : 0 //get step if categorical
+                var y_value = Math.round(10*(currYScale(y_data_pos) + yStepValue*y_between))/10
 
                 data.push({
                     x: x_value,
@@ -1442,7 +1399,7 @@ function Inflection() {
         // <path aria-label="a: A; b: 28" role="graphics-symbol" aria-roledescription="bar" d="M1,144h18v56h-18Z" fill="#4c78a8"></path>
         var that = this;
         let highlight = that.inflection.high
-        
+        //TODO save initial colour to data of element/marker
 
         if (highlight == "") {
             d3.selectAll("path")
@@ -1453,7 +1410,18 @@ function Inflection() {
                 .transition()
                 .duration(200)
                 .ease(d3.easeLinear)
-                .attr("fill", "#" + this.basecol)
+                .attr("fill", function() {
+                    let current_col = d3.select(this).attr("fill")
+                    if(current_col && (typeof current_col !== 'undefined') && (current_col !== 'transparent')) {
+                        return that.basecol
+                    }
+                })
+                .attr("stroke", function() {
+                    let current_col = d3.select(this).attr("stroke")
+                    if(current_col && (typeof current_col !== 'undefined')  && (current_col !== 'transparent')) {
+                        return that.basecol
+                    }
+                })
 
             d3.selectAll(".infl-label")
                 .transition()
@@ -1467,6 +1435,7 @@ function Inflection() {
             promises = [];
 
             var splitted = highlight.split("-")
+            //transform to number if number, leave as string if not
             var x_of_high = splitted[0]
             var y_of_high = splitted[1]
 
@@ -1477,10 +1446,11 @@ function Inflection() {
 
                     let aria_label = d3.select(this).attr("aria-label") // e.g. "a: D; b: 91"
                     if(aria_label) {
-                        let xvalue = aria_label.match(/\b\w+:\s*(\d+)\b/)[1]; 
-                        let yvalue = aria_label.match(/(?:\b\w+:\s*\w+;?\s*)\b\w+:\s*(\d+)/)[1]; 
-                        var isx = (xvalue === x_of_high)
-                        var isy =(yvalue === y_of_high)
+                        let xvalue = aria_label.match(/\b\w+:\s*(\w+)\b/)[1];  
+                        let yvalue = aria_label.match(/(?:\b\w+:\s*\w+;?\s*)\b\w+:\s*(\w+)/)[1]; 
+
+                        var isx = (transformValue(xvalue) === transformValue(x_of_high))
+                        var isy = (transformValue(yvalue) === transformValue(y_of_high))
                         return  ismarker && isx && isy
                     } else {
                         return false;
@@ -1492,111 +1462,193 @@ function Inflection() {
                 .transition("trans-high")
                 .duration(200)
                 .ease(d3.easeLinear)
-                .attr("fill", that.inflection.col)
-            
-
-
-            var aria_label = path.attr("aria-label") // e.g. "a: D; b: 91"
-            // filter y value
-            let yvalue = aria_label.match(/\b\w+:\s*(\d+)\b/)[1];  // "91" 
-
-            // get x-and y-position
-            let path_descr = path.attr("d")
-
-            let match = path_descr.match(/M(\d+),(-?[0-9.]+)h([0-9.]+)v([0-9.]+)h-([0-9.]+)Z/);
-            
-    
-
-            if (match) {
-                let topLeftX = parseFloat(match[1]); // X coordinate (top-left corner)
-                let topLeftY = parseFloat(match[2]); // Y coordinate (top-left corner)
-                let width = parseFloat(match[3]);    // Width from the `h` command
-                let height = parseFloat(match[4]); // Height
-
-                //add bar labels
-                var label_data = [{
-                    x: topLeftX,
-                    y: topLeftY,
-                    width: width,
-                    height: height,
-                    value: +yvalue,
-                    mark: {
-                        marktype: "text",
-                        markgroup: "inflection"
+                // .attr("fill", that.inflection.col)
+                .attr("fill", function() {
+                    let current_col = d3.select(this).attr("fill")
+                    if(current_col && (typeof current_col !== 'undefined') && (current_col !== 'transparent')) {
+                        return that.inflection.col
                     }
-                }]
+                })
+                .attr("stroke", function() {
+                    let current_col = d3.select(this).attr("stroke")
+                    if(current_col && (typeof current_col !== 'undefined')  && (current_col !== 'transparent')) {
+                        return that.inflection.col
+                    }
+                })
 
-
-                // label
-                 d3.select(".label-group")
-                    .selectAll("text.infl-label")
-                    .data(label_data)
-                    .join("text")
-                    .attr("class", "infl-label")
-                    
-
-
-                switch (that.charttype) {
-                    case "barchart":
-                        d3.selectAll(".infl-label")
-                            .attr("dy", "-1em")
-                            .style("text-anchor", "middle")
-                            .transition("trans-high")
-                            .duration(200)
-                            .ease(d3.easeLinear)
-                                .text(d => d.value)
-                                .attr("x", (d) => d.x + d.width / 2)
-                                .attr("y", (d) => d.y)
-                                .style("fill", that.inflection.col)
-                        break;
-                    case "columnchart":
-                        d3.selectAll(".infl-label")
-                            .attr("dx", "1em")
-                            .attr("dy", ".35em")
-                            .style("text-anchor", "start")
-                            .transition("trans-high")
-                            .duration(200)
-                            .ease(d3.easeLinear)
-                                .text(d => d.value)
-                                .attr("x", (d) => d.x + d.width)
-                                .attr("y", (d) => d.y + d.height/2)
-                                .style("fill", that.inflection.col)
-                        break;
-                
-                    default: //barchart
-                        that.charttype = "barchart"
-                        d3.selectAll(".infl-label")
-                            .attr("dy", "-1em")
-                            .style("text-anchor", "middle")
-                            .transition("trans-high")
-                            .duration(200)
-                            .ease(d3.easeLinear)
-                                .text(d => d.value)
-                                .attr("x", (d) => d.x + d.width / 2)
-                                .attr("y", (d) => d.y)
-                                .style("fill", that.inflection.col)
-                        break;
-                }
-                    
-            }
+            //raise to top
+            path.node().parentNode.append(path.node());
             
-            // colour non-highlight bars back to normal
+            // switch (that.chartPath) {
+            //     case "barchart":
+            //         var xscale = that.getXAxScale()
+            //         var yscale = that.getYAxScale()
+
+            //         //in the middle of the bar, if categorical
+            //         var xStepValue = (typeof xscale.step === 'function') ? xscale.step() : 0 
+            //         var yStepValue = (typeof yscale.step === 'function') ? yscale.step() : 0
+
+            //         //add labels
+            //         var label_data = [{
+            //             x: Math.round(10*(xscale(x_of_high) + xStepValue*0.5))/10,
+            //             y: Math.round(10*(yscale(y_of_high) + yStepValue*0.5))/10,
+            //             value: [x_of_high, y_of_high],
+            //             text: y_of_high,
+            //             mark: {
+            //                 marktype: "text",
+            //                 markgroup: "inflection"
+            //             }
+            //         }]
+
+            //         // label
+            //         d3.select(".label-group")
+            //             .selectAll("text.infl-label")
+            //             .data(label_data)
+            //             .join("text")
+            //             .attr("class", "infl-label")
+            //             d3.selectAll(".infl-label")
+            //                 .attr("dy", "-1em")
+            //                 // .attr("dy", ".35em")
+            //                 .style("text-anchor", "middle")
+            //                 .transition("trans-high")
+            //                 .duration(200)
+            //                 .ease(d3.easeLinear)
+            //                     .text(d => d.text)
+            //                     .attr("x", (d) => d.x)
+            //                     .attr("y", (d) => d.y)
+            //                     .style("fill", that.inflection.col)
+
+                    
+            //         break;
+            //     case "columnchart":
+            //         var xscale = that.getXAxScale()
+            //         var yscale = that.getYAxScale()
+
+            //         //in the middle of the bar, if categorical
+            //         var xStepValue = (typeof xscale.step === 'function') ? xscale.step() : 0 
+            //         var yStepValue = (typeof yscale.step === 'function') ? yscale.step() : 0
+
+            //         //add labels
+            //         var label_data = [{
+            //             x: Math.round(10*(xscale(x_of_high) + xStepValue*0.5))/10,
+            //             y: Math.round(10*(yscale(y_of_high) + yStepValue*0.5))/10,
+            //             value: [x_of_high, y_of_high],
+            //             text: x_of_high,
+            //             mark: {
+            //                 marktype: "text",
+            //                 markgroup: "inflection"
+            //             }
+            //         }]
+
+            //         // label
+            //         d3.select(".label-group")
+            //             .selectAll("text.infl-label")
+            //             .data(label_data)
+            //             .join("text")
+            //             .attr("class", "infl-label")
+            //             d3.selectAll(".infl-label")
+            //                 .attr("dx", "1em")
+            //                 .attr("dy", ".35em")
+            //                 .style("text-anchor", "start")
+            //                 .transition("trans-high")
+            //                 .duration(200)
+            //                 .ease(d3.easeLinear)
+            //                     .text(d => d.text)
+            //                     .attr("x", (d) => d.x)
+            //                     .attr("y", (d) => d.y)
+            //                     .style("fill", that.inflection.col)
+
+            //         break;
+
+            //     case "scatterplot":
+            //         // get x-and y-position
+            //         var transform = path.attr("transform");
+            //         var x_pos = get_x_translate(transform);
+            //         var y_pos = get_y_translate(transform);
+
+
+            //         //add labels
+            //         var label_data = [{
+            //             x: x_pos,
+            //             y: y_pos,
+            //             value: [x_of_high, y_of_high],
+            //             text: x_of_high + ", " + y_of_high,
+            //             mark: {
+            //                 marktype: "text",
+            //                 markgroup: "inflection"
+            //             }
+            //         }]
+
+            //         // label
+            //         d3.select(".label-group")
+            //             .selectAll("text.infl-label")
+            //             .data(label_data)
+            //             .join("text")
+            //             .attr("class", "infl-label")
+            //             d3.selectAll(".infl-label")
+            //                 .attr("dx", "1em")
+            //                 .attr("dy", ".35em")
+            //                 .style("text-anchor", "start")
+            //                 .transition("trans-high")
+            //                 .duration(200)
+            //                 .ease(d3.easeLinear)
+            //                     .text(d => d.text)
+            //                     .attr("x", (d) => d.x)
+            //                     .attr("y", (d) => d.y)
+            //                     .style("fill", that.inflection.col)
+
+            //         break;
+            
+            //     default:
+            //         break;
+            // }
+
+
+                    
+            
+            // colour non-highlight mark back to normal
              d3.selectAll("path")
                 .filter(function() {
-                    return d3.select(this).attr("aria-roledescription") == "bar" && !String(d3.select(this).attr("aria-label")).includes(highlight)
-                    })
+                    // return d3.select(this).attr("aria-roledescription") == "bar" && !String(d3.select(this).attr("aria-label")).includes(highlight)
+                    
+                    let role_descr = d3.select(this).attr("aria-roledescription");
+                    var ismarker = (role_descr == "bar") || (role_descr == "point")
+
+                    let aria_label = d3.select(this).attr("aria-label") // e.g. "a: D; b: 91"
+                    if(aria_label) {
+                        let xvalue = aria_label.match(/\b\w+:\s*(\w+)\b/)[1]; 
+                        let yvalue = aria_label.match(/(?:\b\w+:\s*\w+;?\s*)\b\w+:\s*(\w+)/)[1]; 
+                        var isx = (xvalue == x_of_high)
+                        var isy =(yvalue == y_of_high)
+                        return  !(ismarker && isx && isy)
+                    } else {
+                        return false;
+                    }
+                
+                })
                 .transition()
                 .duration(200)
                 .ease(d3.easeLinear)
-                .attr("fill", "#" + this.basecol)
+                .attr("fill", function() {
+                    let current_col = d3.select(this).attr("fill")
+                    if(current_col && (typeof current_col !== 'undefined') && (current_col !== 'transparent')) {
+                        return that.basecol
+                    }
+                })
+                .attr("stroke", function() {
+                    let current_col = d3.select(this).attr("stroke")
+                    if(current_col && (typeof current_col !== 'undefined')  && (current_col !== 'transparent')) {
+                        return that.basecol
+                    }
+                })
                 
-                
+            
 
         }
     }
 
     this.yAx = function () {
-        if (this.yAxEditable) {
+        if (this.yAxQuant) {
             promises = [];
         
             var that = this;
@@ -1618,7 +1670,7 @@ function Inflection() {
                 }).nodes()
 
                 // get translates in x-direction (stays fixed)
-                // var grid_x_transf = get_x_translate(d3.select(grid_lines_nodeArray[0]).attr("transform"))
+                var grid_x_transf = get_x_translate(d3.select(grid_lines_nodeArray[1]).attr("transform"))
                 var label_x_transf = get_x_translate(YaxisSelection.select('.mark-text.role-axis-label text').attr("transform"))
 
 
@@ -1638,31 +1690,32 @@ function Inflection() {
                     opacities.push(opacity);
 
                     if (newYPosition < 0) {
-                        d3.select(this)
-                        .remove()
-
-                        tick_line.remove()
-                        grid_line.remove()
+                        d3.select(this).style("visibility", "hidden")
+                        tick_line.style("visibility", "hidden")
+                        grid_line.style("visibility", "hidden")
                     } else {
                         // Update the transform attribute with the new Y position
                         // TODO where are the -7 from?
                         d3.select(this) //label
+                            .style("visibility", "visible")
                             .transition()
                             .duration(200)
                             .ease(d3.easeLinear)
                             .attr('transform', 'translate(' + label_x_transf + ',' + (newYPosition + 3) + ')')
 
                         tick_line
+                            .style("visibility", "visible")
                             .transition()
                             .duration(200)
                             .ease(d3.easeLinear)
                             .attr('transform', 'translate(0,' + newYPosition + ')')
 
                         grid_line
+                        .style("visibility", "visible")
                             .transition()
                             .duration(200)
                             .ease(d3.easeLinear)
-                            .attr('transform', 'translate(0,' + newYPosition + ')')
+                            .attr('transform', 'translate(' + grid_x_transf + ',' + newYPosition + ')')
                             
                     
                     }
@@ -1701,7 +1754,7 @@ function Inflection() {
                         
 
                         d3.select(grid_lines_nodeArray[0]).clone().call(function(sel) {
-                            sel.attr("transform", 'translate(0,' + new_tick_pos + ')')
+                            sel.attr("transform", 'translate(' + grid_x_transf + ',' + new_tick_pos + ')')
                             sel.node().parentNode.appendChild(sel.node()); //append as last child
                         });
                     }  
@@ -1718,64 +1771,52 @@ function Inflection() {
                     return (role_descr == "bar") || (role_descr == "point")
                 })
                 .each(function(){
-                    switch (that.charttype) {
-                        case "scatterplot": //points
-                            var marker = d3.select(this)
-                            // filter y value
-                            var aria_label = marker.attr("aria-label") // e.g. "a: D; b: 91"
-                            var yvalue = aria_label.match(/(?:\b\w+:\s*\w+;?\s*)\b\w+:\s*(\d+)/)[1]; 
-                            let x_transl = get_x_translate(marker.attr("transform"))
-                            let new_y_transl = newYScale(yvalue)
+                    var marker = d3.select(this)
+                    var aria_label = marker.attr("aria-label") // e.g. "a: D; b: 91"
 
+                    // filter y value
+                    var yvalue = aria_label.match(/(?:\b\w+:\s*\w+;?\s*)\b\w+:\s*(\d+)/)[1]; 
+                    let x_transl = get_x_translate(marker.attr("transform"))
+
+                    if (x_transl != -1) { //no error, position defined with transform attribute
+                        let new_y_transl = newYScale(yvalue)
+                        const markerPromise = new Promise((resolve) => {
+                            marker
+                                .transition("move-y")
+                                .duration(200)
+                                .ease(d3.easeLinear)
+                                    .attr("transform", 'translate(' + x_transl + ',' + new_y_transl + ')')
+                                .on("end", () => resolve());
+                        });
+                        promises.push(markerPromise);
+                    } else { //there was an error, try with path instead
+                        var path = marker.attr("d") // e.g. "M1,144h18v56h-18Z"
+
+                        let regex = /M(\d+),(-?[0-9.]+)h(\d+)v(\d+)/;
+                        let match = path.match(regex);
+                
+                        if (match) {
+                            let topLeftX = parseFloat(match[1]); // X coordinate (top-left corner)
+                            let width = parseFloat(match[3]);    // Width from the `h` command
+                
+                            let new_height = Math.max(newYScale(yvalue),0)
+
+                            // Replace the original height (v command) with the new height
+                            let newPath = `M${topLeftX},${new_height}h${width}v${SVGheight - new_height}h-${width}Z`;
+                            
                             const markerPromise = new Promise((resolve) => {
                                 marker
                                     .transition("move-y")
                                     .duration(200)
                                     .ease(d3.easeLinear)
-                                        .attr("transform", 'translate(' + x_transl + ',' + new_y_transl + ')')
+                                        .attr("d", newPath)
                                     .on("end", () => resolve());
                             });
-                            promises.push(markerPromise);
-                            break;
-                    
-                        default: //bars for now
                             
-                            var marker = d3.select(this)
-                            var aria_label = marker.attr("aria-label") // e.g. "a: D; b: 91"
+                            promises.push(markerPromise);
 
-                            // filter y value
-                            var yvalue = aria_label.match(/(?:\b\w+:\s*\w+;?\s*)\b\w+:\s*(\d+)/)[1];  // "91" 
-
-                            var path = marker.attr("d") // e.g. "M1,144h18v56h-18Z"
-
-                            let regex = /M(\d+),(-?[0-9.]+)h(\d+)v(\d+)/;
-                            let match = path.match(regex);
-                    
-                            if (match) {
-                                let topLeftX = parseFloat(match[1]); // X coordinate (top-left corner)
-                                let topLeftY = parseFloat(match[2]); // Y coordinate (top-left corner)
-                                let width = parseFloat(match[3]);    // Width from the `h` command
-                                let old_height = parseFloat(match[4]);   // Height from the `v` command
-                    
-                                let new_height = Math.max(newYScale(yvalue),0)
-
-                                // Replace the original height (v command) with the new height
-                                let newPath = `M${topLeftX},${new_height}h${width}v${SVGheight - new_height}h-${width}Z`;
-                                
-                                const markerPromise = new Promise((resolve) => {
-                                    marker
-                                        .transition("move-y")
-                                        .duration(200)
-                                        .ease(d3.easeLinear)
-                                            .attr("d", newPath)
-                                        .on("end", () => resolve());
-                                });
-                                
-                                promises.push(markerPromise);
-
-                            break;
                         }
-                        
+                
                     }
                 });
 
@@ -1786,7 +1827,7 @@ function Inflection() {
                 .transition("move-y")
                 .duration(200)
                 .ease(d3.easeLinear)
-                    .attr("y", (d) => newYScale(d.value))
+                    .attr("y", (d) => newYScale(d.value[1]))
             
 
 
@@ -1828,7 +1869,7 @@ function Inflection() {
     }
 
     this.xAx = function () {
-        if (this.xAxEditable) {
+        if (this.xAxQuant) {
             promises = [];
         
             var that = this;
@@ -1850,7 +1891,7 @@ function Inflection() {
                     return +d3.select(this).attr("x2") == 0
                 }).nodes()
                 // get translates in y-direction (stays fixed)
-                var grid_y_transf = get_y_translate(d3.select(grid_lines_nodeArray[0]).attr("transform"))
+                var grid_y_transf = get_y_translate(d3.select(grid_lines_nodeArray[1]).attr("transform"))
                 var label_y_transf = get_y_translate(XaxisSelection.select('.mark-text.role-axis-label text').attr("transform"))
 
                 XaxisSelection.selectAll('.mark-text.role-axis-label text') // Select all tick labels
@@ -1869,27 +1910,28 @@ function Inflection() {
                     var newXPosition = newXScale(tick_value);
 
                     if (newXPosition > SVGwidth) {
-                        d3.select(this)
-                        .remove()
-
-                        tick_line.remove()
-                        grid_line.remove()
+                        d3.select(this).style("visibility", "hidden")
+                        tick_line.style("visibility", "hidden")
+                        grid_line.style("visibility", "hidden")
                     } else {
                         // Update the transform attribute with the new Y position
                         // TODO where are the 15 from?
                         d3.select(this) //label
+                            .style("visibility", "visible")
                             .transition()
                             .duration(200)
                             .ease(d3.easeLinear)
                             .attr('transform', 'translate(' + (newXPosition + 3) + ', ' +  label_y_transf + ')')
 
                         tick_line
+                            .style("visibility", "visible")
                             .transition()
                             .duration(200)
                             .ease(d3.easeLinear)
                             .attr('transform', 'translate(' + newXPosition + ', 0)')
 
                         grid_line
+                            .style("visibility", "visible")
                             .transition()
                             .duration(200)
                             .ease(d3.easeLinear)
@@ -1950,59 +1992,53 @@ function Inflection() {
                     return (role_descr == "bar") || (role_descr == "point")
                 })
                 .each(function(){
-                    switch (that.charttype) {
-                        case "scatterplot": //points
-                            var marker = d3.select(this)
-                            // filter y value
-                            var aria_label = marker.attr("aria-label") // e.g. "a: D; b: 91"
-                            var xvalue = aria_label.match(/\b\w+:\s*(\d+)\b/)[1]; 
-                            let y_transl = get_y_translate(marker.attr("transform"))
-                            let new_x_transl = newXScale(xvalue)
+                    var marker = d3.select(this)
+                    // filter y value
+                    var aria_label = marker.attr("aria-label") // e.g. "a: D; b: 91"
+                    var xvalue = aria_label.match(/\b\w+:\s*(\w+)\b/)[1]; 
+                    
+                    let y_transl = get_y_translate(marker.attr("transform")) //gonna be kept!
 
-                            const markerPromise = new Promise((resolve) => {
+                    if (y_transl != -1) { //no error, position defined with transform attribute
+                    
+                        let new_x_transl = newXScale(xvalue)
+                        const markerPromise = new Promise((resolve) => {
+                            marker
+                                .transition("move-x")
+                                .duration(200)
+                                .ease(d3.easeLinear)
+                                    .attr("transform", 'translate(' + new_x_transl + ',' + y_transl + ')')
+                                .on("end", () => resolve());
+                        });
+                        promises.push(markerPromise);
+                
+                    } else { //there was an error, try with path instead (e.g. for bars)
+                        var path = marker.attr("d") // e.g. "M1,144h18v56h-18Z"
+
+                        let regex = /M(\d+),(-?[0-9.]+)h([0-9.]+)v([0-9.]+)h-([0-9.]+)Z/;
+                        let match = path.match(regex);
+                
+                        if (match) {
+                            let startX = parseFloat(match[1]);         // Initial x
+                            let startY = parseFloat(match[2]);       // Initial y
+                            let old_width = parseFloat(match[3]);         // Horizontal length (width)
+                            let height = parseFloat(match[4]);       // Vertical length (height)
+                
+                            let new_width = Math.max(newXScale(xvalue),0)
+
+                            // Replace the original width with the new width
+                            let newPath = `M${startX},${startY}h${new_width}v${height}h-${new_width}Z`;
+                            
+                            const barPromise = new Promise((resolve) => {
                                 marker
                                     .transition("move-x")
                                     .duration(200)
                                     .ease(d3.easeLinear)
-                                        .attr("transform", 'translate(' + new_x_transl + ',' + y_transl + ')')
+                                        .attr("d", newPath)
                                     .on("end", () => resolve());
                             });
-                            promises.push(markerPromise);
-                            break;
-                        default:
-                            var bar = d3.select(this)
-                            var aria_label = bar.attr("aria-label") // e.g. "a: D; b: 91"
-
-                            // filter x value
-                            var xvalue = aria_label.match(/\b\w+:\s*(\d+)\b/)[1];  // "91" 
-
-                            var path = bar.attr("d") // e.g. "M1,144h18v56h-18Z"
-
-                            let regex = /M(\d+),(-?[0-9.]+)h([0-9.]+)v([0-9.]+)h-([0-9.]+)Z/;
-                            let match = path.match(regex);
-                    
-                            if (match) {
-                                let startX = parseFloat(match[1]);         // Initial x
-                                let startY = parseFloat(match[2]);       // Initial y
-                                let old_width = parseFloat(match[3]);         // Horizontal length (width)
-                                let height = parseFloat(match[4]);       // Vertical length (height)
-                    
-                                let new_width = Math.max(newXScale(xvalue),0)
-
-                                // Replace the original width with the new width
-                                let newPath = `M${startX},${startY}h${new_width}v${height}h-${new_width}Z`;
-                                
-                                const barPromise = new Promise((resolve) => {
-                                    bar
-                                        .transition("move-x")
-                                        .duration(200)
-                                        .ease(d3.easeLinear)
-                                            .attr("d", newPath)
-                                        .on("end", () => resolve());
-                                });
-                                
-                                promises.push(barPromise);
-                        break;
+                            
+                            promises.push(barPromise);
                         }
                     }
                 });
@@ -2072,6 +2108,22 @@ function Inflection() {
 
     }
 
+    this.getXAxScale = function() {
+        if(this.xAxQuant) { //linear x axis
+            return getLinAxisScale("xax")
+        } else { // categorical x axis
+            return getCatAxisScale("xax")
+        }
+    }
+
+    this.getYAxScale = function() {
+        if(this.yAxQuant) { //linear y axis
+            return getLinAxisScale("yax")
+        } else { // categorical y axis
+            return getCatAxisScale("yax")
+        }
+    }
+
     // helper functions
 
     function rgbToHex(rgb) {
@@ -2087,7 +2139,54 @@ function Inflection() {
         return `#${r}${g}${b}`.toUpperCase(); // Uppercase for consistency
     }
 
-    function determineMaxOfEditableAx(axis) {
+
+    function snapAngle(dx, dy) {
+        // Calculate the angle of the line in degrees
+        let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+    
+        // Snap to nearest multiple of 22.5 degrees
+        const snapAngles = [0, 22.5, 45, 67.5, 90, 112.5, 135, 157.5, 180, -22.5, -45, -67.5, -90, -112.5, -135, -157.5, -180];
+        let closestAngle = snapAngles.reduce((prev, curr) => 
+            Math.abs(curr - angle) < Math.abs(prev - angle) ? curr : prev
+        );
+    
+        // Convert snapped angle back to radians
+        let rad = closestAngle * (Math.PI / 180);
+        
+        // Calculate new dx and dy based on the snapped angle
+        let distance = Math.sqrt(dx * dx + dy * dy);
+        return {
+            dx: distance * Math.cos(rad),
+            dy: distance * Math.sin(rad)
+        };
+    }
+
+    function clampToWidth(x) {
+        return Math.max( 0, Math.min(x, SVGwidth) )
+    } 
+
+    function clampToHeight(x) {
+        return Math.max( 0, Math.min(x, SVGheight) )
+    } 
+
+    function getLinAxisScale(axis) {
+        if(axis == "xax") {
+            var scale = d3.scaleLinear()
+                .domain([0, determineMaxOfQuantAx("xax")])
+                .range([0, SVGwidth]);
+        }
+
+        if(axis == "yax") {
+            var scale = d3.scaleLinear()
+                .domain([0, determineMaxOfQuantAx("yax")])
+                .range([SVGheight, 0]);
+        }
+
+
+        return scale;
+    }
+
+    function determineMaxOfQuantAx(axis) {
         if(axis == "yax") {
             var axisSelection = d3.selectAll("g.mark-group.role-axis").filter(function() {
                 return String(d3.select(this).attr("aria-label")).includes("Y-axis")
@@ -2107,7 +2206,9 @@ function Inflection() {
                 return +translateY;
             });
 
-            var label_nodeArray = axisSelection.selectAll('.mark-text.role-axis-label text').nodes()
+            var label_nodeArray = axisSelection.selectAll('.mark-text.role-axis-label text')
+                .filter(function() {return d3.select(this).style("visibility") === "visible"})
+                .nodes()
             var curr_num_of_ticks  = label_nodeArray.length
             var max_tick_value = +d3.select(label_nodeArray[curr_num_of_ticks-1]).text().replaceAll(",", "")
             var max_tick_pos = tickPositions[curr_num_of_ticks-1]
@@ -2141,7 +2242,9 @@ function Inflection() {
                 return +translateX;
             });
 
-            var label_nodeArray = axisSelection.selectAll('.mark-text.role-axis-label text').nodes()
+            var label_nodeArray = axisSelection.selectAll('.mark-text.role-axis-label text')
+                .filter(function() {return d3.select(this).style("visibility") === "visible"})
+                .nodes()
             var curr_num_of_ticks  = label_nodeArray.length
             var max_tick_value = +d3.select(label_nodeArray[curr_num_of_ticks-1]).text().replaceAll(",", "")
             var max_tick_pos = tickPositions[curr_num_of_ticks-1]
@@ -2156,49 +2259,7 @@ function Inflection() {
         }
     }
     
-
-    function snapAngle(dx, dy) {
-        // Calculate the angle of the line in degrees
-        let angle = Math.atan2(dy, dx) * (180 / Math.PI);
-    
-        // Snap to nearest multiple of 22.5 degrees
-        const snapAngles = [0, 22.5, 45, 67.5, 90, 112.5, 135, 157.5, 180, -22.5, -45, -67.5, -90, -112.5, -135, -157.5, -180];
-        let closestAngle = snapAngles.reduce((prev, curr) => 
-            Math.abs(curr - angle) < Math.abs(prev - angle) ? curr : prev
-        );
-    
-        // Convert snapped angle back to radians
-        let rad = closestAngle * (Math.PI / 180);
-        
-        // Calculate new dx and dy based on the snapped angle
-        let distance = Math.sqrt(dx * dx + dy * dy);
-        return {
-            dx: distance * Math.cos(rad),
-            dy: distance * Math.sin(rad)
-        };
-    }
-
-    function clampToWidth(x) {
-        return Math.max( 0, Math.min(x, SVGwidth) )
-    } 
-
-    function clampToHeight(x) {
-        return Math.max( 0, Math.min(x, SVGheight) )
-    } 
-    
-
-    function invertCatScale(axis, position) {
-        var scale = getCatAxsiScale(axis)
-        var eachBand = scale.step();
-        var index = Math.floor((position / eachBand));
-        var val = scale.domain()[index];
-        var extra = (position - scale(val)) / eachBand
-
-        return [val, extra, eachBand]
-        
-    }
-
-    function getCatAxsiScale(axis) {
+    function getCatAxisScale(axis) {
         if(axis == "xax") {
             var axisSelection = d3.selectAll("g.mark-group.role-axis").filter(function() {
                 return String(d3.select(this).attr("aria-label")).includes("X-axis")
@@ -2236,6 +2297,26 @@ function Inflection() {
 
     }
 
+    function invertCatScale(axis, position) {
+        var scale = getCatAxisScale(axis)
+        var eachBand = scale.step();
+        var index = Math.floor((position / eachBand));
+        var val = scale.domain()[index];
+        var extra = (position - scale(val)) / eachBand
+
+        return [val, extra, eachBand]
+        
+    }
+
+    //transform variable to number if it contains a number, keeps it as a string if it's not a number
+    function transformValue(value) {
+        if (!isNaN(value) && value.trim() !== "") {
+            return Number(value); // Convert to number
+        }
+        return value; // Keep as string
+    }
+
+
     function detectPeriodicity(op) { //for opacity of new labels of axis
         let n = op.length;
         for (let period = 1; period <= n; period++) {
@@ -2254,11 +2335,19 @@ function Inflection() {
     }
 
     function get_y_translate(transform) { // Extract Y value from translate(X,Y)
-        return transform.match(/translate\(.*?,([^\)]+)\)/)[1]
+        var match = -1;
+        if(transform) {
+            var match = +transform.match(/translate\(.*?,([^\)]+)\)/)[1];
+        }
+        return match;
     }
 
     function get_x_translate(transform) { // Extract X value from translate(X,Y)
-        return transform.match(/translate\(([^,]+),/)[1]; 
+        var match = -1;
+        if(transform) {
+            var match = +transform.match(/translate\(([^,]+),/)[1];
+        }
+        return match;
     }
 
 

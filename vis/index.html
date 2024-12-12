@@ -25,46 +25,54 @@
             var which_definition = hash_array.find(function(d) {return d.includes("vis")})
             var spec = [];
             try {
-                var which = which_definition.split("=")[1]
+                var chartPath = which_definition.split("=")[1]
             } catch (error) {
                 console.warning("You forgot to define which visualisation to use!")
-                var which = "barchart"; //default
+                var chartPath = "barchart"; //default
             }
         } else {
-            var which = "barchart"; //default
+            var chartPath = "barchart"; //default
         }
     
     
         
         // fetch('vis/column_chart.json')
-        fetch('specs/' + which + '.json')
+        fetch('specs/' + chartPath + '.json') //TODO this should be filename, not charttype!
             .then(response => {return response.json()})
-            .then(data => spec = data)
-            .then(
-                function() {
+            .then(function(data) {
+                    var spec = data;
                     
-                var result = vegaEmbed("#vis", spec, {mode: "vega-lite"}).then(
-                    function() {
-                        var vis;
-                        vis = new Inflection();	
-                        vis.init(which); //barchart or columnchart
+                    // find out if axis are quantitative or not, look at definition in spec
+                    var x_encoding_type = spec.encoding.x.type
+                    var x_aggregate = spec.encoding.x.aggregate
+                    if(x_encoding_type === "quantitative" || x_aggregate) {
+                        var x_quant = true;
+                    } else { // nominal is default in vega-lite
+                        var x_quant = false;
                     }
-                ).catch(console.warn);
+
+                    var y_encoding_type = spec.encoding.y.type
+                    var y_aggregate = spec.encoding.y.aggregate
+                    if(y_encoding_type === "quantitative" || y_aggregate) {
+                        var y_quant = true;
+                    } else {
+                        var y_quant = false;
+                    }
+
+                    var result = vegaEmbed("#vis", spec, {mode: "vega-lite"}).then(
+                        function() {
+                            var vis;
+                            vis = new Inflection();	
+                            vis.init(chartPath, x_quant, y_quant); 
+                        }
+                    ).catch(console.warn);
                 }
             )   
 
         
         
     </script>
-    
-    <script>
-        // var vis;
-        // // var which = document.URL.split("?")[1].split("#")[0];
-        // vis = new Inflection();	
-        // vis.init("barchart");
-        
-    </script>
-    
+
 
 </body>
 

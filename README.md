@@ -2,13 +2,13 @@ Look, a [scatterplot!](vis/index.html#vis=scatterplot)
 
 [This](vis/index.html) is a visualisation that is inflectable!
 
-I can tell you something interesting about the [left](vis/index.html#vis=barchart&col=%23ec7d04&yax=100&line=A-0-I-1-55-0-55-0&ann=F-0.1-90-0-text&high=B) bar.
+I can tell you something interesting about the [left](vis/index.html#vis=barchart&col=%23ec7d04&yax=100&line=A-0-I-1-55-0-55-0&ann=F-0.1-90-0-text&high=B-55) bar.
 
-And now you can see an explanation of [another](vis/index.html#vis=barchart&col=%23ec7d04&yax=125&line=F-0.53-G-0.43-96.9-0-38.7-0&ann=E-0.5-103.6-0-19%20is%20an%20interesting%20number&high=G) bar.
+And now you can see an explanation of [another](vis/index.html#vis=barchart&col=%23ec7d04&yax=125&line=F-0.53-G-0.43-96.9-0-38.7-0&ann=E-0.5-103.6-0-19%20is%20an%20interesting%20number&high=G-19) bar.
 
-One more [thing](vis/index.html#vis=barchart&col=%2300F05E&yax=121.2&line=A-0.9-H-0.5-107.5-0-19.7-0,A-0.68-I-0.48-14.2-0-87-0&ann=G-0.3-107.7-0-attention!&high=D)!
+One more [thing](vis/index.html#vis=barchart&col=%2300F05E&yax=121.2&line=A-0.9-H-0.5-107.5-0-19.7-0,A-0.68-I-0.48-14.2-0-87-0&ann=G-0.3-107.7-0-attention!&high=D-91)!
 
-And this is a [columnchart](vis/index.html#vis=columnchart&col=%2300F05E&xax=28690671.2&line=15421235.8-0-11117635.1-0-60-0.74-65-0.44&ann=18333338.9-0-60-0.85-text&high=7268299) now!
+And this is a [columnchart](vis/index.html#vis=columnchart&col=%2300F05E&xax=28690671.2&line=15421235.8-0-11117635.1-0-60-0.74-65-0.44&ann=18648936.3-0-60-0.79-text&high=8977000-70) now!
 
 And this is a [stacked barchart](vis/index.html#vis=stacked_barchart) now!
 
