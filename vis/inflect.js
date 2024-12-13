@@ -22,6 +22,7 @@ function Inflection() {
     this.basexax = "";
 
     this.editable = true; // states if page in iframe or separate window with UI
+    this.isScatter = false;
     var SVGheight = 0;
     var SVGwidth = 0;
 
@@ -29,7 +30,7 @@ function Inflection() {
     var tooltip;
 
     //initialise
-    this.init = function (chartPath, xAxQuant, yAxQuant) {
+    this.init = function (chartPath, xAxQuant, yAxQuant, isScatter) {
 
         var that = this;
         this.baseurl = document.URL.split("#")[0];
@@ -86,6 +87,7 @@ function Inflection() {
         this.inflection.yax = this.baseyax;
 
         this.chartPath = chartPath;
+        this.isScatter = isScatter;
 
 
         //try multiple options to set basecolour of element
@@ -117,7 +119,6 @@ function Inflection() {
 <
         setInterval(function () {
             var newhash = window.location.hash.substring(1);
-            // console.log(newhash)
 
             if (that.hash != newhash) {
 
@@ -136,7 +137,6 @@ function Inflection() {
             var hash_elements = hash.split("&");
             var cats_in_hash = [];
             hash_elements.forEach(element => {
-                // console.log(element)
                 let splitted = element.split("=")
                 let cat = splitted[0]
                 let value = decodeURIComponent(splitted[1])
@@ -294,45 +294,23 @@ function Inflection() {
                 if (list.length > 0 && list[0].length > 0) {
                     lines += ","
                 }
+                
+                let random_x1_pixel = Math.random() * SVGwidth;
+                let random_x2_pixel = Math.random() * SVGwidth;
+                let random_y1_pixel = Math.random() * SVGheight;
+                let random_y2_pixel = Math.random() * SVGheight;
 
-                if(that.xAxQuant) {
-                    let xAxValue = that.inflection.xax;
-                    let randomEntryX1 = Math.round(10*Math.random() * xAxValue)/10
-                    let randomEntryX2 = Math.round(10*Math.random() * xAxValue)/10
-                    var random_x_part = randomEntryX1 + "-0-" + randomEntryX2 + "-0-";
-
-                } else {
-                    let xscale = getCatAxisScale("xax")
-                    let x_domain = xscale.domain()
-                    var randomEntryX1 = x_domain[Math.floor(Math.random() * x_domain.length)];
-                    var randomEntryX2 = x_domain[Math.floor(Math.random() * x_domain.length)];
-                    while (randomEntryX1 == randomEntryX2) {
-                        randomEntryX2 = x_domain[Math.floor(Math.random() * x_domain.length)];
-                    }
-                    var random_x_part = randomEntryX1 + "-0.2-" + randomEntryX2 + "-0.8-" 
-
-                }
-
-                if(that.yAxQuant) {
-                    let yAxValue = that.inflection.yax;
-                    let randomEntryY1 = Math.round(10*Math.random() * yAxValue)/10
-                    let randomEntryY2 = Math.round(10*Math.random() * yAxValue)/10
-                    var random_y_part = randomEntryY1 + "-0-" + randomEntryY2 + "-0" ;
-                } else {
-                    let yscale = getCatAxisScale("yax")
-                    let y_domain = yscale.domain()
-                    var randomEntryY1 = y_domain[Math.floor(Math.random() * y_domain.length)];
-                    var randomEntryY2 = y_domain[Math.floor(Math.random() * y_domain.length)];
-                    while (randomEntryY1 == randomEntryY2) {
-                        randomEntryY2 = y_domain[Math.floor(Math.random() * y_domain.length)];
-                    }
-                    var random_y_part = randomEntryY1 + "-0.2-" + randomEntryY2 + "-0.8" ;
-
-                }
+                var [x1_data, x1_between] = that.invertXScale(random_x1_pixel)
+                var [x2_data, x2_between] = that.invertXScale(random_x2_pixel)
+                var [y1_data, y1_between] = that.invertYScale(random_y1_pixel)
+                var [y2_data, y2_between] = that.invertYScale(random_y2_pixel)
 
 
-                lines += random_x_part + random_y_part;
-                        
+                lines += x1_data + "-" + x1_between + "-" +
+                        x2_data + "-" + x2_between + "-" +
+                        y1_data + "-" + y1_between + "-" +
+                        y2_data + "-" + y2_between 
+
 
                 that.inflection.line = lines;
                 that.line()
@@ -716,7 +694,7 @@ function Inflection() {
             d3.selectAll("path")
                 .filter(function() {
                     let role_descr = d3.select(this).attr("aria-roledescription");
-                    return (role_descr == "bar") || (role_descr == "point")
+                    return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
                     })
                 .style("cursor", "pointer")
                 .on("mouseover", function () {
@@ -735,8 +713,8 @@ function Inflection() {
                     var path = d3.select(this)
                     // get x value of bar to store it
                     let aria_label = path.attr("aria-label")
-                    let xvalue = aria_label.match(/\b\w+:\s*([\w]+)\b/)[1];
-                    let yvalue = aria_label.match(/(?:\b\w+:\s*\w+;?\s*)\b\w+:\s*(\d+)/)[1]; 
+                    let xvalue = get_x_of_aria_label(aria_label);
+                    let yvalue = get_y_of_aria_label(aria_label);
                     var highlight = xvalue + "-" + yvalue
 
                     let current_col = path.attr("fill");
@@ -941,7 +919,7 @@ function Inflection() {
             d3.selectAll("path")
                 .filter(function() {
                     let role_descr = d3.select(this).attr("aria-roledescription");
-                    return (role_descr == "bar") || (role_descr == "point")
+                    return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
                     })
                 .style("cursor", "default")
                 .on("mousedown", function (event, d) {//do nothing
@@ -1226,6 +1204,8 @@ function Inflection() {
                     }
                 })
 
+                // console.log(text.split("\n")) //TODO Umbruch in Texts
+
             });
 
             
@@ -1241,8 +1221,6 @@ function Inflection() {
                     .text(d => d.text)
                     .attr("x", d => d.x)
                     .attr("y", d => d.y)
-                // 
-            // })
 
 
         }
@@ -1259,7 +1237,7 @@ function Inflection() {
             d3.selectAll("path")
                 .filter(function() {
                     let role_descr = d3.select(this).attr("aria-roledescription");
-                    return (role_descr == "bar") || (role_descr == "point")
+                    return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
                     })
                 .transition()
                 .duration(200)
@@ -1292,15 +1270,15 @@ function Inflection() {
             var path = d3.selectAll("path")
                 .filter(function() {
                     let role_descr = d3.select(this).attr("aria-roledescription");
-                    var ismarker = (role_descr == "bar") || (role_descr == "point")
+                    var ismarker = (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
 
                     let aria_label = d3.select(this).attr("aria-label") // e.g. "a: D; b: 91"
                     if(aria_label) {
-                        let xvalue = aria_label.match(/\b\w+:\s*(\w+)\b/)[1];  
-                        let yvalue = aria_label.match(/(?:\b\w+:\s*\w+;?\s*)\b\w+:\s*(\w+)/)[1]; 
+                        let xvalue = get_x_of_aria_label(aria_label);
+                        let yvalue = get_y_of_aria_label(aria_label);
 
-                        var isx = (transformValue(xvalue) === transformValue(x_of_high))
-                        var isy = (transformValue(yvalue) === transformValue(y_of_high))
+                        var isx = (xvalue == x_of_high);
+                        var isy = (yvalue == y_of_high);
                         return  ismarker && isx && isy
                     } else {
                         return false;
@@ -1462,12 +1440,12 @@ function Inflection() {
                     // return d3.select(this).attr("aria-roledescription") == "bar" && !String(d3.select(this).attr("aria-label")).includes(highlight)
                     
                     let role_descr = d3.select(this).attr("aria-roledescription");
-                    var ismarker = (role_descr == "bar") || (role_descr == "point")
+                    var ismarker = (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
 
                     let aria_label = d3.select(this).attr("aria-label") // e.g. "a: D; b: 91"
                     if(aria_label) {
-                        let xvalue = aria_label.match(/\b\w+:\s*(\w+)\b/)[1]; 
-                        let yvalue = aria_label.match(/(?:\b\w+:\s*\w+;?\s*)\b\w+:\s*(\w+)/)[1]; 
+                        let xvalue = get_x_of_aria_label(aria_label); 
+                        let yvalue = get_y_of_aria_label(aria_label); 
                         var isx = (xvalue == x_of_high)
                         var isy =(yvalue == y_of_high)
                         return  !(ismarker && isx && isy)
@@ -1618,14 +1596,14 @@ function Inflection() {
             d3.selectAll("path")
                 .filter(function() {
                     let role_descr = d3.select(this).attr("aria-roledescription");
-                    return (role_descr == "bar") || (role_descr == "point")
+                    return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
                 })
                 .each(function(){
                     var marker = d3.select(this)
                     var aria_label = marker.attr("aria-label") // e.g. "a: D; b: 91"
 
                     // filter y value
-                    var yvalue = aria_label.match(/(?:\b\w+:\s*\w+;?\s*)\b\w+:\s*(\d+)/)[1]; 
+                    var yvalue = get_y_of_aria_label(aria_label); 
                     let x_transl = get_x_translate(marker.attr("transform"))
 
                     if (x_transl != -1) { //no error, position defined with transform attribute
@@ -1832,13 +1810,13 @@ function Inflection() {
             d3.selectAll("path")
                 .filter(function() {
                     let role_descr = d3.select(this).attr("aria-roledescription");
-                    return (role_descr == "bar") || (role_descr == "point")
+                    return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
                 })
                 .each(function(){
                     var marker = d3.select(this)
                     // filter y value
                     var aria_label = marker.attr("aria-label") // e.g. "a: D; b: 91"
-                    var xvalue = aria_label.match(/\b\w+:\s*(\w+)\b/)[1]; 
+                    var xvalue = get_x_of_aria_label(aria_label); 
                     
                     let y_transl = get_y_translate(marker.attr("transform")) //gonna be kept!
 
@@ -1979,6 +1957,7 @@ function Inflection() {
 
     this.invertYScale = function(value) {
         if(this.yAxQuant) { //linear x axis
+            var scale = this.getYAxScale()
             var inverse = scale.invert(value)
             return [Math.round(10*inverse)/10, 0 ]
         } else { // categorical x axis
@@ -2181,10 +2160,15 @@ function Inflection() {
 
     //transform variable to number if it contains a number, keeps it as a string if it's not a number
     function transformValue(value) {
-        if (!isNaN(value) && value.trim() !== "") {
-            return Number(value); // Convert to number
+        if(typeof value == "number") {
+            return value; // return as number
         }
-        return value; // Keep as string
+        else if (!isNaN(value) && value.trim() !== "") {
+            return parseFloat(value); // Convert to number
+        } else {
+            return value; // Keep as string
+        }
+        
     }
 
 
@@ -2220,6 +2204,23 @@ function Inflection() {
         }
         return match;
     }
+
+    function get_x_of_aria_label(aria_label) { // Extract X value from translate(X,Y)
+        var match = -1;
+        if(aria_label) {
+            var match = aria_label.match(/\b\w+:\s*([\w.]+)/)[1];
+        }
+        return match;
+    }
+
+    function get_y_of_aria_label(aria_label) { // Extract X value from translate(X,Y)
+        var match = -1;
+        if(aria_label) {
+            var match = aria_label.match(/(?:\b\w+:\s*[\w.]+;?\s*)\b\w+:\s*([\w.]+)/)[1];
+        }
+        return match;
+    }
+
 
 
 

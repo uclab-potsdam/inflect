@@ -58,14 +58,18 @@
                     } else {
                         var y_quant = false;
                     }
+                    var scatterplot = false;
+                    if(x_quant && y_quant && (spec.mark == "point" || spec.mark == "circle")){
+                        var scatterplot = true;
+                    } 
 
                     var result = vegaEmbed("#vis", spec, {mode: "vega-lite"}).then(
                         function() {
                             var vis;
                             vis = new Inflection();	
-                            vis.init(chartPath, x_quant, y_quant); 
+                            vis.init(chartPath, x_quant, y_quant, scatterplot); //TODO add special behaviour for scatter plot
                         }
-                    ).catch(console.warn);
+                    ).catch(console.error);
                 }
             )   
 
