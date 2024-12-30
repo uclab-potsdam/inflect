@@ -7,8 +7,8 @@ function Inflection() {
         line: [],
         ann: [],
         high: "",
-        yax: "",
-        xax: "",
+        yax: [0, 0],
+        xax: [0, 0],
         col: ""
     };
 
@@ -18,8 +18,8 @@ function Inflection() {
 
     this.default_infl_col = "#00F05E"
     this.basecol = ""; // colour of the bars
-    this.baseyax = "";
-    this.basexax = "";
+    this.baseyax = [0, 0];
+    this.basexax = [0, 0];
 
     this.editable = true; // states if page in iframe or separate window with UI
     this.isScatter = false;
@@ -81,10 +81,10 @@ function Inflection() {
         this.xAxQuant = xAxQuant;
         this.yAxQuant = yAxQuant;
 
-        this.basexax = this.xAxQuant ? determineMaxOfQuantAx("xax") : "";
+        this.basexax = this.xAxQuant ? getValuesOfQuantAx("xax") : [0, 0];
         this.inflection.xax = this.basexax;
 
-        this.baseyax = this.yAxQuant ? determineMaxOfQuantAx("yax") : "";
+        this.baseyax = this.yAxQuant ? getValuesOfQuantAx("yax") : [0, 0];
         this.inflection.yax = this.baseyax;
 
         this.chartPath = chartPath;
@@ -117,7 +117,7 @@ function Inflection() {
         tooltip = d3.select(".infl-tooltip")
 
         checkHash(that.hash)
-<
+
         setInterval(function () {
             var newhash = window.location.hash.substring(1);
 
@@ -128,7 +128,6 @@ function Inflection() {
                 checkHash(that.hash);
                 that.updateEditable()
                 // d3.selectAll(".annotation-group").raise()
-
 
             }
         }
@@ -148,26 +147,26 @@ function Inflection() {
                         }
                         break;
                     case "yax":
-                        if (value != that.inflection.yax && that.yAxQuant) {
-                            that.inflection.yax = value;
+                        if (value != that.inflection.yax.join(";") && that.yAxQuant) {
+                            that.inflection.yax = value.split(";").map(Number);
                             that.yAx();
                         }
                         break; 
                     case "xax":
-                        if (value != that.inflection.xax && that.xAxQuant) {
-                            that.inflection.xax = value;
+                        if (value != that.inflection.xax.join(";") && that.xAxQuant) {
+                            that.inflection.xax = value.split(";").map(Number);
                             that.xAx();
                         }
                         break;
                     case "line":
-                        if (value != that.inflection.line) {
+                        if (value != that.inflection.line.join(",")) {
                             that.inflection.line = value.split(",");
                             that.line();
                         }
                         break;
                     case "ann":
-                        if (value != that.inflection.ann) {
-                            that.inflection.ann = value.split(",");;
+                        if (value != that.inflection.ann.join(",")) {
+                            that.inflection.ann = value.split(",");
                             that.ann();
                         }
                         break;
@@ -196,7 +195,7 @@ function Inflection() {
             }
 
             if (!cats_in_hash.includes("line") && that.inflection.line != "") {
-                that.inflection.line = []
+                that.inflection.line = that.baseyax
                 that.line();
             }
             if (((!cats_in_hash.includes("yax") && that.inflection.yax != that.baseyax) | that.inflection.yax == "") && that.yAxQuant) {
@@ -306,11 +305,11 @@ function Inflection() {
 
                 var array = [x1_data, x1_between, x2_data, x2_between, y1_data, y1_between, y2_data, y2_between]
 
-                lines.push(array.join("-"))
-                // lines.push(x1_data + "-" + x1_between + "-" +
-                //         x2_data + "-" + x2_between + "-" +
-                //         y1_data + "-" + y1_between + "-" +
-                //         y2_data + "-" + y2_between)
+                lines.push(array.join(";"))
+                // lines.push(x1_data + ";" + x1_between + ";" +
+                //         x2_data + ";" + x2_between + ";" +
+                //         y1_data + ";" + y1_between + ";" +
+                //         y2_data + ";" + y2_between)
 
 
                 that.inflection.line = lines;
@@ -427,7 +426,7 @@ function Inflection() {
                 var [mid_y_data, ybetween] = that.invertYScale(mid_y_pixel)
                 var array = [mid_x_data, xbetween, mid_y_data, ybetween, text]
             
-                anns.push(array.join("-"))
+                anns.push(array.join(";"))
           
                 that.inflection.ann = anns;
                 that.ann()
@@ -587,7 +586,7 @@ function Inflection() {
 
                             // update hash
                             var array = [linedata.x1Data, linedata.x2Data, linedata.y1Data, linedata.y2Data].flat()
-                            linedata.hash = array.join("-")
+                            linedata.hash = array.join(";")
             
                             that.inflection.line[index_in_lines] = linedata.hash
 
@@ -621,7 +620,7 @@ function Inflection() {
 
                         // update hash
                         var array = [linedata.x1Data, linedata.x2Data, linedata.y1Data, linedata.y2Data].flat()
-                        linedata.hash = array.join("-")
+                        linedata.hash = array.join(";")
         
                         that.inflection.line[index_in_lines] = linedata.hash
 
@@ -710,7 +709,7 @@ function Inflection() {
 
                     // update hash
                     var array = [linedata.x1Data, linedata.x2Data, linedata.y1Data, linedata.y2Data].flat()
-                    linedata.hash = array.join("-")
+                    linedata.hash = array.join(";")
     
                     that.inflection.line[index_in_lines] = linedata.hash
 
@@ -744,7 +743,7 @@ function Inflection() {
                     let aria_label = path.attr("aria-label")
                     let xvalue = get_x_of_aria_label(aria_label);
                     let yvalue = get_y_of_aria_label(aria_label);
-                    var highlight = xvalue + "-" + yvalue
+                    var highlight = xvalue + ";" + yvalue
 
                     let current_col = path.attr("fill");
                     if (!current_col || current_col == "transparent" || current_col == 'undefined' ) {
@@ -833,7 +832,7 @@ function Inflection() {
                         
                         // update hash
                         var array = [textdata.xData, textdata.yData, text].flat()
-                        textdata.hash = array.join("-")
+                        textdata.hash = array.join(";")
                         
                         that.inflection.ann[index_in_anns] = textdata.hash
                         
@@ -896,7 +895,7 @@ function Inflection() {
                             // Update the domain of the scale
                             yScaleReconstructed.domain([0, newMaxY]);
                             
-                            that.inflection.yax = Math.round(10*newMaxY)/10
+                            that.inflection.yax = [0, Math.round(10*newMaxY)/10]
                             that.yAx()
                         })
                         .on("end", function () {
@@ -957,7 +956,7 @@ function Inflection() {
                             // Update the domain of the scale
                             xScaleReconstructed.domain([0, newMaxX]);
                             
-                            that.inflection.xax = Math.round(10*newMaxX)/10
+                            that.inflection.xax = [0, Math.round(10*newMaxX)/10]
                             that.xAx()
                         })
                         .on("end", function () {
@@ -967,6 +966,95 @@ function Inflection() {
             }
             // #endregion
 
+            // #region move if scatterplot
+            // y-axis drag
+            var xScaleReconstructed = d3.scaleLinear()
+            var yScaleReconstructed = d3.scaleLinear()
+            if(that.xAxQuant && that.isScatter) {
+                d3.select(".background")
+                    .call(d3.drag()
+                    .on("start", function () {
+                        xScaleReconstructed = getLinAxisScale("xax")
+                        yScaleReconstructed = getLinAxisScale("yax")
+                    })
+                    .on("drag", function (event) {
+                        // Calculate the change in the y-axis based on the drag
+                        const dragXAmount = event.dx;
+                        const dragYAmount = event.dy;
+    
+                        // Adjust the domain of the y-scale
+                        const currentXDomain = xScaleReconstructed.domain();
+                        const currentYDomain = yScaleReconstructed.domain();
+
+                        const rangeXExtent = xScaleReconstructed.range();
+                        const rangeYExtent = yScaleReconstructed.range();
+
+                        const domainXExtent = currentXDomain[1] - currentXDomain[0]; // The current range of the X-axis domain
+                        const domainYExtent = currentYDomain[1] - currentYDomain[0]; // The current range of the Y-axis domain
+
+                        // Map the pixel drag amount to the data scale
+                        const dataXDragAmount = (dragXAmount / (rangeXExtent[0] - rangeXExtent[1])) * domainXExtent;
+                        const dataYDragAmount = (dragYAmount / (rangeYExtent[0] - rangeYExtent[1])) * domainYExtent;
+
+                        // domain span needs to remain the same
+                        let old_x = currentXDomain[1] - currentXDomain[0]
+                        let old_y = currentYDomain[1] - currentYDomain[0]
+
+                        // Calculate the new maximum value and add lower domain extent
+                        var newXDomain = [(currentXDomain[1] + dataXDragAmount - old_x), currentXDomain[1] + dataXDragAmount]; 
+                        var newYDomain = [(currentYDomain[1] + dataYDragAmount - old_y), (currentYDomain[1] + dataYDragAmount)];  
+                        
+                        
+                        // Update the domain of the scale
+                        xScaleReconstructed.domain(newXDomain);
+                        yScaleReconstructed.domain(newYDomain);
+                        
+                        that.inflection.xax = newXDomain.map(num => Math.round(num * 100) / 100);
+                        that.inflection.yax = newYDomain.map(num => Math.round(num * 100) / 100);
+                        that.xAx()
+                        that.yAx()
+                    })
+                    .on("end", function () {
+                        that.updateHash()
+                    }))
+
+                    d3.select(".background")
+                        .on("dblclick", function(){
+                            that.inflection.yax = that.baseyax;
+                            that.inflection.xax = that.basexax;
+                            that.yAx()
+                            that.xAx()
+                            that.updateHash()
+                        })
+                        
+
+                    d3.select(".background").call(
+                        d3.zoom()
+                        .on("zoom", function(event) {
+                            // Calculate the new y-axis domain
+                            const wheelDelta = event.sourceEvent ? event.sourceEvent.wheelDelta : 0;
+                            const zoomFactor = wheelDelta > 0 ? 0.9 : 1.1; // Adjust these values as needed
+
+                            const yMid = (that.inflection.yax[0] + that.inflection.yax[1]) / 2;
+                            const yRange = (that.inflection.yax[1] - that.inflection.yax[0]) / 2 * zoomFactor;
+                            that.inflection.yax = [yMid - yRange, yMid + yRange].map(num => Math.round(num * 100) / 100);
+
+                            // Calculate the new x-axis domain
+                            const xMid = (that.inflection.xax[0] + that.inflection.xax[1]) / 2;
+                            const xRange = (that.inflection.xax[1] - that.inflection.xax[0]) / 2  * zoomFactor;
+                            that.inflection.xax = [xMid - xRange, xMid + xRange].map(num => Math.round(num * 100) / 100);
+
+
+                            that.yAx()
+                            that.xAx()
+                            that.updateHash()
+                          
+                        })
+                    )
+                    .on("dblclick.zoom", null)
+
+            }
+            // #endregion
 
         }
         else { //not editable
@@ -1012,9 +1100,6 @@ function Inflection() {
 
     }
 
-
-
-
     this.updateHash = async function() {
         await Promise.all(promises);
         promises = [];
@@ -1024,10 +1109,10 @@ function Inflection() {
             "col=" + encodeURIComponent(this.inflection.col) + "&"
 
         if (this.yAxQuant) {
-            this.hash += "yax=" + this.inflection.yax + "&"
+            this.hash += "yax=" + this.inflection.yax.join(";") + "&"
         }
         if (this.xAxQuant) {
-            this.hash += "xax=" + this.inflection.xax + "&"
+            this.hash += "xax=" + this.inflection.xax.join(";") + "&"
         }
         this.hash +=
             "line=" + this.inflection.line.join(",") + "&" +
@@ -1035,7 +1120,6 @@ function Inflection() {
             "high=" + this.inflection.high;
         window.location.hash = "#" + this.hash
     }
-
 
 
     this.line = async function () {
@@ -1064,7 +1148,7 @@ function Inflection() {
 
             let data = [];
             lines.forEach(element => {
-                let splitted = element.split("-")
+                let splitted = element.split(";")
                 let x1_data_pos = splitted[0]
                 let x1_between = +splitted[1]
                 let x2_data_pos = splitted[2]
@@ -1194,7 +1278,7 @@ function Inflection() {
 
             let data = [];
             annlist.forEach(element => {
-                let splitted = element.split("-")
+                let splitted = element.split(";")
                 let x_data_pos = splitted[0]
                 let x_between = +splitted[1]
                 let y_data_pos = splitted[2]
@@ -1278,7 +1362,7 @@ function Inflection() {
             await Promise.all(promises);
             promises = [];
 
-            var splitted = highlight.split("-")
+            var splitted = highlight.split(";")
             //transform to number if number, leave as string if not
             var x_of_high = splitted[0]
             var y_of_high = splitted[1]
@@ -1495,14 +1579,15 @@ function Inflection() {
     }
 
     this.yAx = function () {
-        if (this.yAxQuant && !this.isScatter) {
+        if (this.yAxQuant) {
             promises = [];
         
             var that = this;
-            var yAxValue = that.inflection.yax
+            var yAxMinValue = that.inflection.yax[0]
+            var yAxMaxValue = that.inflection.yax[1]
 
             var newYScale = d3.scaleLinear()
-                .domain([0, yAxValue])
+                .domain([yAxMinValue, yAxMaxValue])
                 .range([SVGheight, 0]);
 
             var YaxisSelection = d3.selectAll("g.mark-group.role-axis").filter(function() {
@@ -1536,7 +1621,7 @@ function Inflection() {
                     opacity = opacity === '' || opacity === 'auto' ? 1 : parseFloat(opacity);
                     opacities.push(opacity);
 
-                    if (newYPosition < 0) {
+                    if (newYPosition > SVGheight || newYPosition < 0) {
                         d3.select(this).style("visibility", "hidden")
                         tick_line.style("visibility", "hidden")
                         grid_line.style("visibility", "hidden")
@@ -1558,7 +1643,7 @@ function Inflection() {
                             .attr('transform', 'translate(0,' + newYPosition + ')')
 
                         grid_line
-                        .style("visibility", "visible")
+                            .style("visibility", "visible")
                             .transition()
                             .duration(200)
                             .ease(d3.easeLinear)
@@ -1573,18 +1658,20 @@ function Inflection() {
                 var label_nodeArray = YaxisSelection.selectAll('.mark-text.role-axis-label text').nodes()
                 var curr_num_of_ticks  = label_nodeArray.length
                 var max_tick_value = +d3.select(label_nodeArray[curr_num_of_ticks-1]).text().replaceAll(",","")
+                var min_tick_value = +d3.select(label_nodeArray[0]).text().replaceAll(",","")
                 var tick_val_dist = max_tick_value - +d3.select(label_nodeArray[curr_num_of_ticks-2]).text().replaceAll(",","")
 
+                
                 let period = detectPeriodicity(opacities);
-
-                if((yAxValue - tick_val_dist) > max_tick_value) {
-                    var num_of_missin_ticks = Math.floor((+yAxValue - max_tick_value) / tick_val_dist);
-                    for (let i = 0; i < num_of_missin_ticks; i++) {
+                if((yAxMaxValue - tick_val_dist) > max_tick_value || (yAxMinValue + tick_val_dist) < min_tick_value) {
+                    var num_of_missin_max_ticks = Math.floor((+yAxMaxValue - max_tick_value) / tick_val_dist);
+                    
+                    for (let i = 0; i < num_of_missin_max_ticks; i++) {
                         
                         var new_tick_val = max_tick_value + (i+1)*tick_val_dist
                         var new_tick_pos = newYScale(new_tick_val)
                         let new_opacity =  opacities[(curr_num_of_ticks+i) % period];
-
+                        
                         //clone attributes of existing labels and lines
                         //label
                         YaxisSelection.select('.mark-text.role-axis-label text').clone().call(function(sel) {
@@ -1603,6 +1690,39 @@ function Inflection() {
                         d3.select(grid_lines_nodeArray[0]).clone().call(function(sel) {
                             sel.attr("transform", 'translate(' + grid_x_transf + ',' + new_tick_pos + ')')
                             sel.node().parentNode.appendChild(sel.node()); //append as last child
+                            
+                        });
+                    }  
+
+                    var num_of_missin_min_ticks = Math.floor(Math.abs(+yAxMinValue + min_tick_value) / tick_val_dist);
+                    
+                    for (let i = 0; i < num_of_missin_min_ticks; i++) {
+                        
+                        var new_tick_val = min_tick_value - (i+1)*tick_val_dist
+                        var new_tick_pos = newYScale(new_tick_val)
+                        let new_opacity =  opacities[(curr_num_of_ticks+i) % period];
+                        
+                        //clone attributes of existing labels and lines
+                        //label
+                        YaxisSelection.select('.mark-text.role-axis-label text').clone().call(function(sel) {
+                            sel.attr("transform", 'translate(' + label_x_transf + ',' + (new_tick_pos + 3) + ')')
+                                .text(new_tick_val.toLocaleString('en-US'))
+                                .attr("opacity", new_opacity);
+                            let parent = sel.node().parentNode
+                            parent.insertBefore(sel.node(), parent.firstChild);
+                        });
+
+                        YaxisSelection.select('.mark-rule.role-axis-tick line').clone().call(function(sel) {
+                            sel.attr("transform", 'translate(0,' + new_tick_pos + ')')
+                            let parent = sel.node().parentNode
+                            parent.insertBefore(sel.node(), parent.firstChild);
+                        });
+                        
+
+                        d3.select(grid_lines_nodeArray[0]).clone().call(function(sel) {
+                            sel.attr("transform", 'translate(' + grid_x_transf + ',' + new_tick_pos + ')')
+                            let parent = sel.node().parentNode
+                            parent.insertBefore(sel.node(), parent.firstChild);
                         });
                     }  
         
@@ -1629,13 +1749,13 @@ function Inflection() {
                         let new_y_transl = newYScale(yvalue)
                         const markerPromise = new Promise((resolve) => {
                             marker
-                                .transition("move-y")
-                                .duration(200)
-                                .ease(d3.easeLinear)
+                                // .transition("move-y")
+                                // .duration(200)
+                                // .ease(d3.easeLinear)
                                     .attr("transform", 'translate(' + x_transl + ',' + new_y_transl + ')')
-                                .on("end", () => resolve());
+                                // .on("end", () => resolve());
                         });
-                        promises.push(markerPromise);
+                        // promises.push(markerPromise);
                     } else { //there was an error, try with path instead
                         var path = marker.attr("d") // e.g. "M1,144h18v56h-18Z"
 
@@ -1666,10 +1786,6 @@ function Inflection() {
                 
                     }
                 });
-
-        
-                
-
 
             //annotations
             d3.select("svg").selectAll(".infl-ann-text")
@@ -1709,14 +1825,15 @@ function Inflection() {
     }
 
     this.xAx = function () {
-        if (this.xAxQuant && !this.isScatter) {
+        if (this.xAxQuant) {
             promises = [];
         
             var that = this;
-            var xAxValue = that.inflection.xax
+            var xAxMinValue = that.inflection.xax[0]
+            var xAxMaxValue = that.inflection.xax[1]
 
             var newXScale = d3.scaleLinear()
-                .domain([0, xAxValue])
+                .domain(that.inflection.xax)
                 .range([0, SVGwidth]);
 
             var XaxisSelection = d3.selectAll("g.mark-group.role-axis").filter(function() {
@@ -1749,7 +1866,7 @@ function Inflection() {
                     // Use newYScale to calculate the new position
                     var newXPosition = newXScale(tick_value);
 
-                    if (newXPosition > SVGwidth) {
+                    if (newXPosition > SVGwidth || newXPosition < 0) {
                         d3.select(this).style("visibility", "hidden")
                         tick_line.style("visibility", "hidden")
                         grid_line.style("visibility", "hidden")
@@ -1776,8 +1893,6 @@ function Inflection() {
                             .duration(200)
                             .ease(d3.easeLinear)
                             .attr('transform', 'translate(' + newXPosition + ', ' +  grid_y_transf + ')')
-                            
-                    
                     }
                 });
                 
@@ -1787,12 +1902,11 @@ function Inflection() {
                 var curr_num_of_ticks  = label_nodeArray.length
                 var max_tick_value = +d3.select(label_nodeArray[curr_num_of_ticks-1]).text().replaceAll(",","")
                 var tick_val_dist = max_tick_value - +d3.select(label_nodeArray[curr_num_of_ticks-2]).text().replaceAll(",","")
+                var min_tick_value = +d3.select(label_nodeArray[0]).text().replaceAll(",","")
 
                 let period = detectPeriodicity(opacities);
-                
-
-                if((xAxValue - tick_val_dist) > max_tick_value) {
-                    var num_of_missin_ticks = Math.floor((+xAxValue - max_tick_value) / tick_val_dist);
+                if((xAxMaxValue - tick_val_dist) > max_tick_value || (xAxMinValue + tick_val_dist) < min_tick_value) {
+                    var num_of_missin_ticks = Math.floor((+xAxMaxValue - max_tick_value) / tick_val_dist);
                     for (let i = 0; i < num_of_missin_ticks; i++) {
                         
                         var new_tick_val = max_tick_value + (i+1)*tick_val_dist
@@ -1817,6 +1931,38 @@ function Inflection() {
                         d3.select(grid_lines_nodeArray[0]).clone().call(function(sel) {
                             sel.attr("transform", 'translate(' + new_tick_pos + ',' + grid_y_transf + ')')
                             sel.node().parentNode.appendChild(sel.node()); //append as last child
+                        });
+                    }  
+
+                    var num_of_missin_min_ticks = Math.floor(Math.abs(+xAxMinValue + min_tick_value) / tick_val_dist);
+                    
+                    for (let i = 0; i < num_of_missin_min_ticks; i++) {
+                        
+                        var new_tick_val = min_tick_value - (i+1)*tick_val_dist
+                        var new_tick_pos = newXScale(new_tick_val)
+                        let new_opacity =  opacities[(curr_num_of_ticks+i) % period];
+                        
+                        //clone attributes of existing labels and lines
+                        //label
+                        XaxisSelection.select('.mark-text.role-axis-label text').clone().call(function(sel) {
+                            sel.attr("transform", 'translate(' + (new_tick_pos + 3) + ',15)')
+                                .text(new_tick_val.toLocaleString('en-US'))
+                                .attr("opacity", new_opacity);
+                            let parent = sel.node().parentNode
+                            parent.insertBefore(sel.node(), parent.firstChild);
+                        });
+
+                        XaxisSelection.select('.mark-rule.role-axis-tick line').clone().call(function(sel) {
+                            sel.attr("transform", 'translate(' + new_tick_pos + ',0)')
+                            let parent = sel.node().parentNode
+                            parent.insertBefore(sel.node(), parent.firstChild);
+                        });
+                        
+
+                        d3.select(grid_lines_nodeArray[0]).clone().call(function(sel) {
+                            sel.attr("transform", 'translate(' + new_tick_pos + ',' + grid_y_transf + ')')
+                            let parent = sel.node().parentNode
+                            parent.insertBefore(sel.node(), parent.firstChild);
                         });
                     }  
         
@@ -1844,13 +1990,13 @@ function Inflection() {
                         let new_x_transl = newXScale(xvalue)
                         const markerPromise = new Promise((resolve) => {
                             marker
-                                .transition("move-x")
-                                .duration(200)
-                                .ease(d3.easeLinear)
+                                // .transition("move-x")
+                                // .duration(200)
+                                // .ease(d3.easeLinear)
                                     .attr("transform", 'translate(' + new_x_transl + ',' + y_transl + ')')
-                                .on("end", () => resolve());
+                                // .on("end", () => resolve());
                         });
-                        promises.push(markerPromise);
+                        // promises.push(markerPromise);
                 
                     } else { //there was an error, try with path instead (e.g. for bars)
                         var path = marker.attr("d") // e.g. "M1,144h18v56h-18Z"
@@ -1939,6 +2085,8 @@ function Inflection() {
         d3.select("#infl-text-input").style("border-color", colour)
 
     }
+
+
 
     this.getScale = function (axis) {
         if(axis == "xax"){
@@ -2042,13 +2190,13 @@ function Inflection() {
     function getLinAxisScale(axis) {
         if(axis == "xax") {
             var scale = d3.scaleLinear()
-                .domain([0, determineMaxOfQuantAx("xax")])
+                .domain(getValuesOfQuantAx("xax"))
                 .range([0, SVGwidth]);
         }
 
         if(axis == "yax") {
             var scale = d3.scaleLinear()
-                .domain([0, determineMaxOfQuantAx("yax")])
+                .domain(getValuesOfQuantAx("yax"))
                 .range([SVGheight, 0]);
         }
 
@@ -2056,7 +2204,7 @@ function Inflection() {
         return scale;
     }
 
-    function determineMaxOfQuantAx(axis) {
+    function getValuesOfQuantAx(axis) {
         if(axis == "yax") {
             var axisSelection = d3.selectAll("g.mark-group.role-axis").filter(function() {
                 return String(d3.select(this).attr("aria-label")).includes("Y-axis")
@@ -2066,6 +2214,7 @@ function Inflection() {
             // get distance between ticks
             
             var tickPositions = axisSelection.select(".role-axis-tick").selectAll("line")
+            .filter(function() {return d3.select(this).style("visibility") === "visible"})
             .nodes()
             .map(tick => {
                 const transform = d3.select(tick).attr("transform");
@@ -2081,16 +2230,19 @@ function Inflection() {
                 .nodes()
             var curr_num_of_ticks  = label_nodeArray.length
             var max_tick_value = +d3.select(label_nodeArray[curr_num_of_ticks-1]).text().replaceAll(",", "")
+            var min_tick_value = +d3.select(label_nodeArray[0]).text().replaceAll(",", "")
+            
             var max_tick_pos = tickPositions[curr_num_of_ticks-1]
+            var min_tick_pos = tickPositions[0]
 
             var currScale = d3.scaleLinear()
-                            .domain([0, max_tick_value])
-                            .range([SVGheight, max_tick_pos]);
+                            .domain([min_tick_value, max_tick_value])
+                            .range([min_tick_pos, max_tick_pos]);
 
 
-            var yaxValue = currScale.invert(0)
+            var yAxValues = [Math.round(10 * currScale.invert(SVGheight)) / 10, Math.round(10 * currScale.invert(0)) / 10]
 
-            return Math.round(10 * yaxValue) / 10
+            return yAxValues
         }
 
         else if(axis == "xax") {
@@ -2102,30 +2254,34 @@ function Inflection() {
             // get distance between ticks
             
             var tickPositions = axisSelection.select(".role-axis-tick").selectAll("line")
-            .nodes()
-            .map(tick => {
-                const transform = d3.select(tick).attr("transform");
-                var translateX = 0;
-                if(transform != "") {
-                    translateX = get_x_translate(transform) // Extract X value from translate(X,Y)
-                }
-                return +translateX;
-            });
+                .filter(function() {return d3.select(this).style("visibility") === "visible"})
+                .nodes()
+                .map(tick => {
+                    const transform = d3.select(tick).attr("transform");
+                    var translateX = 0;
+                    if(transform != "") {
+                        translateX = get_x_translate(transform) // Extract X value from translate(X,Y)
+                    }
+                    return +translateX;
+                });
 
             var label_nodeArray = axisSelection.selectAll('.mark-text.role-axis-label text')
                 .filter(function() {return d3.select(this).style("visibility") === "visible"})
                 .nodes()
             var curr_num_of_ticks  = label_nodeArray.length
             var max_tick_value = +d3.select(label_nodeArray[curr_num_of_ticks-1]).text().replaceAll(",", "")
+            var min_tick_value = +d3.select(label_nodeArray[0]).text().replaceAll(",", "")
             var max_tick_pos = tickPositions[curr_num_of_ticks-1]
+            var min_tick_pos = tickPositions[0]
 
             var currScale = d3.scaleLinear()
-                            .domain([0, max_tick_value])
-                            .range([0, max_tick_pos]);
+                            .domain([min_tick_value, max_tick_value])
+                            .range([min_tick_pos, max_tick_pos]);
 
+            var xAxValues = [Math.round(10 * currScale.invert(0)) / 10, Math.round(10 * currScale.invert(SVGwidth)) / 10]
 
-            var XaxValue = currScale.invert(SVGwidth)
-            return Math.round(10 * XaxValue) / 10
+            return xAxValues
+
         }
     }
     
@@ -2174,20 +2330,6 @@ function Inflection() {
             var val = scale.domain()[index];
             var between = (position - scale(val)) / step
         return [val, Math.round(10*between)/10]
-    }
-
-
-    //transform variable to number if it contains a number, keeps it as a string if it's not a number
-    function transformValue(value) {
-        if(typeof value == "number") {
-            return value; // return as number
-        }
-        else if (!isNaN(value) && value.trim() !== "") {
-            return parseFloat(value); // Convert to number
-        } else {
-            return value; // Keep as string
-        }
-        
     }
 
 
