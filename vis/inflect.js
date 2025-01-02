@@ -23,11 +23,14 @@ function Inflection() {
 
     this.editable = true; // states if page in iframe or separate window with UI
     this.isScatter = false;
+
     var SVGheight = 0;
     var SVGwidth = 0;
-
+    var dataPointsLinechart = [];
+    
     var promises = []; // Array to store promises for transitions
     var tooltip;
+
 
     //initialise
     this.init = function (chartPath, xAxQuant, yAxQuant, isScatter) {
@@ -94,13 +97,65 @@ function Inflection() {
         //try multiple options to set basecolour of element
         try {
             this.basecol = d3.select(".mark-rect").select("path").attr("fill")
-        } catch {
-            this.basecol = d3.select(".mark-symbol").select("path").attr("fill")
-
-            if(typeof this.basecol == 'undefined' || this.basecol == "transparent") {
-                this.basecol = d3.select(".mark-symbol").select("path").attr("stroke")
+            if(!this.basecol || this.basecol == "" || typeof this.basecol == 'undefined' || this.basecol == "transparent") {
+                this.basecol = d3.select(".mark-rect").select("path").attr("stroke")
             }
+        } catch {
+            try {
+                this.basecol = d3.select(".mark-symbol").select("path").attr("fill")
+                if(!this.basecol || this.basecol == "" || typeof this.basecol == 'undefined' || this.basecol == "transparent") {
+                    this.basecol = d3.select(".mark-symbol").select("path").attr("stroke")
+                }
+            } catch {
+                try {
+                    this.basecol = d3.select(".mark-line").select("path").attr("fill")
+                    if(!this.basecol || this.basecol == "" || typeof this.basecol == 'undefined' || this.basecol == "transparent") {
+                        this.basecol = d3.select(".mark-line").select("path").attr("stroke")
+                    }
+                } catch {
+                    this.basecol = "#4c78a8"
+                }
+                
+            }
+
         }
+
+        // if plot is a linechart, we need an array to store the data
+        var lineElement = d3.selectAll("path")
+                .filter(function() {
+                    let role_descr = d3.select(this).attr("aria-roledescription");
+                    return (role_descr == "line mark");
+                })
+        if (!lineElement.empty() && isScatter) { //we have a linechart
+            var Xscale = that.getXAxScale()
+            var Yscale = that.getYAxScale()
+            let path = lineElement.attr("d")
+
+            const commands = path.match(/[a-zA-Z][^a-zA-Z]*/g);              
+
+            // save the data points
+            dataPointsLinechart = commands.map(command => {
+                const type = command[0];
+                const coords = command.slice(1).split(',').map(Number);
+
+                if (coords.length === 2) {
+                    const [x, y] = coords;
+                    const dataX = Xscale.invert(x)
+                    const dataY = Yscale.invert(y)
+                    return [dataX, dataY];
+                } else {
+                    return command;
+                }
+            });
+
+            // also add clipping to svg
+            d3.select("svg").append("defs").append("clipPath")
+                .attr("id", "clip")
+                .append("rect")
+                .attr("width", SVGwidth)
+                .attr("height", SVGheight);
+        }
+
        
 
 
@@ -893,9 +948,9 @@ function Inflection() {
                             // Calculate the new maximum Y-axis value
                             const newMaxY = currentDomain[1] + dataDragAmount;  
                             // Update the domain of the scale
-                            yScaleReconstructed.domain([0, newMaxY]);
+                            yScaleReconstructed.domain([currentDomain[0], newMaxY]);
                             
-                            that.inflection.yax = [0, Math.round(10*newMaxY)/10]
+                            that.inflection.yax = [currentDomain[0], Math.round(10*newMaxY)/10]
                             that.axis("yax")
                         })
                         .on("end", function () {
@@ -940,6 +995,7 @@ function Inflection() {
                             xScaleReconstructed = that.getLinAxisScale("xax")
                         })
                         .on("drag", function (event) {
+                            
                             // Calculate the change in the y-axis based on the drag
                             const dragAmount = event.dx;
     
@@ -954,9 +1010,9 @@ function Inflection() {
                             // Calculate the new maximum Y-axis value
                             const newMaxX = currentDomain[1] + dataDragAmount;  
                             // Update the domain of the scale
-                            xScaleReconstructed.domain([0, newMaxX]);
+                            xScaleReconstructed.domain([currentDomain[0], newMaxX]);
                             
-                            that.inflection.xax = [0, Math.round(10*newMaxX)/10]
+                            that.inflection.xax = [currentDomain[0], Math.round(10*newMaxX)/10]
                             that.axis("xax")
                         })
                         .on("end", function () {
@@ -1713,7 +1769,7 @@ function Inflection() {
             d3.selectAll("path")
                 .filter(function() {
                     let role_descr = d3.select(this).attr("aria-roledescription");
-                    return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle");
+                    return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle") || (role_descr == "line mark");
                 })
                 .each(function() {
                     var marker = d3.select(this);
@@ -1746,7 +1802,7 @@ function Inflection() {
                         let regex = axisType === "yax" ? /M(\d+),(-?[0-9.]+)h(\d+)v(\d+)/ : /M(\d+),(-?[0-9.]+)h([0-9.]+)v([0-9.]+)h-([0-9.]+)Z/;
                         let match = path.match(regex);
     
-                        if (match) {
+                        if (match) { // it is a bar
                             let start = parseFloat(match[axisType === "yax" ? 2 : 1]);
                             let length = parseFloat(match[axisType === "yax" ? 4 : 3]);
                             let new_length = Math.max(newScale(value), 0);
@@ -1762,7 +1818,43 @@ function Inflection() {
                             });
     
                             promises.push(markerPromise);
+                        } else {// it is something else
+                            const commands = path.match(/[a-zA-Z][^a-zA-Z]*/g);
+                            
+
+                            // Transform the coordinates
+                            const scaledCommands = commands.map((command, i) => {
+                                const type = command[0];
+                                const coords = command.slice(1).split(',').map(Number);
+
+                                if (coords.length === 2) {
+                                    const [x, y] = coords;
+                                    const newX = axisType === "yax" ? x : newScale(dataPointsLinechart[i][0]);
+                                    const newY = axisType === "yax" ? newScale(dataPointsLinechart[i][1]) : y;
+                                    return `${type}${newX},${newY}`;
+                                } else {
+                                    return command;
+                                }
+                            });
+                            let newPath = scaledCommands.join('')
+
+                            // const markerPromise = new Promise((resolve) => {
+                                marker
+                                    // .transition("move-" + axisType[0])
+                                    // .duration(200)
+                                    // .ease(d3.easeLinear)
+                                    .attr("d", newPath)
+                                    .attr("clip-path", "url(#clip)");
+                                    // .on("end", () => resolve());
+                            // });
+    
+                            // promises.push(markerPromise);
+
+
+
                         }
+
+                        
                     }
                 });
     
@@ -2097,7 +2189,7 @@ function Inflection() {
 
     function get_x_of_aria_label(aria_label) { // Extract X value from translate(X,Y)
         var match = -1;
-        if(aria_label) {
+        if(aria_label && aria_label.match(/\b\w+:\s*([\w.]+)/)) {
             var match = aria_label.match(/\b\w+:\s*([\w.]+)/)[1];
         }
         return match;
@@ -2105,7 +2197,7 @@ function Inflection() {
 
     function get_y_of_aria_label(aria_label) { // Extract X value from translate(X,Y)
         var match = -1;
-        if(aria_label) {
+        if(aria_label && aria_label.match(/(?:\b\w+:\s*[\w.]+;?\s*)\b\w+:\s*([\w.]+)/)) {
             var match = aria_label.match(/(?:\b\w+:\s*[\w.]+;?\s*)\b\w+:\s*([\w.]+)/)[1];
         }
         return match;
