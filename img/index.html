@@ -25,6 +25,7 @@
     <script>
         const canvas = document.getElementById('imageViewer');
         const ctx = canvas.getContext('2d');
+        const pixelRatio = window.devicePixelRatio || 1;
 
         let image = new Image();
         let view = { topLeft: [0, 0], bottomRight: [0, 0] };
@@ -63,11 +64,9 @@
         }
 
         function render() {
-            const devicePixelRatio = window.devicePixelRatio || 1;
-
             // Set the canvas size for Retina displays
-            canvas.width = Math.floor(window.innerWidth * devicePixelRatio);
-            canvas.height = Math.floor(window.innerHeight * devicePixelRatio);
+            canvas.width = Math.floor(window.innerWidth * pixelRatio);
+            canvas.height = Math.floor(window.innerHeight * pixelRatio);
 
             // Ensure the canvas is displayed at the correct size
             canvas.style.width = `${window.innerWidth}px`;
@@ -77,19 +76,19 @@
 
             // Scale the context for Retina displays
             ctx.save();
-            ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+            ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 
             const { topLeft, bottomRight } = view;
             const zoomWidth = bottomRight[0] - topLeft[0];
             const zoomHeight = bottomRight[1] - topLeft[1];
             const scale = Math.min(
-                canvas.width / devicePixelRatio / zoomWidth,
-                canvas.height / devicePixelRatio / zoomHeight
+                canvas.width / pixelRatio / zoomWidth,
+                canvas.height / pixelRatio / zoomHeight
             );
 
             ctx.translate(
-                canvas.width / devicePixelRatio / 2 - (topLeft[0] + zoomWidth / 2) * scale,
-                canvas.height / devicePixelRatio / 2 - (topLeft[1] + zoomHeight / 2) * scale
+                canvas.width / pixelRatio / 2 - (topLeft[0] + zoomWidth / 2) * scale,
+                canvas.height / pixelRatio / 2 - (topLeft[1] + zoomHeight / 2) * scale
             );
             ctx.scale(scale, scale);
             ctx.drawImage(image, 0, 0);
@@ -158,13 +157,19 @@
 
             canvas.addEventListener('mousemove', (e) => {
                 if (isDragging) {
-                    const dx = (startDrag[0] - e.clientX) * (view.bottomRight[0] - view.topLeft[0]) / canvas.width;
-                    const dy = (startDrag[1] - e.clientY) * (view.bottomRight[1] - view.topLeft[1]) / canvas.height;
+                    // Adjust the drag distances for the pixel ratio
+                    const dx = ((startDrag[0] - e.clientX) * (view.bottomRight[0] - view.topLeft[0])) / (canvas.width / pixelRatio);
+                    const dy = ((startDrag[1] - e.clientY) * (view.bottomRight[1] - view.topLeft[1])) / (canvas.height / pixelRatio);
+
+                    // Update the view coordinates
                     view.topLeft[0] = Math.floor(view.topLeft[0] + dx);
                     view.topLeft[1] = Math.floor(view.topLeft[1] + dy);
                     view.bottomRight[0] = Math.floor(view.bottomRight[0] + dx);
                     view.bottomRight[1] = Math.floor(view.bottomRight[1] + dy);
+
+                    // Update the startDrag position
                     startDrag = [e.clientX, e.clientY];
+
                     render();
                 }
             });
@@ -176,14 +181,16 @@
                     updateHash(image.src, view);
                 }
             });
-
+            
             canvas.addEventListener('wheel', (e) => {
                 if (window.self !== window.top) return;
                 e.preventDefault();
+                
                 const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
 
-                const pointerX = e.clientX / canvas.width;
-                const pointerY = e.clientY / canvas.height;
+                // Adjust pointer position to account for pixel ratio
+                const pointerX = (e.clientX * pixelRatio) / canvas.width;
+                const pointerY = (e.clientY * pixelRatio) / canvas.height;
 
                 const centerX = view.topLeft[0] + pointerX * (view.bottomRight[0] - view.topLeft[0]);
                 const centerY = view.topLeft[1] + pointerY * (view.bottomRight[1] - view.topLeft[1]);
@@ -203,6 +210,7 @@
                 render();
                 updateHash(image.src, view);
             });
+
         }
 
         window.addEventListener('hashchange', () => {
