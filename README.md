@@ -15,6 +15,10 @@ Look, a [scatterplot!](vis/index.html#vis=scatterplot&col=%2300F05E&yax=4.5;54.5
 
 More details about [this](vis/index.html#vis=scatterplot&col=%23d08120&yax=12.58;40.18&xax=46.88;179.38&line=&ann=127.5%3B0%3B27.8%3B0%3B115&high=115;28.8) data point.
 
+More details about [linecharts](vis/index.html#vis=linechart&col=%2300F05E&yax=92;892&xax=2004.82;2010.42&line=&ann=&high=2008.7399999999998;380.35743206529804) are always interesting.
+
+Even more [linecharts](vis/index.html#vis=linechart&col=%2300F05E&yax=229.7;731.31&xax=2006.47;2010&line=&ann=&high=2008.5398;472.4546225227756) are always interesting.
+
 Linguistically speaking an [inflection](https://en.wiktionary.org/wiki/inflection) refers to a modification of a word to convey grammatical information.
 
 We are trying to adjust visualizations for the purpose of explanation and argumentation. Let's try it out with some existing visualizations…
