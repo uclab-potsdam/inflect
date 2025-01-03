@@ -60,6 +60,7 @@
         
         const pixelRatio = window.devicePixelRatio || 1;
         const inFrame = window.self !== window.top;
+        let lineWidth = parseInt(window.getComputedStyle(document.body).fontSize, 10)/7.5*pixelRatio;
         let interactiveChange = false;
         if (inFrame) document.body.classList.add("frame");
         let image = new Image();
@@ -193,7 +194,7 @@
             if (annotations.boxes) {
                 ctx.save();
                 ctx.strokeStyle = "#"+annotations.color;
-                ctx.lineWidth = 2 / scale; // Scale line width relative to the image scale
+                ctx.lineWidth = lineWidth / scale; // Scale line width relative to the image scale
 
                 for (let i = 0; i < annotations.boxes.length; i += 4) {
                     const [x1, y1, x2, y2] = annotations.boxes.slice(i, i + 4);
@@ -207,7 +208,7 @@
             if (annotations.lines) {
                 ctx.save();
                 ctx.strokeStyle = "#"+annotations.color;
-                ctx.lineWidth = 2 / scale; // Scale line width relative to the image scale
+                ctx.lineWidth = lineWidth / scale; // Scale line width relative to the image scale
 
                 for (let i = 0; i < annotations.lines.length; i += 4) {
                     const [x1, y1, x2, y2] = annotations.lines.slice(i, i + 4);
@@ -340,7 +341,7 @@
                     render(); // Re-render the image
                     ctx.save();
                     ctx.strokeStyle = colorInput.value;
-                    ctx.lineWidth = 2 * pixelRatio;
+                    ctx.lineWidth = lineWidth;
 
                     if (currentTool === 'box') {
                         // Draw box preview
