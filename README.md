@@ -19,6 +19,19 @@ More details about [linecharts](vis/index.html#vis=linechart&col=%2300F05E&yax=9
 
 Even more [linecharts](vis/index.html#vis=linechart&col=%2300F05E&yax=229.7;731.31&xax=2006.47;2010&line=&ann=&high=2008.5398;472.4546225227756) are always interesting.
 
+We can also inflect images, let's start with Hokusai's 
+[The Great Wave off Kanagawa](img/#https://upload.wikimedia.org/wikipedia/commons/b/b3/Katsushika_Hokusai_-_Thirty-Six_Views_of_Mount_Fuji-_The_Great_Wave_Off_the_Coast_of_Kanagawa_-_Google_Art_Project.jpg) 
+
+Take a look at the »Fractal-like detail of the [crest of the wave](img/#854,104,2409,1251&https://upload.wikimedia.org/wikipedia/commons/b/b3/Katsushika_Hokusai_-_Thirty-Six_Views_of_Mount_Fuji-_The_Great_Wave_Off_the_Coast_of_Kanagawa_-_Google_Art_Project.jpg), similar in appearance to "claws"«
+
+While the wave is impressive, the center of the print is [Mount Fiji](img/#1934,1495,3362,2551&https://upload.wikimedia.org/wikipedia/commons/b/b3/Katsushika_Hokusai_-_Thirty-Six_Views_of_Mount_Fuji-_The_Great_Wave_Off_the_Coast_of_Kanagawa_-_Google_Art_Project.jpg).
+
+... which is echoed by the [smaller wave to the left](img/#533,926,2955,2716&https://upload.wikimedia.org/wikipedia/commons/b/b3/Katsushika_Hokusai_-_Thirty-Six_Views_of_Mount_Fuji-_The_Great_Wave_Off_the_Coast_of_Kanagawa_-_Google_Art_Project.jpg)
+
+The Wikipedia entry on [this print](https://en.wikipedia.org/wiki/The_Great_Wave_off_Kanagawa) has some details...
+
+... like [this one](https://en.wikipedia.org/wiki/The_Great_Wave_off_Kanagawa#Sea_and_waves)
+
 Linguistically speaking an [inflection](https://en.wiktionary.org/wiki/inflection) refers to a modification of a word to convey grammatical information.
 
 We are trying to adjust visualizations for the purpose of explanation and argumentation. Let's try it out with some existing visualizations…
