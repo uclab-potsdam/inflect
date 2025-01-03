@@ -32,7 +32,6 @@
         let isDragging = false;
         let isDrawing = false;
         let startDrag = null;
-        let isInitialLoad = true;
         const ANIMATION_DURATION = 500;
         
         function parseHash() {
@@ -181,7 +180,7 @@
                     updateHash(image.src, view);
                 }
             });
-            
+
             canvas.addEventListener('wheel', (e) => {
                 if (window.self !== window.top) return;
                 e.preventDefault();
@@ -215,15 +214,15 @@
 
         window.addEventListener('hashchange', () => {
             const parsed = parseHash();
+
             if (parsed) {
                 const { url, coords } = parsed;
                 if (url !== image.src) {
                     loadImage(url);
                 }
-                const animate = window.self !== window.top && !isInitialLoad;
+                const animate = window.self !== window.top;
                 updateView(coords, animate);
             }
-            isInitialLoad = false;
         });
 
         window.addEventListener('resize', () => {
