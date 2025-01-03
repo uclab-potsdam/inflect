@@ -25,18 +25,15 @@
     <script>
         const canvas = document.getElementById('imageViewer');
         const ctx = canvas.getContext('2d');
+
         let image = new Image();
         let view = { topLeft: [0, 0], bottomRight: [0, 0] };
         let isDragging = false;
+        let isDrawing = false;
         let startDrag = null;
         let isInitialLoad = true;
         const ANIMATION_DURATION = 500;
-
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-
+        
         function parseHash() {
             const hash = location.hash.slice(1);
             if (!hash) return null;
@@ -66,23 +63,37 @@
         }
 
         function render() {
-            resizeCanvas();
+            const devicePixelRatio = window.devicePixelRatio || 1;
+
+            // Set the canvas size for Retina displays
+            canvas.width = Math.floor(window.innerWidth * devicePixelRatio);
+            canvas.height = Math.floor(window.innerHeight * devicePixelRatio);
+
+            // Ensure the canvas is displayed at the correct size
+            canvas.style.width = `${window.innerWidth}px`;
+            canvas.style.height = `${window.innerHeight}px`;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Scale the context for Retina displays
+            ctx.save();
+            ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+
             const { topLeft, bottomRight } = view;
             const zoomWidth = bottomRight[0] - topLeft[0];
             const zoomHeight = bottomRight[1] - topLeft[1];
             const scale = Math.min(
-                canvas.width / zoomWidth,
-                canvas.height / zoomHeight
+                canvas.width / devicePixelRatio / zoomWidth,
+                canvas.height / devicePixelRatio / zoomHeight
             );
 
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.save();
             ctx.translate(
-                canvas.width / 2 - (topLeft[0] + zoomWidth / 2) * scale,
-                canvas.height / 2 - (topLeft[1] + zoomHeight / 2) * scale
+                canvas.width / devicePixelRatio / 2 - (topLeft[0] + zoomWidth / 2) * scale,
+                canvas.height / devicePixelRatio / 2 - (topLeft[1] + zoomHeight / 2) * scale
             );
             ctx.scale(scale, scale);
             ctx.drawImage(image, 0, 0);
+
             ctx.restore();
         }
 
@@ -138,7 +149,8 @@
 
         function setupInteractions() {
             canvas.addEventListener('mousedown', (e) => {
-                if (window.self !== window.top) return;
+                if (window.self !== window.top) return;                
+
                 isDragging = true;
                 canvas.style.cursor = 'grabbing';
                 startDrag = [e.clientX, e.clientY];
@@ -169,18 +181,25 @@
                 if (window.self !== window.top) return;
                 e.preventDefault();
                 const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
-                const centerX = (view.topLeft[0] + view.bottomRight[0]) / 2;
-                const centerY = (view.topLeft[1] + view.bottomRight[1]) / 2;
-                const zoomWidth = Math.floor((view.bottomRight[0] - view.topLeft[0]) * zoomFactor);
-                const zoomHeight = Math.floor((view.bottomRight[1] - view.topLeft[1]) * zoomFactor);
+
+                const pointerX = e.clientX / canvas.width;
+                const pointerY = e.clientY / canvas.height;
+
+                const centerX = view.topLeft[0] + pointerX * (view.bottomRight[0] - view.topLeft[0]);
+                const centerY = view.topLeft[1] + pointerY * (view.bottomRight[1] - view.topLeft[1]);
+
+                const zoomWidth = (view.bottomRight[0] - view.topLeft[0]) * zoomFactor;
+                const zoomHeight = (view.bottomRight[1] - view.topLeft[1]) * zoomFactor;
+
                 view.topLeft = [
-                    Math.floor(centerX - zoomWidth / 2),
-                    Math.floor(centerY - zoomHeight / 2)
+                    Math.floor(centerX - zoomWidth * pointerX),
+                    Math.floor(centerY - zoomHeight * pointerY)
                 ];
                 view.bottomRight = [
-                    Math.floor(centerX + zoomWidth / 2),
-                    Math.floor(centerY + zoomHeight / 2)
+                    Math.floor(centerX + zoomWidth * (1 - pointerX)),
+                    Math.floor(centerY + zoomHeight * (1 - pointerY))
                 ];
+
                 render();
                 updateHash(image.src, view);
             });
@@ -188,7 +207,6 @@
 
         window.addEventListener('hashchange', () => {
             const parsed = parseHash();
-            isInitialLoad = false;
             if (parsed) {
                 const { url, coords } = parsed;
                 if (url !== image.src) {
@@ -196,7 +214,8 @@
                 }
                 const animate = window.self !== window.top && !isInitialLoad;
                 updateView(coords, animate);
-            }            
+            }
+            isInitialLoad = false;
         });
 
         window.addEventListener('resize', () => {
