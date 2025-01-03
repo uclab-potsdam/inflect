@@ -10,7 +10,7 @@
     <script src="inflect.js" type="text/javascript"></script>
 
     <link href="inflectstyle.css" type="text/css" rel="stylesheet">
-    <link href='https://fonts.googleapis.com/css?family=Ubuntu:regular,bold' rel='stylesheet'>
+    <!-- <link href='https://fonts.googleapis.com/css?family=Ubuntu:regular,bold' rel='stylesheet'> -->
 
 
 </head>
@@ -37,7 +37,7 @@
     
         
         // fetch('vis/column_chart.json')
-        fetch('specs/' + chartPath + '.json') //TODO this should be filename, not charttype!
+        fetch('specs/' + chartPath + '.json') 
             .then(response => {return response.json()})
             .then(function(data) {
                     var spec = data;
@@ -45,7 +45,7 @@
                     // find out if axis are quantitative or not, look at definition in spec
                     var x_encoding_type = spec.encoding.x.type
                     var x_aggregate = spec.encoding.x.aggregate
-                    if(x_encoding_type === "quantitative" || x_aggregate) {
+                    if(x_encoding_type === "quantitative" || x_encoding_type === "temporal" || x_aggregate) {
                         var x_quant = true;
                     } else { // nominal is default in vega-lite
                         var x_quant = false;
@@ -53,21 +53,24 @@
 
                     var y_encoding_type = spec.encoding.y.type
                     var y_aggregate = spec.encoding.y.aggregate
-                    if(y_encoding_type === "quantitative" || y_aggregate) {
+                    if(y_encoding_type === "quantitative" || y_encoding_type === "temporal" || y_aggregate) {
                         var y_quant = true;
                     } else {
                         var y_quant = false;
                     }
                     var scatterplot = false;
-                    if(x_quant && y_quant && (spec.mark == "point" || spec.mark == "circle")){
+                    if(x_quant && y_quant && (spec.mark == "point" || spec.mark == "circle" || spec.mark == "line")){
                         var scatterplot = true;
                     } 
+
+                    //TODO remove vega-lite dragging behaviour in spec
+                    // add "usermeta": {"embedOptions": {"renderer": "svg"}} to spec if not existent
 
                     var result = vegaEmbed("#vis", spec, {mode: "vega-lite"}).then(
                         function() {
                             var vis;
                             vis = new Inflection();	
-                            vis.init(chartPath, x_quant, y_quant, scatterplot); //TODO add special behaviour for scatter plot
+                            vis.init(chartPath, x_quant, y_quant, scatterplot); 
                         }
                     ).catch(console.error);
                 }

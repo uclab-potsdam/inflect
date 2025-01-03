@@ -3,10 +3,10 @@ function Inflection() {
     // set base URL
     this.baseurl = "";
     this.hash = window.location.hash.substring(1);
-    this.inflection = {
+    var inflection = {
         line: [],
         ann: [],
-        high: "",
+        high: [],
         yax: [0, 0],
         xax: [0, 0],
         col: ""
@@ -23,11 +23,14 @@ function Inflection() {
 
     this.editable = true; // states if page in iframe or separate window with UI
     this.isScatter = false;
+
     var SVGheight = 0;
     var SVGwidth = 0;
-
+    var dataPointsLinechart = [];
+    
     var promises = []; // Array to store promises for transitions
     var tooltip;
+
 
     //initialise
     this.init = function (chartPath, xAxQuant, yAxQuant, isScatter) {
@@ -56,7 +59,7 @@ function Inflection() {
         // .style("fill", "red").style("opacity", "0.4")
 
 
-        d3.select("svg").append("g").attr("class", "label-group")
+        d3.select("svg").append("g").attr("class", "highlight-group")
         .attr("transform", "translate(" + border_x + "," + border_y + ")")
 
         // Establish plot area height and width
@@ -76,16 +79,16 @@ function Inflection() {
 
 
         // Set Axis
-        this.inflection.col = this.default_infl_col
+        inflection.col = this.default_infl_col
         this.isScatter = isScatter;
         this.xAxQuant = xAxQuant;
         this.yAxQuant = yAxQuant;
 
         this.basexax = this.xAxQuant ? getValuesOfQuantAx("xax") : [0, 0];
-        this.inflection.xax = this.basexax;
+        inflection.xax = this.basexax;
 
         this.baseyax = this.yAxQuant ? getValuesOfQuantAx("yax") : [0, 0];
-        this.inflection.yax = this.baseyax;
+        inflection.yax = this.baseyax;
 
         this.chartPath = chartPath;
 
@@ -94,13 +97,72 @@ function Inflection() {
         //try multiple options to set basecolour of element
         try {
             this.basecol = d3.select(".mark-rect").select("path").attr("fill")
-        } catch {
-            this.basecol = d3.select(".mark-symbol").select("path").attr("fill")
-
-            if(typeof this.basecol == 'undefined' || this.basecol == "transparent") {
-                this.basecol = d3.select(".mark-symbol").select("path").attr("stroke")
+            if(!this.basecol || this.basecol == "" || typeof this.basecol == 'undefined' || this.basecol == "transparent") {
+                this.basecol = d3.select(".mark-rect").select("path").attr("stroke")
             }
+        } catch {
+            try {
+                this.basecol = d3.select(".mark-symbol").select("path").attr("fill")
+                if(!this.basecol || this.basecol == "" || typeof this.basecol == 'undefined' || this.basecol == "transparent") {
+                    this.basecol = d3.select(".mark-symbol").select("path").attr("stroke")
+                }
+            } catch {
+                try {
+                    this.basecol = d3.select(".mark-line").select("path").attr("fill")
+                    if(!this.basecol || this.basecol == "" || typeof this.basecol == 'undefined' || this.basecol == "transparent") {
+                        this.basecol = d3.select(".mark-line").select("path").attr("stroke")
+                    }
+                } catch {
+                    this.basecol = "#4c78a8"
+                }
+                
+            }
+
         }
+
+        // if plot is a linechart, we need an array to store the data
+        var lineElement = d3.selectAll("path")
+                .filter(function() {
+                    let role_descr = d3.select(this).attr("aria-roledescription");
+                    return (role_descr == "line mark");
+                })
+        if (!lineElement.empty() && isScatter) { //we have a linechart
+            var Xscale = that.getXAxScale()
+            var Yscale = that.getYAxScale()
+            let path = lineElement.attr("d")
+
+            const commands = path.match(/[a-zA-Z][^a-zA-Z]*/g);              
+
+            // save the data points
+            dataPointsLinechart = commands.map(command => {
+                const type = command[0];
+                const coords = command.slice(1).split(',').map(Number);
+
+                if (coords.length === 2) {
+                    const [x, y] = coords;
+                    const dataX = Xscale.invert(x)
+                    const dataY = Yscale.invert(y)
+                    return [dataX, dataY];
+                } else {
+                    return command;
+                }
+            });
+
+            // also add clipping to svg
+            d3.select("svg").append("defs").append("clipPath")
+                .attr("id", "clip")
+                .append("rect")
+                .attr("width", SVGwidth)
+                .attr("height", SVGheight);
+
+            // also add highlight point
+            d3.select(".highlight-group")
+                .append("circle")
+                .attr("class", "highlight-circle")
+                .attr("r", 5)
+                .style("visibility", "hidden")
+        }
+
        
 
 
@@ -147,38 +209,38 @@ function Inflection() {
                         }
                         break;
                     case "yax":
-                        if (value != that.inflection.yax.join(";") && that.yAxQuant) {
-                            that.inflection.yax = value.split(";").map(Number);
+                        if (value != inflection.yax.join(";") && that.yAxQuant) {
+                            inflection.yax = value.split(";").map(Number);
                             that.axis("yax");
                         }
                         break; 
                     case "xax":
-                        if (value != that.inflection.xax.join(";") && that.xAxQuant) {
-                            that.inflection.xax = value.split(";").map(Number);
+                        if (value != inflection.xax.join(";") && that.xAxQuant) {
+                            inflection.xax = value.split(";").map(Number);
                             that.axis("xax");
                         }
                         break;
                     case "line":
-                        if (value != that.inflection.line.join(",")) {
-                            that.inflection.line = value.split(",");
+                        if (value != inflection.line.join(",")) {
+                            inflection.line = value.split(",");
                             that.line();
                         }
                         break;
                     case "ann":
-                        if (value != that.inflection.ann.join(",")) {
-                            that.inflection.ann = value.split(",");
+                        if (value != inflection.ann.join(",")) {
+                            inflection.ann = value.split(",");
                             that.ann();
                         }
                         break;
                     case "high":
-                        if (value != that.inflection.high) {
-                            that.inflection.high = value;
+                        if (value != inflection.high.join(";")) {
+                            inflection.high = value.split(";");
                             that.highlight();
                         }
                         break;
                     case "col":
-                        if (value != that.inflection.col) {
-                            that.inflection.col = value;
+                        if (value != inflection.col) {
+                            inflection.col = value;
                             that.col();
                         }
                         break;      
@@ -189,31 +251,31 @@ function Inflection() {
                 cats_in_hash.push(cat)
             });
 
-            if ((!cats_in_hash.includes("col") && that.inflection.col != that.default_infl_col) | that.inflection.col == "") {
-                that.inflection.col = that.default_infl_col
+            if ((!cats_in_hash.includes("col") && inflection.col != that.default_infl_col) | inflection.col == "") {
+                inflection.col = that.default_infl_col
                 that.col();
             }
 
-            if (!cats_in_hash.includes("line") && that.inflection.line != "") {
-                that.inflection.line = that.baseyax
+            if (!cats_in_hash.includes("line")) {
+                inflection.line = []
                 that.line();
             }
-            if (((!cats_in_hash.includes("yax") && that.inflection.yax != that.baseyax) | that.inflection.yax == "") && that.yAxQuant) {
-                that.inflection.yax = that.baseyax
+            if (((!cats_in_hash.includes("yax") && inflection.yax != that.baseyax)) && that.yAxQuant) {
+                inflection.yax = that.baseyax
                 that.axis("yax");
             }
 
-            if (((!cats_in_hash.includes("xax") && that.inflection.xax != that.basexax) | that.inflection.xax == "") && that.xAxQuant) {
-                that.inflection.xax = that.basexax
+            if (((!cats_in_hash.includes("xax") && inflection.xax != that.basexax)) && that.xAxQuant) {
+                inflection.xax = that.basexax
                 that.axis("xax");
             }
 
-            if (!cats_in_hash.includes("ann") && that.inflection.ann != "") {
-                that.inflection.ann = [];
+            if (!cats_in_hash.includes("ann")) {
+                inflection.ann = [];
                 that.ann();
             }
-            if (!cats_in_hash.includes("high") && that.inflection.high != "") {
-                that.inflection.high = ""
+            if (!cats_in_hash.includes("high")) {
+                inflection.high = []
                 that.highlight();
             }
 
@@ -290,7 +352,7 @@ function Inflection() {
                 tooltip.style("visibility", "hidden");
             })
             .on("click", function () {
-                let lines = that.inflection.line
+                let lines = inflection.line
                 // var list = lines.split(",");
                                 
                 let random_x1_pixel = Math.random() * SVGwidth;
@@ -312,7 +374,7 @@ function Inflection() {
                 //         y2_data + ";" + y2_between)
 
 
-                that.inflection.line = lines;
+                inflection.line = lines;
                 that.line()
                 that.updateHash()
                 that.updateEditable()
@@ -326,7 +388,7 @@ function Inflection() {
                 .attr("height", icon_button_width)
                 .style("stroke-width", "2.5px")
                 .style("stroke", "black")
-                .style("fill", that.inflection.col)
+                .style("fill", inflection.col)
                 .style("fill-opacity", 0.3);
         
         var dist = 5;
@@ -351,14 +413,14 @@ function Inflection() {
             .attr("type", "text")
             .attr("placeholder", "input")
             .style("margin-top", "3px")
-            .style("border-color", that.inflection.col)
+            .style("border-color", inflection.col)
             .on("focus", function() {
                 d3.select(this)
                     .style("border-color", "black")
             })
             .on("blur", function() {
                 d3.select(this)
-                    .style("border-color", that.inflection.col);
+                    .style("border-color", inflection.col);
             });
 
         d3.select("#annotation-div").append("svg")
@@ -387,7 +449,7 @@ function Inflection() {
                 .attr("height", icon_button_width)
                 .style("stroke-width", "2.5px")
                 .style("stroke", "black")
-                .style("fill", that.inflection.col)
+                .style("fill", inflection.col)
                 .style("fill-opacity", 0.3);
         
         var dist = 5;
@@ -411,7 +473,7 @@ function Inflection() {
         // now define button behaviour to add annotation
         d3.select("#ann-button")
             .on("click", function () {
-                let anns = that.inflection.ann
+                let anns = inflection.ann
                 
                 let text = d3.select("#infl-text-input").property("value")
                 if (text == "") {
@@ -428,7 +490,7 @@ function Inflection() {
             
                 anns.push(array.join(";"))
           
-                that.inflection.ann = anns;
+                inflection.ann = anns;
                 that.ann()
                 that.updateHash()
                 that.updateEditable()
@@ -445,11 +507,11 @@ function Inflection() {
         d3.select("#colour-div").append("input")
             .attr("class", "infl-col-input")
             .attr("type", "color")
-            .attr("value", that.inflection.col)
+            .attr("value", inflection.col)
             .on("change", function(d) {
                 var new_col = d3.select(this).property("value")
                 // highlight_colour = new_col
-                that.inflection.col = new_col
+                inflection.col = new_col
                 that.col()
                 that.updateHash()
             })
@@ -498,14 +560,14 @@ function Inflection() {
             d3.selectAll(".single-line")
                 .style("cursor", "move")
                 .on("dblclick", function () {
-                    var lines = that.inflection.line
+                    var lines = inflection.line
 
                     var line = d3.select(this);
                     var linedata = line.data()[0];
 
                     var index_in_lines = lines.indexOf(linedata.hash)
 
-                    that.inflection.line.splice(index_in_lines, 1);
+                    inflection.line.splice(index_in_lines, 1);
                     
                     d3.select(this.parentNode)
                         .remove();
@@ -562,7 +624,7 @@ function Inflection() {
 
                             
                             var line = d3.select(this);
-                            var lines = that.inflection.line
+                            var lines = inflection.line
 
                             var linedata = line.data()[0]
                             var index_in_lines = lines.indexOf(linedata.hash)
@@ -588,7 +650,7 @@ function Inflection() {
                             var array = [linedata.x1Data, linedata.x2Data, linedata.y1Data, linedata.y2Data].flat()
                             linedata.hash = array.join(";")
             
-                            that.inflection.line[index_in_lines] = linedata.hash
+                            inflection.line[index_in_lines] = linedata.hash
 
                             that.updateHash()
                         }
@@ -596,7 +658,7 @@ function Inflection() {
                     })
                     .on("end", function () {
                         var line = d3.select(this);
-                        var lines = that.inflection.line
+                        var lines = inflection.line
 
                         var linedata = line.data()[0]
                         var index_in_lines = lines.indexOf(linedata.hash)
@@ -622,7 +684,7 @@ function Inflection() {
                         var array = [linedata.x1Data, linedata.x2Data, linedata.y1Data, linedata.y2Data].flat()
                         linedata.hash = array.join(";")
         
-                        that.inflection.line[index_in_lines] = linedata.hash
+                        inflection.line[index_in_lines] = linedata.hash
 
                         that.updateHash()
                     })
@@ -631,13 +693,13 @@ function Inflection() {
             //handles of lines
             d3.selectAll(".infl-handle")
             .on("dblclick", function () {
-                var lines = that.inflection.line
+                var lines = inflection.line
                 
                 var line = d3.select(this.parentNode).select(".single-line");
                 var linedata = line.data()[0];
 
                 var index_in_lines = lines.indexOf(linedata.hash)
-                that.inflection.line.splice(index_in_lines, 1);
+                inflection.line.splice(index_in_lines, 1);
                 
                 d3.select(this.parentNode)
                     .remove();
@@ -684,7 +746,7 @@ function Inflection() {
                 })
                 .on("end", function () {
                     let line = d3.select(this.parentNode).select(".single-line");
-                    var lines = that.inflection.line
+                    var lines = inflection.line
 
                     var linedata = line.data()[0]
                     var index_in_lines = lines.indexOf(linedata.hash)
@@ -711,14 +773,14 @@ function Inflection() {
                     var array = [linedata.x1Data, linedata.x2Data, linedata.y1Data, linedata.y2Data].flat()
                     linedata.hash = array.join(";")
     
-                    that.inflection.line[index_in_lines] = linedata.hash
+                    inflection.line[index_in_lines] = linedata.hash
 
                     that.updateHash()
                 })
             )
             // #endregion
 
-            // #region change highlight
+            // #region highlight
             d3.selectAll("path")
                 .filter(function() {
                     let role_descr = d3.select(this).attr("aria-roledescription");
@@ -752,12 +814,12 @@ function Inflection() {
                     if (current_col[0] != "#") {
                         current_col = rgbToHex(current_col) //reformat to enable comparison
                     }
-                    if (current_col.toUpperCase() == that.inflection.col.toUpperCase()) { //was already highlighted
+                    if (current_col.toUpperCase() == inflection.col.toUpperCase()) { //was already highlighted
                         document.getElementById('infl-text-input').value = "";
-                        that.inflection.high = ""; //reset to old colour
+                        inflection.high = []; //reset to old colour
                         
                     } else {
-                        that.inflection.high = highlight
+                        inflection.high = [xvalue, yvalue]
                         document.getElementById('infl-text-input').value = aria_label.replace("; ", "\n");
                     }
 
@@ -767,20 +829,133 @@ function Inflection() {
                 })
             // #endregion
 
-            // #region annotation text
+            // #region highlight linechart
+            var lineSelection = d3.selectAll("path").filter(function() {
+                let role_descr = d3.select(this).attr("aria-roledescription");
+                return (role_descr == "line mark")
+                })
 
+            if(!lineSelection.empty()) { //line chart
+                var tooltip_point = d3.select(".highlight-group")
+                    .selectAll(".tooltip-point")
+                    .data([""])
+                    .join("circle")
+                    .attr("r", 5)
+                    .attr("fill", inflection.col)
+                    .attr("opacity", 0.7)
+                    .attr("visibility", "hidden")
+
+                var res;
+                d3.select(".background")
+                    .on("mouseover", function (event) {
+                        // var label = lineSelection.attr("aria-label")
+                        tooltip.style("visibility", "visible")
+                            // .text(label);
+                    })
+                    .on("mousemove", function (event) {
+                        let mouse_x_data = that.invertXScale(event.layerX)[0]
+                        let xScale = that.getXAxScale()
+                        let yScale = that.getYAxScale()
+                        let points_in_reach = 0;
+                        dataPointsLinechart.forEach((element) => {
+                            let [x,y] = [xScale(element[0]), yScale(element[1])]
+                            // console.log(x,y)
+                            if(event.layerX < (x + 10) && event.layerX > (x - 10)
+                                && event.layerY < (y + 10) && event.layerY > (y - 10))
+                             {
+                                points_in_reach += 1;
+                             }
+                        })
+
+                        if(points_in_reach == 0) {
+                            tooltip.style("visibility", "hidden");
+                            tooltip_point.style("visibility", "hidden")
+                        } else {
+                            let point1, point2;
+                            for (let i = 0; i < dataPointsLinechart.length - 1; i++) {
+                                if (dataPointsLinechart[i][0] <= mouse_x_data && dataPointsLinechart[i + 1][0] >= mouse_x_data) {
+                                    point1 = dataPointsLinechart[i];
+                                    point2 = dataPointsLinechart[i + 1];
+                                    break;
+                                }
+                            }
+                            
+
+                            if (!point1 || !point2) {
+                                // If no points are found, return null
+                                if(dataPointsLinechart[0][0] >= mouse_x_data) { 
+                                    res = { x_data: dataPointsLinechart[0][0], y_data: dataPointsLinechart[0][1],
+                                        x_pixel: event.layerX, y_pixel: yScale(dataPointsLinechart[0][1])
+                                    };
+                                } 
+                                else {
+                                    res = { x_data: dataPointsLinechart[dataPointsLinechart.length - 1][0],
+                                        y_data: dataPointsLinechart[dataPointsLinechart.length - 1][1],
+                                        x_pixel: event.layerX, y_pixel: yScale(dataPointsLinechart[dataPointsLinechart.length - 1][1])
+                                    }
+                                }
+                            } else {
+                                // Perform linear interpolation
+                                const t = (mouse_x_data - point1[0]) / (point2[0] - point1[0]);
+                                const y_data = point1[1] + t * (point2[1] - point1[1]);
+                                const y_pixel = yScale(y_data);
+
+                                res = { x_data: mouse_x_data, y_data: y_data,
+                                            x_pixel: event.layerX, y_pixel: y_pixel
+                                };
+                            }
+
+                            tooltip
+                                .style("visibility", "visible")
+                                .style("top", (event.pageY - 50) + "px")
+                                .style("left", (event.pageX - 20) + "px")
+                                .text(res.x_data.toFixed(2) + ", " + res.y_data.toFixed(2));
+
+                            tooltip_point
+                                .style("visibility", "visible")
+                                .attr("cx", res.x_pixel)
+                                .attr("cy", res.y_pixel)
+                        }
+
+
+                    })
+                    .on("mouseout", function () {
+                        tooltip.style("visibility", "hidden");
+                        tooltip_point.style("visibility", "hidden")
+                    })
+                    .on("mousedown", function () {
+                        if(res){
+                            var highlight = res.x_data.toFixed(2) + ";" + res.y_data.toFixed(2)
+                            inflection.high = [res.x_data, res.y_data]
+                            that.highlight()
+                            that.updateHash()
+                            document.getElementById('infl-text-input').value = highlight.replace(";", "\n");
+                            res = null;
+                        } else {
+                            inflection.high = []
+                            that.highlight()
+                            that.updateHash()
+                            document.getElementById('infl-text-input').value = "";
+
+                        }
+
+                    })
+            }
+            // #endregion
+
+            // #region annotation text
             d3.selectAll(".infl-ann-text")
                 .style("cursor", "move")
                 .on("dblclick", function () {
 
-                    var anns = that.inflection.ann
+                    var anns = inflection.ann
 
                     var ann = d3.select(this);
                     var anndata = ann.data()[0];
 
                     var index_in_anns = anns.indexOf(anndata.hash)
 
-                    that.inflection.ann.splice(index_in_anns, 1);
+                    inflection.ann.splice(index_in_anns, 1);
                     
                     d3.select(this)
                         .remove();
@@ -812,7 +987,7 @@ function Inflection() {
                             .attr("y", clampToHeight(text_current_pos.y + ydragAmount));
                     })
                     .on("end", function () {
-                        var anns = that.inflection.ann
+                        var anns = inflection.ann
 
                         var text_object = d3.select(this);
                         var curr_x_pos = text_object.attr("x")
@@ -834,7 +1009,7 @@ function Inflection() {
                         var array = [textdata.xData, textdata.yData, text].flat()
                         textdata.hash = array.join(";")
                         
-                        that.inflection.ann[index_in_anns] = textdata.hash
+                        inflection.ann[index_in_anns] = textdata.hash
                         
                         that.updateHash()
 
@@ -870,13 +1045,13 @@ function Inflection() {
                 // define drag of axis
                 d3.select(".infl-drag-area.yaxis")
                     .on("dblclick", function(){
-                        that.inflection.yax = that.baseyax;
+                        inflection.yax = that.baseyax;
                         that.axis("yax")
                         that.updateHash()
                     })
                     .call(d3.drag()
                         .on("start", function () {
-                            yScaleReconstructed = getLinAxisScale("yax")
+                            yScaleReconstructed = that.getLinAxisScale("yax")
                         })
                         .on("drag", function (event) {
                             // Calculate the change in the y-axis based on the drag
@@ -893,9 +1068,9 @@ function Inflection() {
                             // Calculate the new maximum Y-axis value
                             const newMaxY = currentDomain[1] + dataDragAmount;  
                             // Update the domain of the scale
-                            yScaleReconstructed.domain([0, newMaxY]);
+                            yScaleReconstructed.domain([currentDomain[0], newMaxY]);
                             
-                            that.inflection.yax = [0, Math.round(10*newMaxY)/10]
+                            inflection.yax = [currentDomain[0], Math.round(10*newMaxY)/10]
                             that.axis("yax")
                         })
                         .on("end", function () {
@@ -931,15 +1106,16 @@ function Inflection() {
     
                 d3.select(".infl-drag-area.xaxis")
                     .on("dblclick", function(){
-                        that.inflection.xax = that.basexax;
+                        inflection.xax = that.basexax;
                         that.axis("xax")
                         that.updateHash()
                     })
                     .call(d3.drag()
                         .on("start", function () {
-                            xScaleReconstructed = getLinAxisScale("xax")
+                            xScaleReconstructed = that.getLinAxisScale("xax")
                         })
                         .on("drag", function (event) {
+                            
                             // Calculate the change in the y-axis based on the drag
                             const dragAmount = event.dx;
     
@@ -954,9 +1130,9 @@ function Inflection() {
                             // Calculate the new maximum Y-axis value
                             const newMaxX = currentDomain[1] + dataDragAmount;  
                             // Update the domain of the scale
-                            xScaleReconstructed.domain([0, newMaxX]);
+                            xScaleReconstructed.domain([currentDomain[0], newMaxX]);
                             
-                            that.inflection.xax = [0, Math.round(10*newMaxX)/10]
+                            inflection.xax = [currentDomain[0], Math.round(10*newMaxX)/10]
                             that.axis("xax")
                         })
                         .on("end", function () {
@@ -974,8 +1150,8 @@ function Inflection() {
                 d3.select(".background")
                     .call(d3.drag()
                     .on("start", function () {
-                        xScaleReconstructed = getLinAxisScale("xax")
-                        yScaleReconstructed = getLinAxisScale("yax")
+                        xScaleReconstructed = that.getLinAxisScale("xax")
+                        yScaleReconstructed = that.getLinAxisScale("yax")
                     })
                     .on("drag", function (event) {
                         // Calculate the change in the y-axis based on the drag
@@ -1009,8 +1185,8 @@ function Inflection() {
                         xScaleReconstructed.domain(newXDomain);
                         yScaleReconstructed.domain(newYDomain);
                         
-                        that.inflection.xax = newXDomain.map(num => Math.round(num * 100) / 100);
-                        that.inflection.yax = newYDomain.map(num => Math.round(num * 100) / 100);
+                        inflection.xax = newXDomain.map(num => Math.round(num * 100) / 100);
+                        inflection.yax = newYDomain.map(num => Math.round(num * 100) / 100);
                         that.axis("xax")
                         that.axis("yax")
                     })
@@ -1020,8 +1196,8 @@ function Inflection() {
 
                     d3.select(".background")
                         .on("dblclick", function(){
-                            that.inflection.yax = that.baseyax;
-                            that.inflection.xax = that.basexax;
+                            inflection.yax = that.baseyax;
+                            inflection.xax = that.basexax;
                             that.axis("yax")
                             that.axis("xax")
                             that.updateHash()
@@ -1035,14 +1211,14 @@ function Inflection() {
                             const wheelDelta = event.sourceEvent ? event.sourceEvent.wheelDelta : 0;
                             const zoomFactor = wheelDelta > 0 ? 0.9 : 1.1; // Adjust these values as needed
 
-                            const yMid = (that.inflection.yax[0] + that.inflection.yax[1]) / 2;
-                            const yRange = (that.inflection.yax[1] - that.inflection.yax[0]) / 2 * zoomFactor;
-                            that.inflection.yax = [yMid - yRange, yMid + yRange].map(num => Math.round(num * 100) / 100);
+                            const yMid = (inflection.yax[0] + inflection.yax[1]) / 2;
+                            const yRange = (inflection.yax[1] - inflection.yax[0]) / 2 * zoomFactor;
+                            inflection.yax = [yMid - yRange, yMid + yRange].map(num => Math.round(num * 100) / 100);
 
                             // Calculate the new x-axis domain
-                            const xMid = (that.inflection.xax[0] + that.inflection.xax[1]) / 2;
-                            const xRange = (that.inflection.xax[1] - that.inflection.xax[0]) / 2  * zoomFactor;
-                            that.inflection.xax = [xMid - xRange, xMid + xRange].map(num => Math.round(num * 100) / 100);
+                            const xMid = (inflection.xax[0] + inflection.xax[1]) / 2;
+                            const xRange = (inflection.xax[1] - inflection.xax[0]) / 2  * zoomFactor;
+                            inflection.xax = [xMid - xRange, xMid + xRange].map(num => Math.round(num * 100) / 100);
 
 
                             that.axis("yax")
@@ -1057,46 +1233,6 @@ function Inflection() {
             // #endregion
 
         }
-        else { //not editable
-            d3.selectAll(".infl-handle")
-                .remove()
-
-            //bar/highlight behaviour
-            d3.selectAll("path")
-                .filter(function() {
-                    let role_descr = d3.select(this).attr("aria-roledescription");
-                    return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
-                    })
-                .style("cursor", "default")
-                .on("mousedown", function (event, d) {//do nothing
-                    });
-
-            d3.select("g.myYaxis")
-                .style("cursor", "auto")
-
-            d3.select(".infl-drag-area").remove()
-
-            d3.selectAll(".infl-ann-text")
-                .style("cursor", "default")
-                .on("dblclick", function () {})
-                .call(d3.drag()
-                    .on("start", function () {
-                    })
-                    .on("drag", function () {
-                    })
-                    .on("end", function () {
-                    }))
-            
-            d3.select(".single-line")
-                .style("cursor", "default")
-                .on("dblclick", function () {})
-                .call(d3.drag()
-                    .on("start", function () {})
-                    .on("drag", function () {})
-                    .on("end", function () {})
-                );
-
-        }
 
     }
 
@@ -1106,18 +1242,18 @@ function Inflection() {
          
         this.hash =
             "vis=" + this.chartPath + "&" +
-            "col=" + encodeURIComponent(this.inflection.col) + "&"
+            "col=" + encodeURIComponent(inflection.col) + "&"
 
         if (this.yAxQuant) {
-            this.hash += "yax=" + this.inflection.yax.join(";") + "&"
+            this.hash += "yax=" + inflection.yax.join(";") + "&"
         }
         if (this.xAxQuant) {
-            this.hash += "xax=" + this.inflection.xax.join(";") + "&"
+            this.hash += "xax=" + inflection.xax.join(";") + "&"
         }
         this.hash +=
-            "line=" + this.inflection.line.join(",") + "&" +
-            "ann=" + encodeURIComponent(this.inflection.ann.join(",")) + "&" +
-            "high=" + this.inflection.high;
+            "line=" + inflection.line.join(",") + "&" +
+            "ann=" + encodeURIComponent(inflection.ann.join(",")) + "&" +
+            "high=" + inflection.high.join(";");
         window.location.hash = "#" + this.hash
     }
 
@@ -1125,7 +1261,7 @@ function Inflection() {
     this.line = async function () {
         
         var that = this;
-        let lines = that.inflection.line
+        let lines = inflection.line
 
         if (lines.length == 0) {
             d3.selectAll(".infl-line")
@@ -1201,7 +1337,7 @@ function Inflection() {
                             .transition("move-line") // bei erstem Rendern?!
                             .duration(200)
                             .ease(d3.easeLinear)
-                                .attr("stroke", that.inflection.col)
+                                .attr("stroke", inflection.col)
                                 .attr("x1", d => d.x1)
                                 .attr("x2", d => d.x2)
                                 .attr("y1", d => d.y1)
@@ -1259,7 +1395,7 @@ function Inflection() {
         // notation: x-y-text
         var that = this;
 
-        let annlist = this.inflection.ann
+        let annlist = inflection.ann
         if (annlist.length == 0) {
             d3.selectAll(".infl-ann")
                 .transition()
@@ -1271,9 +1407,15 @@ function Inflection() {
             await Promise.all(promises);
             promises = [];
 
-            //transform to data coordinates
-            currXScale = that.getXAxScale()
-            currYScale = that.getYAxScale()
+            // var currXScale = d3.scaleLinear()
+            //     .domain(inflection.xax)
+            //     .range([0, SVGwidth]);
+
+            // var currYScale = d3.scaleLinear()
+            //     .domain(inflection.yax)
+            //     .range([SVGheight, 0]);
+            var currXScale = that.getXAxScale()
+            var currYScale = that.getYAxScale()
             
 
             let data = [];
@@ -1314,7 +1456,7 @@ function Inflection() {
                 .join("text")
                 .style("text-anchor", "middle")
                 .attr("class", "infl-ann-text")
-                .style("fill", that.inflection.col)
+                .style("fill", inflection.col)
                 .transition("move-ann")
                 .duration(200)
                 .ease(d3.easeLinear)
@@ -1330,10 +1472,10 @@ function Inflection() {
         // bar rects are defined as paths like this:
         // <path aria-label="a: A; b: 28" role="graphics-symbol" aria-roledescription="bar" d="M1,144h18v56h-18Z" fill="#4c78a8"></path>
         var that = this;
-        let highlight = that.inflection.high
+        let highlight = inflection.high
         //TODO save initial colour to data of element/marker
 
-        if (highlight == "") {
+        if (highlight.length == 0) {
             d3.selectAll("path")
                 .filter(function() {
                     let role_descr = d3.select(this).attr("aria-roledescription");
@@ -1353,8 +1495,10 @@ function Inflection() {
                     if(current_col && (typeof current_col !== 'undefined')  && (current_col !== 'transparent')) {
                         return that.basecol
                     }
-                })
-
+                });
+            
+                d3.select(".highlight-group").select(".highlight-circle")
+                    .style("visibility", "hidden");
             
         }
         else {
@@ -1362,10 +1506,8 @@ function Inflection() {
             await Promise.all(promises);
             promises = [];
 
-            var splitted = highlight.split(";")
-            //transform to number if number, leave as string if not
-            var x_of_high = splitted[0]
-            var y_of_high = splitted[1]
+            var x_of_high = highlight[0]
+            var y_of_high = highlight[1]
 
             var path = d3.selectAll("path")
                 .filter(function() {
@@ -1390,25 +1532,33 @@ function Inflection() {
                 .transition("trans-high")
                 .duration(200)
                 .ease(d3.easeLinear)
-                // .attr("fill", that.inflection.col)
+                // .attr("fill", inflection.col)
                 .attr("fill", function() {
                     let current_col = d3.select(this).attr("fill")
                     if(current_col && (typeof current_col !== 'undefined') && (current_col !== 'transparent')) {
-                        return that.inflection.col
+                        return inflection.col
                     }
                 })
                 .attr("stroke", function() {
                     let current_col = d3.select(this).attr("stroke")
                     if(current_col && (typeof current_col !== 'undefined')  && (current_col !== 'transparent')) {
-                        return that.inflection.col
+                        return inflection.col
                     }
                 })
+
 
             //raise to top
             let node = path.node();
             if (node) {
                 node.parentNode.append(node);
             }
+
+            //if linechart, we need to place highlight circle
+            d3.select(".highlight-group").select(".highlight-circle")
+                .attr("fill", inflection.col)
+                .attr("cx", that.getXAxScale()(+x_of_high))
+                .attr("cy", that.getYAxScale()(+y_of_high))
+                .style("visibility", "visible")
             
             // switch (that.chartPath) {
             //     case "barchart":
@@ -1447,7 +1597,7 @@ function Inflection() {
             //                     .text(d => d.text)
             //                     .attr("x", (d) => d.x)
             //                     .attr("y", (d) => d.y)
-            //                     .style("fill", that.inflection.col)
+            //                     .style("fill", inflection.col)
 
                     
             //         break;
@@ -1487,7 +1637,7 @@ function Inflection() {
             //                     .text(d => d.text)
             //                     .attr("x", (d) => d.x)
             //                     .attr("y", (d) => d.y)
-            //                     .style("fill", that.inflection.col)
+            //                     .style("fill", inflection.col)
 
             //         break;
 
@@ -1526,7 +1676,7 @@ function Inflection() {
             //                     .text(d => d.text)
             //                     .attr("x", (d) => d.x)
             //                     .attr("y", (d) => d.y)
-            //                     .style("fill", that.inflection.col)
+            //                     .style("fill", inflection.col)
 
             //         break;
             
@@ -1538,10 +1688,8 @@ function Inflection() {
                     
             
             // colour non-highlight mark back to normal
-             d3.selectAll("path")
+            d3.selectAll("path")
                 .filter(function() {
-                    // return d3.select(this).attr("aria-roledescription") == "bar" && !String(d3.select(this).attr("aria-label")).includes(highlight)
-                    
                     let role_descr = d3.select(this).attr("aria-roledescription");
                     var ismarker = (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
 
@@ -1583,8 +1731,8 @@ function Inflection() {
             promises = [];
     
             var that = this;
-            var minValue = that.inflection[axisType][0];
-            var maxValue = that.inflection[axisType][1];
+            var minValue = inflection[axisType][0];
+            var maxValue = inflection[axisType][1];
     
             var newScale = d3.scaleLinear()
                 .domain([minValue, maxValue])
@@ -1707,7 +1855,7 @@ function Inflection() {
             d3.selectAll("path")
                 .filter(function() {
                     let role_descr = d3.select(this).attr("aria-roledescription");
-                    return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle");
+                    return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle") || (role_descr == "line mark");
                 })
                 .each(function() {
                     var marker = d3.select(this);
@@ -1720,6 +1868,7 @@ function Inflection() {
                         let new_transl = newScale(value);
                         // const markerPromise = new Promise((resolve) => {
                             marker
+                                .style("visibility", "visible")
                                 // .transition("move-" + axisType[0])
                                 // .duration(200)
                                 // .ease(d3.easeLinear)
@@ -1727,12 +1876,19 @@ function Inflection() {
                                 // .on("end", () => resolve());
                             // });
                             // promises.push(markerPromise);
+                            const [x, y] = axisType === "yax" ? [other_transl, new_transl] : [new_transl, other_transl];
+                            if (x > SVGwidth || y > SVGheight || x < 0 || y < 0) {
+                                marker.style("visibility", "hidden");
+                            }
+                            //  else {
+                            //     marker.style("visibility", "visible");
+                            // }
                     } else {
                         var path = marker.attr("d");
                         let regex = axisType === "yax" ? /M(\d+),(-?[0-9.]+)h(\d+)v(\d+)/ : /M(\d+),(-?[0-9.]+)h([0-9.]+)v([0-9.]+)h-([0-9.]+)Z/;
                         let match = path.match(regex);
     
-                        if (match) {
+                        if (match) { // it is a bar
                             let start = parseFloat(match[axisType === "yax" ? 2 : 1]);
                             let length = parseFloat(match[axisType === "yax" ? 4 : 3]);
                             let new_length = Math.max(newScale(value), 0);
@@ -1748,22 +1904,63 @@ function Inflection() {
                             });
     
                             promises.push(markerPromise);
+                        } else {// it is a linechart
+                            const commands = path.match(/[a-zA-Z][^a-zA-Z]*/g);
+                            
+
+                            // Transform the coordinates
+                            const scaledCommands = commands.map((command, i) => {
+                                const type = command[0];
+                                const coords = command.slice(1).split(',').map(Number);
+
+                                if (coords.length === 2) {
+                                    const [x, y] = coords;
+                                    const newX = axisType === "yax" ? x : newScale(dataPointsLinechart[i][0]);
+                                    const newY = axisType === "yax" ? newScale(dataPointsLinechart[i][1]) : y;
+                                    return `${type}${newX},${newY}`;
+                                } else {
+                                    return command;
+                                }
+                            });
+                            let newPath = scaledCommands.join('')
+
+                            // const markerPromise = new Promise((resolve) => {
+                                marker
+                                    // .transition("move-" + axisType[0])
+                                    // .duration(200)
+                                    // .ease(d3.easeLinear)
+                                    .attr("d", newPath)
+                                    .attr("clip-path", "url(#clip)");
+                                    // .on("end", () => resolve());
+                            // });
+    
+                            // promises.push(markerPromise);
+
+
+
                         }
+
+                        
                     }
                 });
     
             // Annotations
+            // const markerPromise = new Promise((resolve) => {
             d3.select("svg").selectAll(".infl-ann-text")
                 .transition("move-" + axisType[0])
                 .duration(200)
                 .ease(d3.easeLinear)
-                .attr(axisType[0], (d) => newScale(+d[axisType[0] + "Data"][0]));
+                .attr(axisType[0], (d) => newScale(+d[axisType[0] + "Data"][0]))
+                // .on("end", () => resolve());
+            // });
+    
+            // promises.push(markerPromise);
     
             // Lines
             d3.select("svg").selectAll(".single-line")
-                .transition("move-" + axisType[0])
-                .duration(200)
-                .ease(d3.easeLinear)
+                // .transition("move-" + axisType[0])
+                // .duration(200)
+                // .ease(d3.easeLinear)
                 .attr(axisType[0] + "1", (d) => newScale(+d[axisType[0] + "1Data"][0]))
                 .attr(axisType[0] + "2", (d) => newScale(+d[axisType[0] + "2Data"][0]));
     
@@ -1773,508 +1970,27 @@ function Inflection() {
                     let isLeft = this.classList.contains("left");
                     d3.select(this).attr(axisType[0] === "y" ? "cy" : "cx", newScale(+line.data()[0][axisType[0] + (isLeft ? "1" : "2") + "Data"][0]));
                 });
+
+            d3.select(".highlight-circle")
+                .transition("move-" + axisType[0])
+                .duration(200)
+                .ease(d3.easeLinear)
+                .attr(axisType === "yax" ? "cy" : "cx", axisType === "yax" ? newScale(inflection.high[1]) : newScale(inflection.high[0]));
+                
+
         }
     }
 
-    // this.yAx = function () {
-    //     if (this.yAxQuant) {
-    //         promises = [];
-        
-    //         var that = this;
-    //         var yAxMinValue = that.inflection.yax[0]
-    //         var yAxMaxValue = that.inflection.yax[1]
-
-    //         var newYScale = d3.scaleLinear()
-    //             .domain([yAxMinValue, yAxMaxValue])
-    //             .range([SVGheight, 0]);
-
-    //         var YaxisSelection = d3.selectAll("g.mark-group.role-axis").filter(function() {
-    //                 return String(d3.select(this).attr("aria-label")).includes("Y-axis")
-    //             })
-            
-    //         var opacities = []
-    //         // Update tick labels and lines and grid
-    //             var tick_lines_nodeArray = YaxisSelection.selectAll('.mark-rule.role-axis-tick line').nodes()
-    //             var grid_lines_nodeArray = d3.selectAll('.mark-rule.role-axis-grid line').filter(function() {
-    //                 return +d3.select(this).attr("y2") == 0
-    //             }).nodes()
-
-    //             // get translates in x-direction (stays fixed)
-    //             var grid_x_transf = get_x_translate(d3.select(grid_lines_nodeArray[1]).attr("transform"))
-    //             var label_x_transf = get_x_translate(YaxisSelection.select('.mark-text.role-axis-label text').attr("transform"))
-
-
-    //             YaxisSelection.selectAll('.mark-text.role-axis-label text') // Select all tick labels
-    //             .each( function(d, i) {
-                    
-    //                 var tick_line = d3.select(tick_lines_nodeArray[i])
-    //                 var grid_line = d3.select(grid_lines_nodeArray[i])
-
-    //                 var tick_value = +d3.select(this).text().replaceAll(",","")
-                    
-    //                 // Use newYScale to calculate the new position
-    //                 var newYPosition = newYScale(tick_value);
-
-    //                 let opacity = d3.select(this).attr('opacity');
-    //                 opacity = opacity === '' || opacity === 'auto' ? 1 : parseFloat(opacity);
-    //                 opacities.push(opacity);
-
-    //                 if (newYPosition > SVGheight || newYPosition < 0) {
-    //                     d3.select(this).style("visibility", "hidden")
-    //                     tick_line.style("visibility", "hidden")
-    //                     grid_line.style("visibility", "hidden")
-    //                 } else {
-    //                     // Update the transform attribute with the new Y position
-    //                     // TODO where are the -7 from?
-    //                     d3.select(this) //label
-    //                         .style("visibility", "visible")
-    //                         .transition()
-    //                         .duration(200)
-    //                         .ease(d3.easeLinear)
-    //                         .attr('transform', 'translate(' + label_x_transf + ',' + (newYPosition + 3) + ')')
-
-    //                     tick_line
-    //                         .style("visibility", "visible")
-    //                         .transition()
-    //                         .duration(200)
-    //                         .ease(d3.easeLinear)
-    //                         .attr('transform', 'translate(0,' + newYPosition + ')')
-
-    //                     grid_line
-    //                         .style("visibility", "visible")
-    //                         .transition()
-    //                         .duration(200)
-    //                         .ease(d3.easeLinear)
-    //                         .attr('transform', 'translate(' + grid_x_transf + ',' + newYPosition + ')')
-                            
-                    
-    //                 }
-    //             });
-
-                
-    //             // add ticks and labels that are now missing
-    //             var label_nodeArray = YaxisSelection.selectAll('.mark-text.role-axis-label text').nodes()
-    //             var curr_num_of_ticks  = label_nodeArray.length
-    //             var max_tick_value = +d3.select(label_nodeArray[curr_num_of_ticks-1]).text().replaceAll(",","")
-    //             var min_tick_value = +d3.select(label_nodeArray[0]).text().replaceAll(",","")
-    //             var tick_val_dist = max_tick_value - +d3.select(label_nodeArray[curr_num_of_ticks-2]).text().replaceAll(",","")
-
-                
-    //             let period = detectPeriodicity(opacities);
-    //             if((yAxMaxValue - tick_val_dist) > max_tick_value || (yAxMinValue + tick_val_dist) < min_tick_value) {
-    //                 var num_of_missin_max_ticks = Math.floor((+yAxMaxValue - max_tick_value) / tick_val_dist);
-                    
-    //                 for (let i = 0; i < num_of_missin_max_ticks; i++) {
-                        
-    //                     var new_tick_val = max_tick_value + (i+1)*tick_val_dist
-    //                     var new_tick_pos = newYScale(new_tick_val)
-    //                     let new_opacity =  opacities[(curr_num_of_ticks+i) % period];
-                        
-    //                     //clone attributes of existing labels and lines
-    //                     //label
-    //                     YaxisSelection.select('.mark-text.role-axis-label text').clone().call(function(sel) {
-    //                         sel.attr("transform", 'translate(' + label_x_transf + ',' + (new_tick_pos + 3) + ')')
-    //                             .text(new_tick_val.toLocaleString('en-US'))
-    //                             .attr("opacity", new_opacity)
-    //                         sel.node().parentNode.appendChild(sel.node()); //append as last child
-    //                     });
-
-    //                     YaxisSelection.select('.mark-rule.role-axis-tick line').clone().call(function(sel) {
-    //                         sel.attr("transform", 'translate(0,' + new_tick_pos + ')')
-    //                         sel.node().parentNode.appendChild(sel.node()); //append as last child
-    //                     });
-                        
-
-    //                     d3.select(grid_lines_nodeArray[0]).clone().call(function(sel) {
-    //                         sel.attr("transform", 'translate(' + grid_x_transf + ',' + new_tick_pos + ')')
-    //                         sel.node().parentNode.appendChild(sel.node()); //append as last child
-                            
-    //                     });
-    //                 }  
-
-    //                 var num_of_missin_min_ticks = Math.floor(Math.abs(+yAxMinValue + min_tick_value) / tick_val_dist);
-                    
-    //                 for (let i = 0; i < num_of_missin_min_ticks; i++) {
-                        
-    //                     var new_tick_val = min_tick_value - (i+1)*tick_val_dist
-    //                     var new_tick_pos = newYScale(new_tick_val)
-    //                     let new_opacity =  opacities[(curr_num_of_ticks+i) % period];
-                        
-    //                     //clone attributes of existing labels and lines
-    //                     //label
-    //                     YaxisSelection.select('.mark-text.role-axis-label text').clone().call(function(sel) {
-    //                         sel.attr("transform", 'translate(' + label_x_transf + ',' + (new_tick_pos + 3) + ')')
-    //                             .text(new_tick_val.toLocaleString('en-US'))
-    //                             .attr("opacity", new_opacity);
-    //                         let parent = sel.node().parentNode
-    //                         parent.insertBefore(sel.node(), parent.firstChild);
-    //                     });
-
-    //                     YaxisSelection.select('.mark-rule.role-axis-tick line').clone().call(function(sel) {
-    //                         sel.attr("transform", 'translate(0,' + new_tick_pos + ')')
-    //                         let parent = sel.node().parentNode
-    //                         parent.insertBefore(sel.node(), parent.firstChild);
-    //                     });
-                        
-
-    //                     d3.select(grid_lines_nodeArray[0]).clone().call(function(sel) {
-    //                         sel.attr("transform", 'translate(' + grid_x_transf + ',' + new_tick_pos + ')')
-    //                         let parent = sel.node().parentNode
-    //                         parent.insertBefore(sel.node(), parent.firstChild);
-    //                     });
-    //                 }  
-        
-    //             }
-    
-
-            
-    //         // update data markers (bars, points etc.)
-
-    //         d3.selectAll("path")
-    //             .filter(function() {
-    //                 let role_descr = d3.select(this).attr("aria-roledescription");
-    //                 return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
-    //             })
-    //             .each(function(){
-    //                 var marker = d3.select(this)
-    //                 var aria_label = marker.attr("aria-label") // e.g. "a: D; b: 91"
-
-    //                 // filter y value
-    //                 var yvalue = get_y_of_aria_label(aria_label); 
-    //                 let x_transl = get_x_translate(marker.attr("transform"))
-
-    //                 if (x_transl != -1) { //no error, position defined with transform attribute
-    //                     let new_y_transl = newYScale(yvalue)
-    //                     const markerPromise = new Promise((resolve) => {
-    //                         marker
-    //                             // .transition("move-y")
-    //                             // .duration(200)
-    //                             // .ease(d3.easeLinear)
-    //                                 .attr("transform", 'translate(' + x_transl + ',' + new_y_transl + ')')
-    //                             // .on("end", () => resolve());
-    //                     });
-    //                     // promises.push(markerPromise);
-    //                 } else { //there was an error, try with path instead
-    //                     var path = marker.attr("d") // e.g. "M1,144h18v56h-18Z"
-
-    //                     let regex = /M(\d+),(-?[0-9.]+)h(\d+)v(\d+)/;
-    //                     let match = path.match(regex);
-                
-    //                     if (match) {
-    //                         let topLeftX = parseFloat(match[1]); // X coordinate (top-left corner)
-    //                         let width = parseFloat(match[3]);    // Width from the `h` command
-                
-    //                         let new_height = Math.max(newYScale(yvalue),0)
-
-    //                         // Replace the original height (v command) with the new height
-    //                         let newPath = `M${topLeftX},${new_height}h${width}v${SVGheight - new_height}h-${width}Z`;
-                            
-    //                         const markerPromise = new Promise((resolve) => {
-    //                             marker
-    //                                 .transition("move-y")
-    //                                 .duration(200)
-    //                                 .ease(d3.easeLinear)
-    //                                     .attr("d", newPath)
-    //                                 .on("end", () => resolve());
-    //                         });
-                            
-    //                         promises.push(markerPromise);
-
-    //                     }
-                
-    //                 }
-    //             });
-
-    //         //annotations
-    //         d3.select("svg").selectAll(".infl-ann-text")
-    //             .transition("move-y")
-    //             .duration(200)
-    //             .ease(d3.easeLinear)
-    //             .attr("y", (d) => newYScale(+d.yData[0]))
-
-    //         //lines
-    //         d3.select("svg").selectAll(".single-line")
-    //             .transition("move-x")
-    //             .duration(200)
-    //             .ease(d3.easeLinear)
-    //             .attr("y1", (d) => newYScale(+d.y1Data[0]))
-    //             .attr("y2", (d) => newYScale(+d.y2Data[0]))
-
-
-
-    //         d3.select("svg").selectAll(".infl-handle")
-    //             .each(function() {
-    //                 let line = d3.select(this.parentNode).select(".single-line");
-    //                 // Determine if the handle is "left" or "right"
-    //                 let isLeft = this.classList.contains("left");
-    //                 if(isLeft) {
-    //                     d3.select(this)
-    //                         .attr("cy", newYScale(+line.data()[0].y1Data[0]))
-    //                 } else {
-    //                     d3.select(this)
-    //                         .attr("cy", newYScale(+line.data()[0].y2Data[0]))
-    //                 }
-    //             })
-
-    //         // console.log(promises)
-    //     }
-
-
-    // }
-
-    // this.xAx = function () {
-    //     if (this.xAxQuant) {
-    //         promises = [];
-        
-    //         var that = this;
-    //         var xAxMinValue = that.inflection.xax[0]
-    //         var xAxMaxValue = that.inflection.xax[1]
-
-    //         var newXScale = d3.scaleLinear()
-    //             .domain(that.inflection.xax)
-    //             .range([0, SVGwidth]);
-
-    //         var XaxisSelection = d3.selectAll("g.mark-group.role-axis").filter(function() {
-    //                 return String(d3.select(this).attr("aria-label")).includes("X-axis")
-    //             })
-
-    //         var opacities = []
-
-    //         // Update tick labels and lines and grid
-    //             var tick_lines_nodeArray = XaxisSelection.selectAll('.mark-rule.role-axis-tick line').nodes()
-    //             var grid_lines_nodeArray = d3.selectAll('.mark-rule.role-axis-grid line').filter(function() {
-    //                 return +d3.select(this).attr("x2") == 0
-    //             }).nodes()
-    //             // get translates in y-direction (stays fixed)
-    //             var grid_y_transf = get_y_translate(d3.select(grid_lines_nodeArray[1]).attr("transform"))
-    //             var label_y_transf = get_y_translate(XaxisSelection.select('.mark-text.role-axis-label text').attr("transform"))
-
-    //             XaxisSelection.selectAll('.mark-text.role-axis-label text') // Select all tick labels
-    //             .each( function(d, i) {
-                    
-    //                 var tick_line = d3.select(tick_lines_nodeArray[i])
-    //                 var grid_line = d3.select(grid_lines_nodeArray[i])
-
-    //                 var tick_value = +d3.select(this).text().replaceAll(",","")
-                    
-    //                 let opacity = d3.select(this).attr('opacity');
-    //                 opacity = opacity === '' || opacity === 'auto' ? 1 : parseFloat(opacity);
-    //                 opacities.push(opacity);
-                    
-    //                 // Use newYScale to calculate the new position
-    //                 var newXPosition = newXScale(tick_value);
-
-    //                 if (newXPosition > SVGwidth || newXPosition < 0) {
-    //                     d3.select(this).style("visibility", "hidden")
-    //                     tick_line.style("visibility", "hidden")
-    //                     grid_line.style("visibility", "hidden")
-    //                 } else {
-    //                     // Update the transform attribute with the new Y position
-    //                     // TODO where are the 15 from?
-    //                     d3.select(this) //label
-    //                         .style("visibility", "visible")
-    //                         .transition()
-    //                         .duration(200)
-    //                         .ease(d3.easeLinear)
-    //                         .attr('transform', 'translate(' + (newXPosition + 3) + ', ' +  label_y_transf + ')')
-
-    //                     tick_line
-    //                         .style("visibility", "visible")
-    //                         .transition()
-    //                         .duration(200)
-    //                         .ease(d3.easeLinear)
-    //                         .attr('transform', 'translate(' + newXPosition + ', 0)')
-
-    //                     grid_line
-    //                         .style("visibility", "visible")
-    //                         .transition()
-    //                         .duration(200)
-    //                         .ease(d3.easeLinear)
-    //                         .attr('transform', 'translate(' + newXPosition + ', ' +  grid_y_transf + ')')
-    //                 }
-    //             });
-                
-
-    //             // add ticks and labels that are now missing
-    //             var label_nodeArray = XaxisSelection.selectAll('.mark-text.role-axis-label text').nodes()
-    //             var curr_num_of_ticks  = label_nodeArray.length
-    //             var max_tick_value = +d3.select(label_nodeArray[curr_num_of_ticks-1]).text().replaceAll(",","")
-    //             var tick_val_dist = max_tick_value - +d3.select(label_nodeArray[curr_num_of_ticks-2]).text().replaceAll(",","")
-    //             var min_tick_value = +d3.select(label_nodeArray[0]).text().replaceAll(",","")
-
-    //             let period = detectPeriodicity(opacities);
-    //             if((xAxMaxValue - tick_val_dist) > max_tick_value || (xAxMinValue + tick_val_dist) < min_tick_value) {
-    //                 var num_of_missin_ticks = Math.floor((+xAxMaxValue - max_tick_value) / tick_val_dist);
-    //                 for (let i = 0; i < num_of_missin_ticks; i++) {
-                        
-    //                     var new_tick_val = max_tick_value + (i+1)*tick_val_dist
-    //                     var new_tick_pos = newXScale(new_tick_val)
-    //                     let new_opacity =  opacities[(curr_num_of_ticks+i) % period];
-
-    //                     //clone attributes of existing labels and lines
-    //                     // TODO where are the "-7" from?
-    //                     XaxisSelection.select('.mark-text.role-axis-label text').clone().call(function(sel) {
-    //                         sel.attr("transform", 'translate(' + (new_tick_pos + 3) + ',15)')
-    //                             .text(new_tick_val.toLocaleString('en-US'))
-    //                             .attr("text-anchor", "middle")
-    //                             .attr("opacity", new_opacity)
-    //                         sel.node().parentNode.appendChild(sel.node()); //append as last child
-    //                     });
-
-    //                     XaxisSelection.select('.mark-rule.role-axis-tick line').clone().call(function(sel) {
-    //                         sel.attr("transform", 'translate(' + new_tick_pos + ',0)')
-    //                         sel.node().parentNode.appendChild(sel.node()); //append as last child
-    //                     });
-                        
-    //                     d3.select(grid_lines_nodeArray[0]).clone().call(function(sel) {
-    //                         sel.attr("transform", 'translate(' + new_tick_pos + ',' + grid_y_transf + ')')
-    //                         sel.node().parentNode.appendChild(sel.node()); //append as last child
-    //                     });
-    //                 }  
-
-    //                 var num_of_missin_min_ticks = Math.floor(Math.abs(+xAxMinValue + min_tick_value) / tick_val_dist);
-                    
-    //                 for (let i = 0; i < num_of_missin_min_ticks; i++) {
-                        
-    //                     var new_tick_val = min_tick_value - (i+1)*tick_val_dist
-    //                     var new_tick_pos = newXScale(new_tick_val)
-    //                     let new_opacity =  opacities[(curr_num_of_ticks+i) % period];
-                        
-    //                     //clone attributes of existing labels and lines
-    //                     //label
-    //                     XaxisSelection.select('.mark-text.role-axis-label text').clone().call(function(sel) {
-    //                         sel.attr("transform", 'translate(' + (new_tick_pos + 3) + ',15)')
-    //                             .text(new_tick_val.toLocaleString('en-US'))
-    //                             .attr("opacity", new_opacity);
-    //                         let parent = sel.node().parentNode
-    //                         parent.insertBefore(sel.node(), parent.firstChild);
-    //                     });
-
-    //                     XaxisSelection.select('.mark-rule.role-axis-tick line').clone().call(function(sel) {
-    //                         sel.attr("transform", 'translate(' + new_tick_pos + ',0)')
-    //                         let parent = sel.node().parentNode
-    //                         parent.insertBefore(sel.node(), parent.firstChild);
-    //                     });
-                        
-
-    //                     d3.select(grid_lines_nodeArray[0]).clone().call(function(sel) {
-    //                         sel.attr("transform", 'translate(' + new_tick_pos + ',' + grid_y_transf + ')')
-    //                         let parent = sel.node().parentNode
-    //                         parent.insertBefore(sel.node(), parent.firstChild);
-    //                     });
-    //                 }  
-        
-    //             }
-    
-
-            
-    //         // update data markers (bars, points etc.)
-
-    //         d3.selectAll("path")
-    //             .filter(function() {
-    //                 let role_descr = d3.select(this).attr("aria-roledescription");
-    //                 return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
-    //             })
-    //             .each(function(){
-    //                 var marker = d3.select(this)
-    //                 // filter y value
-    //                 var aria_label = marker.attr("aria-label") // e.g. "a: D; b: 91"
-    //                 var xvalue = get_x_of_aria_label(aria_label); 
-                    
-    //                 let y_transl = get_y_translate(marker.attr("transform")) //gonna be kept!
-
-    //                 if (y_transl != -1) { //no error, position defined with transform attribute
-                    
-    //                     let new_x_transl = newXScale(xvalue)
-    //                     const markerPromise = new Promise((resolve) => {
-    //                         marker
-    //                             // .transition("move-x")
-    //                             // .duration(200)
-    //                             // .ease(d3.easeLinear)
-    //                                 .attr("transform", 'translate(' + new_x_transl + ',' + y_transl + ')')
-    //                             // .on("end", () => resolve());
-    //                     });
-    //                     // promises.push(markerPromise);
-                
-    //                 } else { //there was an error, try with path instead (e.g. for bars)
-    //                     var path = marker.attr("d") // e.g. "M1,144h18v56h-18Z"
-
-    //                     let regex = /M(\d+),(-?[0-9.]+)h([0-9.]+)v([0-9.]+)h-([0-9.]+)Z/;
-    //                     let match = path.match(regex);
-                
-    //                     if (match) {
-    //                         let startX = parseFloat(match[1]);         // Initial x
-    //                         let startY = parseFloat(match[2]);       // Initial y
-    //                         let old_width = parseFloat(match[3]);         // Horizontal length (width)
-    //                         let height = parseFloat(match[4]);       // Vertical length (height)
-                
-    //                         let new_width = Math.max(newXScale(xvalue),0)
-
-    //                         // Replace the original width with the new width
-    //                         let newPath = `M${startX},${startY}h${new_width}v${height}h-${new_width}Z`;
-                            
-    //                         const barPromise = new Promise((resolve) => {
-    //                             marker
-    //                                 .transition("move-x")
-    //                                 .duration(200)
-    //                                 .ease(d3.easeLinear)
-    //                                     .attr("d", newPath)
-    //                                 .on("end", () => resolve());
-    //                         });
-                            
-    //                         promises.push(barPromise);
-    //                     }
-    //                 }
-    //             });
-
-            
-                
-
-    //         //annotations
-    //         d3.select("svg").selectAll(".infl-ann-text")
-    //             .transition("move-x")
-    //             .duration(200)
-    //             .ease(d3.easeLinear)
-    //             .attr("x", (d) => newXScale(+d.xData[0]))
-
-    //         //lines
-    //         d3.select("svg").selectAll(".single-line")
-    //             .transition("move-x")
-    //             .duration(200)
-    //             .ease(d3.easeLinear)
-    //             .attr("x1", (d) => newXScale(+d.x1Data[0]))
-    //             .attr("x2", (d) => newXScale(+d.x2Data[0]))
-
-
-
-    //         d3.select("svg").selectAll(".infl-handle")
-    //             .each(function() {
-    //                 let line = d3.select(this.parentNode).select(".single-line");
-    //                 // Determine if the handle is "left" or "right"
-    //                 let isLeft = this.classList.contains("left");
-    //                 if(isLeft) {
-    //                     d3.select(this)
-    //                         .attr("cx", newXScale(+line.data()[0].x1Data[0]))
-    //                 } else {
-    //                     d3.select(this)
-    //                         .attr("cx", newXScale(+line.data()[0].x2Data[0]))
-    //                 }
-    //             })
-
-    //         // console.log(promises)
-    //     }
-
-
-    // }
 
     this.col = function () {
      
         var that = this;
-        var colour = that.inflection.col
+        var colour = inflection.col
 
         that.highlight();
         that.ann();
         that.line();
+        d3.select(".tooltip-point").attr("fill", colour)
 
         //Change UI
         d3.select(".infl-col-input")
@@ -2305,8 +2021,9 @@ function Inflection() {
     }
 
     this.getXAxScale = function() {
+
         if(this.xAxQuant) { //linear x axis
-            return getLinAxisScale("xax")
+            return this.getLinAxisScale("xax")
         } else { // categorical x axis
             return getCatAxisScale("xax")
         }
@@ -2314,7 +2031,7 @@ function Inflection() {
 
     this.getYAxScale = function() {
         if(this.yAxQuant) { //linear y axis
-            return getLinAxisScale("yax")
+            return this.getLinAxisScale("yax")
         } else { // categorical y axis
             return getCatAxisScale("yax")
         }
@@ -2334,7 +2051,7 @@ function Inflection() {
         if(this.xAxQuant) { //linear x axis
             var scale = this.getXAxScale()
             var inverse = scale.invert(value)
-            return [Math.round(10*inverse)/10, 0 ]
+            return [inverse, 0 ]
         } else { // categorical x axis
             return invertCatScale("xax", value)
         }
@@ -2385,16 +2102,17 @@ function Inflection() {
         return Math.max( 0, Math.min(x, SVGheight) )
     } 
 
-    function getLinAxisScale(axis) {
+    this.getLinAxisScale = function(axis) {
+        var that = this;
         if(axis == "xax") {
             var scale = d3.scaleLinear()
-                .domain(getValuesOfQuantAx("xax"))
+                .domain(inflection.xax)
                 .range([0, SVGwidth]);
         }
 
         if(axis == "yax") {
             var scale = d3.scaleLinear()
-                .domain(getValuesOfQuantAx("yax"))
+                .domain(inflection.yax)
                 .range([SVGheight, 0]);
         }
 
@@ -2566,7 +2284,7 @@ function Inflection() {
 
     function get_x_of_aria_label(aria_label) { // Extract X value from translate(X,Y)
         var match = -1;
-        if(aria_label) {
+        if(aria_label && aria_label.match(/\b\w+:\s*([\w.]+)/)) {
             var match = aria_label.match(/\b\w+:\s*([\w.]+)/)[1];
         }
         return match;
@@ -2574,7 +2292,7 @@ function Inflection() {
 
     function get_y_of_aria_label(aria_label) { // Extract X value from translate(X,Y)
         var match = -1;
-        if(aria_label) {
+        if(aria_label && aria_label.match(/(?:\b\w+:\s*[\w.]+;?\s*)\b\w+:\s*([\w.]+)/)) {
             var match = aria_label.match(/(?:\b\w+:\s*[\w.]+;?\s*)\b\w+:\s*([\w.]+)/)[1];
         }
         return match;
