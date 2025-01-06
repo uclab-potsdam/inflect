@@ -15,9 +15,13 @@ Look, a [scatterplot!](vis/index.html#vis=scatterplot&col=%2300F05E&yax=4.5;54.5
 
 More details about [this](vis/index.html#vis=scatterplot&col=%23d08120&yax=12.58;40.18&xax=46.88;179.38&line=&ann=127.5%3B0%3B27.8%3B0%3B115&high=115;28.8) data point.
 
-More details about [linecharts](vis/index.html#vis=linechart&col=%2300F05E&yax=92;892&xax=2004.82;2010.42&line=&ann=&high=2008.7399999999998;380.35743206529804) are always interesting.
+More details about [linecharts](vis/index.html#vis=linechart&col=%2300F05E&yax=92;892&xax=2004.82;2010.42&line=&ann=&high=2008.54;473.04) are always interesting.
 
-Even more [linecharts](vis/index.html#vis=linechart&col=%2300F05E&yax=229.7;731.31&xax=2006.47;2010&line=&ann=&high=2008.5398;472.4546225227756) are always interesting.
+Even more [linecharts](vis/index.html#vis=linechart&col=%2300F05E&yax=229.7;731.31&xax=2006.47;2010&line=&ann=&high=2008.54;473.04) are always interesting.
+
+Transition test [part 1](vis/index.html#vis=linechart&col=%2300F05E&yax=249.77;751.38&xax=2006.29;2009.82&line=2009.504625;0;2008.60;0;343.8;0;577.1;0&ann=2008.96%3B0%3B603.4%3B0%3B2007.62%0A525.07&high=2007.31;484.30).
+
+Transition test [part 2](vis/index.html#vis=linechart&col=%2300F05E&yax=230.36;837.31&xax=2006.64;2010.91&line=2007.06;0;2008.81;0;623.4;0;732.6;0,2007.56;0;2009.34;0;371.5;0;593;0&ann=2008.2821549999999%3B0%3B345.4%3B0%3Binput&high=2009.46;423.79).
 
 We can also inflect images, let's start with Hokusai's 
 [The Great Wave off Kanagawa](img/#-363,-146,4604,3060&https://upload.wikimedia.org/wikipedia/commons/b/b3/Katsushika_Hokusai_-_Thirty-Six_Views_of_Mount_Fuji-_The_Great_Wave_Off_the_Coast_of_Kanagawa_-_Google_Art_Project.jpg) 

@@ -256,7 +256,7 @@ function Inflection() {
                 that.col();
             }
 
-            if (!cats_in_hash.includes("line")) {
+            if (!cats_in_hash.includes("line") || inflection.line[0] == "") {
                 inflection.line = []
                 that.line();
             }
@@ -270,11 +270,11 @@ function Inflection() {
                 that.axis("xax");
             }
 
-            if (!cats_in_hash.includes("ann")) {
+            if (!cats_in_hash.includes("ann")  || inflection.ann[0] == "") {
                 inflection.ann = [];
                 that.ann();
             }
-            if (!cats_in_hash.includes("high")) {
+            if (!cats_in_hash.includes("high")  || inflection.high[0] == "") {
                 inflection.high = []
                 that.highlight();
             }
@@ -366,8 +366,9 @@ function Inflection() {
                 var [y2_data, y2_between] = that.invertYScale(random_y2_pixel)
 
                 var array = [x1_data, x1_between, x2_data, x2_between, y1_data, y1_between, y2_data, y2_between]
+                var roundedArray = array.map(num => parseFloat(parseFloat(num).toFixed(2)));
 
-                lines.push(array.join(";"))
+                lines.push(roundedArray.join(";"))
                 // lines.push(x1_data + ";" + x1_between + ";" +
                 //         x2_data + ";" + x2_between + ";" +
                 //         y1_data + ";" + y1_between + ";" +
@@ -486,9 +487,11 @@ function Inflection() {
 
                 var mid_y_pixel = SVGheight/2;
                 var [mid_y_data, ybetween] = that.invertYScale(mid_y_pixel)
-                var array = [mid_x_data, xbetween, mid_y_data, ybetween, text]
-            
-                anns.push(array.join(";"))
+                var array = [mid_x_data, xbetween, mid_y_data, ybetween]
+                var roundedArray = array.map(num => parseFloat(parseFloat(num).toFixed(2)));
+
+                roundedArray[4] = text
+                anns.push(roundedArray.join(";"))
           
                 inflection.ann = anns;
                 that.ann()
@@ -648,7 +651,9 @@ function Inflection() {
 
                             // update hash
                             var array = [linedata.x1Data, linedata.x2Data, linedata.y1Data, linedata.y2Data].flat()
-                            linedata.hash = array.join(";")
+                            var roundedArray = array.map(num => parseFloat(parseFloat(num).toFixed(2)));
+
+                            linedata.hash = roundedArray.join(";")
             
                             inflection.line[index_in_lines] = linedata.hash
 
@@ -682,7 +687,9 @@ function Inflection() {
 
                         // update hash
                         var array = [linedata.x1Data, linedata.x2Data, linedata.y1Data, linedata.y2Data].flat()
-                        linedata.hash = array.join(";")
+                        var roundedArray = array.map(num => parseFloat(parseFloat(num).toFixed(2)));
+
+                        linedata.hash = roundedArray.join(";")
         
                         inflection.line[index_in_lines] = linedata.hash
 
@@ -771,7 +778,9 @@ function Inflection() {
 
                     // update hash
                     var array = [linedata.x1Data, linedata.x2Data, linedata.y1Data, linedata.y2Data].flat()
-                    linedata.hash = array.join(";")
+                    var roundedArray = array.map(num => parseFloat(parseFloat(num).toFixed(2)));
+
+                    linedata.hash = roundedArray.join(";")
     
                     inflection.line[index_in_lines] = linedata.hash
 
@@ -846,7 +855,7 @@ function Inflection() {
                     .attr("visibility", "hidden")
 
                 var res;
-                d3.select(".background")
+                d3.selectAll([...lineSelection, ...d3.select(".background")])
                     .on("mouseover", function (event) {
                         // var label = lineSelection.attr("aria-label")
                         tooltip.style("visibility", "visible")
@@ -870,6 +879,7 @@ function Inflection() {
                         if(points_in_reach == 0) {
                             tooltip.style("visibility", "hidden");
                             tooltip_point.style("visibility", "hidden")
+                            res = null;
                         } else {
                             let point1, point2;
                             for (let i = 0; i < dataPointsLinechart.length - 1; i++) {
@@ -922,14 +932,14 @@ function Inflection() {
                     .on("mouseout", function () {
                         tooltip.style("visibility", "hidden");
                         tooltip_point.style("visibility", "hidden")
+                        res = null;
                     })
-                    .on("mousedown", function () {
+                    .on("click", function () {
                         if(res){
-                            var highlight = res.x_data.toFixed(2) + ";" + res.y_data.toFixed(2)
-                            inflection.high = [res.x_data, res.y_data]
+                            inflection.high = [res.x_data.toFixed(2), res.y_data.toFixed(2)]
                             that.highlight()
                             that.updateHash()
-                            document.getElementById('infl-text-input').value = highlight.replace(";", "\n");
+                            document.getElementById('infl-text-input').value = inflection.high.join("\n");
                             res = null;
                         } else {
                             inflection.high = []
@@ -938,7 +948,6 @@ function Inflection() {
                             document.getElementById('infl-text-input').value = "";
 
                         }
-
                     })
             }
             // #endregion
@@ -1263,7 +1272,7 @@ function Inflection() {
         var that = this;
         let lines = inflection.line
 
-        if (lines.length == 0) {
+        if (lines.length == 0 || inflection.line[0] == "") {
             d3.selectAll(".infl-line")
                 .transition()
                 .duration(200)
@@ -1396,7 +1405,7 @@ function Inflection() {
         var that = this;
 
         let annlist = inflection.ann
-        if (annlist.length == 0) {
+        if (annlist.length == 0 || inflection.ann[0] == "") {
             d3.selectAll(".infl-ann")
                 .transition()
                 .duration(200)
@@ -1475,7 +1484,7 @@ function Inflection() {
         let highlight = inflection.high
         //TODO save initial colour to data of element/marker
 
-        if (highlight.length == 0) {
+        if (highlight.length == 0 || inflection.high[0] == "") {
             d3.selectAll("path")
                 .filter(function() {
                     let role_descr = d3.select(this).attr("aria-roledescription");
@@ -1555,10 +1564,13 @@ function Inflection() {
 
             //if linechart, we need to place highlight circle
             d3.select(".highlight-group").select(".highlight-circle")
+                .style("visibility", "visible")
+                .transition("trans-high")
+                .duration(200)
+                .ease(d3.easeLinear)
                 .attr("fill", inflection.col)
                 .attr("cx", that.getXAxScale()(+x_of_high))
                 .attr("cy", that.getYAxScale()(+y_of_high))
-                .style("visibility", "visible")
             
             // switch (that.chartPath) {
             //     case "barchart":
@@ -1866,16 +1878,16 @@ function Inflection() {
     
                     if (other_transl != -1) {
                         let new_transl = newScale(value);
-                        // const markerPromise = new Promise((resolve) => {
+                        const markerPromise = new Promise((resolve) => {
                             marker
                                 .style("visibility", "visible")
-                                // .transition("move-" + axisType[0])
-                                // .duration(200)
-                                // .ease(d3.easeLinear)
+                                .transition("move-" + axisType[0])
+                                .duration(200)
+                                .ease(d3.easeLinear)
                                 .attr("transform", 'translate(' + (axisType === "yax" ? other_transl + ',' + new_transl : new_transl + ',' + other_transl) + ')')
-                                // .on("end", () => resolve());
-                            // });
-                            // promises.push(markerPromise);
+                                .on("end", () => resolve());
+                            });
+                            promises.push(markerPromise);
                             const [x, y] = axisType === "yax" ? [other_transl, new_transl] : [new_transl, other_transl];
                             if (x > SVGwidth || y > SVGheight || x < 0 || y < 0) {
                                 marker.style("visibility", "hidden");
@@ -1926,12 +1938,12 @@ function Inflection() {
 
                             // const markerPromise = new Promise((resolve) => {
                                 marker
+                                .attr("clip-path", "url(#clip)")
                                     // .transition("move-" + axisType[0])
                                     // .duration(200)
                                     // .ease(d3.easeLinear)
                                     .attr("d", newPath)
-                                    .attr("clip-path", "url(#clip)");
-                                    // .on("end", () => resolve());
+                                    .on("end", () => resolve());
                             // });
     
                             // promises.push(markerPromise);
@@ -1947,9 +1959,9 @@ function Inflection() {
             // Annotations
             // const markerPromise = new Promise((resolve) => {
             d3.select("svg").selectAll(".infl-ann-text")
-                .transition("move-" + axisType[0])
-                .duration(200)
-                .ease(d3.easeLinear)
+                // .transition("move-" + axisType[0])
+                // .duration(200)
+                // .ease(d3.easeLinear)
                 .attr(axisType[0], (d) => newScale(+d[axisType[0] + "Data"][0]))
                 // .on("end", () => resolve());
             // });
@@ -1972,9 +1984,9 @@ function Inflection() {
                 });
 
             d3.select(".highlight-circle")
-                .transition("move-" + axisType[0])
-                .duration(200)
-                .ease(d3.easeLinear)
+                // .transition("move-" + axisType[0])
+                // .duration(200)
+                // .ease(d3.easeLinear)
                 .attr(axisType === "yax" ? "cy" : "cx", axisType === "yax" ? newScale(inflection.high[1]) : newScale(inflection.high[0]));
                 
 
