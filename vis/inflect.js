@@ -17,7 +17,6 @@ function Inflection() {
     this.yAxQuant = false;
 
     this.default_infl_col = "#00F05E"
-    this.basecol = ""; // colour of the bars
     this.baseyax = [0, 0];
     this.basexax = [0, 0];
 
@@ -94,31 +93,8 @@ function Inflection() {
 
 
 
-        //try multiple options to set basecolour of element
-        try {
-            this.basecol = d3.select(".mark-rect").select("path").attr("fill")
-            if(!this.basecol || this.basecol == "" || typeof this.basecol == 'undefined' || this.basecol == "transparent") {
-                this.basecol = d3.select(".mark-rect").select("path").attr("stroke")
-            }
-        } catch {
-            try {
-                this.basecol = d3.select(".mark-symbol").select("path").attr("fill")
-                if(!this.basecol || this.basecol == "" || typeof this.basecol == 'undefined' || this.basecol == "transparent") {
-                    this.basecol = d3.select(".mark-symbol").select("path").attr("stroke")
-                }
-            } catch {
-                try {
-                    this.basecol = d3.select(".mark-line").select("path").attr("fill")
-                    if(!this.basecol || this.basecol == "" || typeof this.basecol == 'undefined' || this.basecol == "transparent") {
-                        this.basecol = d3.select(".mark-line").select("path").attr("stroke")
-                    }
-                } catch {
-                    this.basecol = "#4c78a8"
-                }
                 
-            }
-
-        }
+     
 
         // if plot is a linechart, we need an array to store the data
         var lineElement = d3.selectAll("path")
@@ -256,7 +232,7 @@ function Inflection() {
                 that.col();
             }
 
-            if (!cats_in_hash.includes("line") || inflection.line[0] == "") {
+            if (!cats_in_hash.includes("line")) {
                 inflection.line = []
                 that.line();
             }
@@ -270,11 +246,11 @@ function Inflection() {
                 that.axis("xax");
             }
 
-            if (!cats_in_hash.includes("ann")  || inflection.ann[0] == "") {
+            if (!cats_in_hash.includes("ann")) {
                 inflection.ann = [];
                 that.ann();
             }
-            if (!cats_in_hash.includes("high")  || inflection.high[0] == "") {
+            if (!cats_in_hash.includes("high")) {
                 inflection.high = []
                 that.highlight();
             }
@@ -812,9 +788,9 @@ function Inflection() {
                     var path = d3.select(this)
                     // get x value of bar to store it
                     let aria_label = path.attr("aria-label")
-                    let xvalue = get_x_of_aria_label(aria_label);
-                    let yvalue = get_y_of_aria_label(aria_label);
-                    var highlight = xvalue + ";" + yvalue
+                    let axis_values = aria_label.split("; ")
+                    let axis_values_splitted = axis_values.map((e) => e.split(": "))
+                    let values = axis_values_splitted.map(e => e[1]);
 
                     let current_col = path.attr("fill");
                     if (!current_col || current_col == "transparent" || current_col == 'undefined' ) {
@@ -828,7 +804,7 @@ function Inflection() {
                         inflection.high = []; //reset to old colour
                         
                     } else {
-                        inflection.high = [xvalue, yvalue]
+                        inflection.high = values
                         document.getElementById('infl-text-input').value = aria_label.replace("; ", "\n");
                     }
 
@@ -1406,7 +1382,7 @@ function Inflection() {
 
         let annlist = inflection.ann
         if (annlist.length == 0 || inflection.ann[0] == "") {
-            d3.selectAll(".infl-ann")
+            d3.selectAll(".infl-ann-text")
                 .transition()
                 .duration(200)
                 .ease(d3.easeLinear)
@@ -1496,13 +1472,13 @@ function Inflection() {
                 .attr("fill", function() {
                     let current_col = d3.select(this).attr("fill")
                     if(current_col && (typeof current_col !== 'undefined') && (current_col !== 'transparent')) {
-                        return that.basecol
+                        return d3.select(this).datum().fill
                     }
                 })
                 .attr("stroke", function() {
                     let current_col = d3.select(this).attr("stroke")
                     if(current_col && (typeof current_col !== 'undefined')  && (current_col !== 'transparent')) {
-                        return that.basecol
+                        return d3.select(this).datum().stroke
                     }
                 });
             
@@ -1515,8 +1491,7 @@ function Inflection() {
             await Promise.all(promises);
             promises = [];
 
-            var x_of_high = highlight[0]
-            var y_of_high = highlight[1]
+
 
             var path = d3.selectAll("path")
                 .filter(function() {
@@ -1525,12 +1500,20 @@ function Inflection() {
 
                     let aria_label = d3.select(this).attr("aria-label") // e.g. "a: D; b: 91"
                     if(aria_label) {
-                        let xvalue = get_x_of_aria_label(aria_label);
-                        let yvalue = get_y_of_aria_label(aria_label);
+                        let axis_values = aria_label.split("; ")
+                        let axis_values_splitted = axis_values.map((e) => e.split(": "))
+                        let values = axis_values_splitted.map(e => e[1]);
+                        let erg = [];
+                        values.forEach((e, i) => {
+                            erg.push(e == highlight[i])
+                        })
 
-                        var isx = (xvalue == x_of_high);
-                        var isy = (yvalue == y_of_high);
-                        return  ismarker && isx && isy
+                        // let xvalue = get_x_of_aria_label(aria_label);
+                        // let yvalue = get_y_of_aria_label(aria_label);
+
+                        // var isx = (xvalue == x_of_high);
+                        // var isy = (yvalue == y_of_high);
+                        return  ismarker && erg.every(Boolean)
                     } else {
                         return false;
                     }
@@ -1563,6 +1546,8 @@ function Inflection() {
             }
 
             //if linechart, we need to place highlight circle
+            var x_of_high = highlight[0]
+            var y_of_high = highlight[1]
             d3.select(".highlight-group").select(".highlight-circle")
                 .style("visibility", "visible")
                 .transition("trans-high")
@@ -1707,11 +1692,14 @@ function Inflection() {
 
                     let aria_label = d3.select(this).attr("aria-label") // e.g. "a: D; b: 91"
                     if(aria_label) {
-                        let xvalue = get_x_of_aria_label(aria_label); 
-                        let yvalue = get_y_of_aria_label(aria_label); 
-                        var isx = (xvalue == x_of_high)
-                        var isy =(yvalue == y_of_high)
-                        return  !(ismarker && isx && isy)
+                        let axis_values = aria_label.split("; ")
+                        let axis_values_splitted = axis_values.map((e) => e.split(": "))
+                        let values = axis_values_splitted.map(e => e[1]);
+                        let erg = [];
+                        values.forEach((e, i) => {
+                            erg.push(e == highlight[i])
+                        })
+                        return  (ismarker && erg.every(Boolean)) == false
                     } else {
                         return false;
                     }
@@ -1723,13 +1711,13 @@ function Inflection() {
                 .attr("fill", function() {
                     let current_col = d3.select(this).attr("fill")
                     if(current_col && (typeof current_col !== 'undefined') && (current_col !== 'transparent')) {
-                        return that.basecol
+                        return d3.select(this).datum().fill 
                     }
                 })
                 .attr("stroke", function() {
                     let current_col = d3.select(this).attr("stroke")
                     if(current_col && (typeof current_col !== 'undefined')  && (current_col !== 'transparent')) {
-                        return that.basecol
+                        return d3.select(this).datum().stroke
                     }
                 })
                 
@@ -1897,16 +1885,29 @@ function Inflection() {
                             // }
                     } else {
                         var path = marker.attr("d");
-                        let regex = axisType === "yax" ? /M(\d+),(-?[0-9.]+)h(\d+)v(\d+)/ : /M(\d+),(-?[0-9.]+)h([0-9.]+)v([0-9.]+)h-([0-9.]+)Z/;
+                        let regex = /M(-?[0-9.]+),(-?[0-9.]+)h(-?[0-9.]+)v(-?[0-9.]+)/;
                         let match = path.match(regex);
     
                         if (match) { // it is a bar
-                            let start = parseFloat(match[axisType === "yax" ? 2 : 1]);
-                            let length = parseFloat(match[axisType === "yax" ? 4 : 3]);
-                            let new_length = Math.max(newScale(value), 0);
+                            var datum = marker.datum()
+                            var newPath;
+                            if(datum.datum.__count_end) {//stacked bar chart
+                                let start = datum.datum.__count_start
+                                let end = datum.datum.__count_end
+                                let new_start = newScale(start)
+                                let new_end = newScale(end)
+                                let new_length = new_start - new_end 
+                                newPath = axisType === "yax" ? `M${match[1]},${new_end}h${match[3]}v${new_length}h-${match[3]}Z` : `M${new_end},${match[2]}h${new_length}v${match[4]}h-${new_length}Z`;
     
-                            let newPath = axisType === "yax" ? `M${match[1]},${new_length}h${match[3]}v${SVGheight - new_length}h-${match[3]}Z` : `M${match[1]},${match[2]}h${new_length}v${match[4]}h-${new_length}Z`;
-    
+                            } else {
+                                // let start_x = datum.x;
+                                // let start_y = datum.y;
+                                // let width = datum.width;
+                                // let height = parseFloat(match[4]);
+                                let new_length = Math.max(newScale(value), 0);
+                                // newPath = axisType === "yax" ? `M${match[1]},${new_length}h${match[3]}v${SVnew_length}h-${match[3]}Z` : `M${new_end},${match[2]}h${new_length}v${match[4]}h-${new_length}Z`;
+                                newPath = axisType === "yax" ? `M${match[1]},${new_length}h${match[3]}v${SVGheight - new_length}h-${match[3]}Z` : `M${match[1]},${match[2]}h${new_length}v${match[4]}h-${new_length}Z`;
+                            }
                             const markerPromise = new Promise((resolve) => {
                                 marker.transition("move-" + axisType[0])
                                     .duration(200)
