@@ -105,23 +105,26 @@ function Inflection() {
         if (!lineElement.empty() && isScatter) { //we have a linechart
             var Xscale = that.getXAxScale()
             var Yscale = that.getYAxScale()
-            let path = lineElement.attr("d")
+            lineElement.each(function(d) {
+                let path = d3.select(this).attr("d")
 
-            const commands = path.match(/[a-zA-Z][^a-zA-Z]*/g);              
+                const commands = path.match(/[a-zA-Z][^a-zA-Z]*/g);              
 
-            // save the data points
-            dataPointsLinechart = commands.map(command => {
-                const type = command[0];
-                const coords = command.slice(1).split(',').map(Number);
+                // save the data points
+                dataPoints = commands.map(command => {
+                    const type = command[0];
+                    const coords = command.slice(1).split(',').map(Number);
 
-                if (coords.length === 2) {
-                    const [x, y] = coords;
-                    const dataX = Xscale.invert(x)
-                    const dataY = Yscale.invert(y)
-                    return [dataX, dataY];
-                } else {
-                    return command;
-                }
+                    if (coords.length === 2) {
+                        const [x, y] = coords;
+                        const dataX = Xscale.invert(x)
+                        const dataY = Yscale.invert(y)
+                        return [dataX, dataY];
+                    } else {
+                        return command;
+                    }
+                });
+                dataPointsLinechart.push({data: dataPoints, description: d.description})
             });
 
             // also add clipping to svg
@@ -829,12 +832,13 @@ function Inflection() {
                     .data([""])
                     .join("circle")
                     .attr("r", 5)
+                    .attr("class", "tooltip-point")
                     .attr("fill", inflection.col)
                     .attr("opacity", 0.7)
                     .attr("visibility", "hidden")
 
                 var res;
-                d3.selectAll([...lineSelection, ...d3.select(".background")])
+                d3.selectAll([...lineSelection, ...d3.select(".background"), ...tooltip_point])
                     .on("mouseover", function (event) {
                         // var label = lineSelection.attr("aria-label")
                         tooltip.style("visibility", "visible")
@@ -845,42 +849,52 @@ function Inflection() {
                         let xScale = that.getXAxScale()
                         let yScale = that.getYAxScale()
                         let points_in_reach = 0;
-                        dataPointsLinechart.forEach((element) => {
-                            let [x,y] = [xScale(element[0]), yScale(element[1])]
-                            // console.log(x,y)
-                            if(event.layerX < (x + 10) && event.layerX > (x - 10)
-                                && event.layerY < (y + 10) && event.layerY > (y - 10))
-                             {
-                                points_in_reach += 1;
-                             }
+                        let description = [];
+                        dataPointsLinechart.forEach((line) => {
+                            let data = line.data
+                            let descr = line.description
+                            data.forEach((element) => {
+                                let [x,y] = [xScale(element[0]), yScale(element[1])]
+                                if(event.layerX < (x + 10) && event.layerX > (x - 10)
+                                    && event.layerY < (y + 10) && event.layerY > (y - 10))
+                                {
+                                    points_in_reach += 1;
+                                    description.push(descr);
+                                }
+                            })
                         })
+
+                        
 
                         if(points_in_reach == 0) {
                             tooltip.style("visibility", "hidden");
                             tooltip_point.style("visibility", "hidden")
                             res = null;
                         } else {
+                            var closest_descr = mostFrequent(description)
+                            var data_points = d3.selectAll(dataPointsLinechart).filter((d, i, array) => {
+                                return array[i].description == closest_descr})
+                                .node().data
                             let point1, point2;
-                            for (let i = 0; i < dataPointsLinechart.length - 1; i++) {
-                                if (dataPointsLinechart[i][0] <= mouse_x_data && dataPointsLinechart[i + 1][0] >= mouse_x_data) {
-                                    point1 = dataPointsLinechart[i];
-                                    point2 = dataPointsLinechart[i + 1];
+                            for (let i = 0; i < data_points.length - 1; i++) {
+                                if (data_points[i][0] <= mouse_x_data && data_points[i + 1][0] >= mouse_x_data) {
+                                    point1 = data_points[i];
+                                    point2 = data_points[i + 1];
                                     break;
                                 }
                             }
                             
 
                             if (!point1 || !point2) {
-                                // If no points are found, return null
-                                if(dataPointsLinechart[0][0] >= mouse_x_data) { 
-                                    res = { x_data: dataPointsLinechart[0][0], y_data: dataPointsLinechart[0][1],
-                                        x_pixel: event.layerX, y_pixel: yScale(dataPointsLinechart[0][1])
+                                if(data_points[0][0] >= mouse_x_data) { //first point
+                                    res = { x_data: data_points[0][0], y_data: data_points[0][1],
+                                        x_pixel: event.layerX, y_pixel: yScale(data_points[0][1])
                                     };
                                 } 
                                 else {
-                                    res = { x_data: dataPointsLinechart[dataPointsLinechart.length - 1][0],
-                                        y_data: dataPointsLinechart[dataPointsLinechart.length - 1][1],
-                                        x_pixel: event.layerX, y_pixel: yScale(dataPointsLinechart[dataPointsLinechart.length - 1][1])
+                                    res = { x_data: data_points[data_points.length - 1][0], //last point
+                                        y_data: data_points[data_points.length - 1][1],
+                                        x_pixel: event.layerX, y_pixel: yScale(data_points[data_points.length - 1][1])
                                     }
                                 }
                             } else {
@@ -908,10 +922,14 @@ function Inflection() {
 
 
                     })
-                    .on("mouseout", function () {
-                        tooltip.style("visibility", "hidden");
-                        tooltip_point.style("visibility", "hidden")
-                        res = null;
+                    .on("mouseout", function (event) {
+                        let new_element = d3.select(event.relatedTarget)
+                        if(new_element && !new_element.empty()) {var class_new_element = new_element.attr("class")}
+                        if(class_new_element && class_new_element != "tooltip-point" && class_new_element != "background") {
+                            tooltip.style("visibility", "hidden");
+                            tooltip_point.style("visibility", "hidden")
+                            res = null;
+                        }
                     })
                     .on("click", function () {
                         if(res){
@@ -1454,6 +1472,7 @@ function Inflection() {
                 .each(function(d) {
                     const lines = d.text.split("\n");
                     const textElement = d3.select(this);
+                    d3.select(this).selectAll("tspan").remove();
                     lines.forEach((line, i) => {
                         textElement.append("tspan")
                             .attr("x", d.x)
@@ -1479,7 +1498,6 @@ function Inflection() {
         // <path aria-label="a: A; b: 28" role="graphics-symbol" aria-roledescription="bar" d="M1,144h18v56h-18Z" fill="#4c78a8"></path>
         var that = this;
         let highlight = inflection.high
-        //TODO save initial colour to data of element/marker
 
         if (highlight.length == 0 || inflection.high[0] == "") {
             d3.selectAll("path")
@@ -1829,6 +1847,7 @@ function Inflection() {
                     axisSelection.select('.mark-text.role-axis-label text').clone().call(function(sel) {
                         sel.attr("transform", 'translate(' + (axisType === "yax" ? label_transf + ',' + (new_tick_pos + 3) : (new_tick_pos + 3) + ',15') + ')')
                             .text(is_US_string ? new_tick_val.toLocaleString('en-US') : new_tick_val)
+                            // .attr("text-anchor", "middle") //TODO fix text anchor (is last or first?)
                             .attr("opacity", new_opacity);
                         sel.node().parentNode.appendChild(sel.node());
                     });
@@ -1888,16 +1907,16 @@ function Inflection() {
     
                     if (other_transl != -1) { //points and circles
                         let new_transl = newScale(value);
-                        const markerPromise = new Promise((resolve) => {
+                        // const markerPromise = new Promise((resolve) => {
                             marker
                                 .style("visibility", "visible")
-                                .transition("move-" + axisType[0])
-                                .duration(200)
-                                .ease(d3.easeLinear)
+                                // .transition("move-" + axisType[0])
+                                // .duration(200)
+                                // .ease(d3.easeLinear)
                                 .attr("transform", 'translate(' + (axisType === "yax" ? other_transl + ',' + new_transl : new_transl + ',' + other_transl) + ')')
-                                .on("end", () => resolve());
-                            });
-                            promises.push(markerPromise);
+                                // .on("end", () => resolve());
+                            // });
+                            // promises.push(markerPromise);
                             const [x, y] = axisType === "yax" ? [other_transl, new_transl] : [new_transl, other_transl];
                             if (x > SVGwidth || y > SVGheight || x < 0 || y < 0) {
                                 marker.style("visibility", "hidden");
@@ -1931,8 +1950,12 @@ function Inflection() {
                             });
     
                             promises.push(markerPromise);
-                        } else {// it is a linechart
+                        } else if(marker.attr("aria-roledescription") == "line mark"){// it is a linechart
                             const commands = path.match(/[a-zA-Z][^a-zA-Z]*/g);
+                            const description = marker.datum().description;
+                            var data_points = d3.selectAll(dataPointsLinechart).filter((d, i, array) => {
+                                return array[i].description == description})
+                                .node()
                             
 
                             // Transform the coordinates
@@ -1942,8 +1965,8 @@ function Inflection() {
 
                                 if (coords.length === 2) {
                                     const [x, y] = coords;
-                                    const newX = axisType === "yax" ? x : newScale(dataPointsLinechart[i][0]);
-                                    const newY = axisType === "yax" ? newScale(dataPointsLinechart[i][1]) : y;
+                                    const newX = axisType === "yax" ? x : newScale(data_points.data[i][0]);
+                                    const newY = axisType === "yax" ? newScale(data_points.data[i][1]) : y;
                                     return `${type}${newX},${newY}`;
                                 } else {
                                     return command;
@@ -1963,8 +1986,6 @@ function Inflection() {
     
                             // promises.push(markerPromise);
 
-
-
                         }
 
                         
@@ -1977,6 +1998,8 @@ function Inflection() {
                 // .transition("move-" + axisType[0])
                 // .duration(200)
                 // .ease(d3.easeLinear)
+                .attr(axisType[0], (d) => newScale(+d[axisType[0] + "Data"][0]))
+            d3.select("svg").selectAll(".infl-ann-text").selectAll("tspan")
                 .attr(axisType[0], (d) => newScale(+d[axisType[0] + "Data"][0]))
                 // .on("end", () => resolve());
             // });
@@ -2311,18 +2334,46 @@ function Inflection() {
 
     function get_x_of_aria_label(aria_label) { // Extract X value from translate(X,Y)
         var match = -1;
-        if(aria_label && aria_label.match(/\b\w+:\s*([\w.]+)/)) {
-            var match = aria_label.match(/\b\w+:\s*([\w.]+)/)[1];
+        if(aria_label){
+            let axis_values = aria_label.split("; ")
+            let axis_values_splitted = axis_values.map((e) => e.split(": "))
+            let values = axis_values_splitted.map(e => e[1]);
+            return values[0]
         }
         return match;
+
+
+        // if(aria_label && aria_label.match(/\b\w+:\s*([\w.]+)/)) {
+        //     var match = aria_label.match(/\b\w+:\s*([\w.]+)/)[1];
+        // }
+        // return match;
     }
 
     function get_y_of_aria_label(aria_label) { // Extract X value from translate(X,Y)
         var match = -1;
-        if(aria_label && aria_label.match(/(?:\b\w+:\s*[\w.]+;?\s*)\b\w+:\s*([\w.]+)/)) {
-            var match = aria_label.match(/(?:\b\w+:\s*[\w.]+;?\s*)\b\w+:\s*([\w.]+)/)[1];
+        if(aria_label){
+            let axis_values = aria_label.split("; ")
+            let axis_values_splitted = axis_values.map((e) => e.split(": "))
+            let values = axis_values_splitted.map(e => e[1]);
+            return values[1]
         }
         return match;
+    }
+
+    function mostFrequent(arr) {
+        const frequency = {};
+        let maxCount = 0;
+        let mostFrequentValue = null;
+    
+        arr.forEach(value => {
+            frequency[value] = (frequency[value] || 0) + 1;
+            if (frequency[value] > maxCount) {
+                maxCount = frequency[value];
+                mostFrequentValue = value;
+            }
+        });
+    
+        return mostFrequentValue;
     }
 
 

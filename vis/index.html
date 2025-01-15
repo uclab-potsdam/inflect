@@ -59,12 +59,16 @@
                         var y_quant = false;
                     }
                     var scatterplot = false;
-                    if(x_quant && y_quant && (spec.mark == "point" || spec.mark == "circle" || spec.mark == "line")){
+                    
+                    if(x_quant && y_quant && (spec.mark == "point" || spec.mark == "circle" || spec.mark == "line" || spec.mark.type == "line")) {
                         var scatterplot = true;
                     } 
 
                     //TODO remove vega-lite dragging behaviour in spec
                     // add "usermeta": {"embedOptions": {"renderer": "svg"}} to spec if not existent
+                    if(!spec.usermeta){
+                        spec.usermeta = {"embedOptions": {"renderer": "svg"}};
+                    }
 
                     var result = vegaEmbed("#vis", spec, {mode: "vega-lite"}).then(
                         function() {

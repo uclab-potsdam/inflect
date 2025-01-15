@@ -17,7 +17,9 @@ More details about [this](vis/index.html#vis=scatterplot&col=%23d08120&yax=12.58
 
 More details about [linecharts](vis/index.html#vis=linechart&col=%2300F05E&yax=92;892&xax=2004.82;2010.42&line=&ann=&high=2008.54;473.04) are always interesting.
 
-Even more [linecharts](vis/index.html#vis=linechart&col=%2300F05E&yax=250;700&xax=2007;2010&line=&ann=&high=2008.54;473.04) are always interesting.
+Even more [linecharts](vis/index.html#vis=linechart&col=%2300F05E&yax=250;700&xax=2007;2010&line=&ann=&high=2008.54;473.04) are extra fun.
+
+And when you have [multiple lines](vis/index.html#vis=multiple_linechart&col=%2300F05E&yax=0;549.5&xax=2000;2010&line=&ann=2007.7%3B0%3B250%3B0%3BMean%20of%20price%3A%0A286.4725&high=2005;286.4725;GOOG) it adds to the overall experience.
 
 Transition test [part 1](vis/index.html#vis=linechart&col=%2300F05E&yax=249.77;751.38&xax=2006.29;2009.82&line=2009.504625;0;2008.60;0;343.8;0;577.1;0&ann=2008.96%3B0%3B603.4%3B0%3B2007.62%0A525.07&high=2007.31;484.30).
 
