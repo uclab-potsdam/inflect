@@ -456,6 +456,7 @@ function Inflection() {
                 if (text == "") {
                     text = d3.select("#infl-text-input").attr("placeholder")
                 }
+                
 
                 //position in middle
                 var mid_x_pixel = SVGwidth/2;
@@ -464,7 +465,7 @@ function Inflection() {
                 var mid_y_pixel = SVGheight/2;
                 var [mid_y_data, ybetween] = that.invertYScale(mid_y_pixel)
                 var array = [mid_x_data, xbetween, mid_y_data, ybetween]
-                var roundedArray = array.map(num => parseFloat(parseFloat(num).toFixed(2)));
+                var roundedArray = array.map(num => typeof(num) == "number"? parseFloat(parseFloat(num).toFixed(2)) : num);
 
                 roundedArray[4] = text
                 anns.push(roundedArray.join(";"))
@@ -473,6 +474,8 @@ function Inflection() {
                 that.ann()
                 that.updateHash()
                 that.updateEditable()
+
+                
 
             });
         // #endregion
@@ -929,8 +932,9 @@ function Inflection() {
             // #endregion
 
             // #region annotation text
+            // d3.selectAll([...d3.selectAll(".infl-ann-text-span"), ...d3.selectAll(".infl-ann-text")])
             d3.selectAll(".infl-ann-text")
-                .style("cursor", "move")
+            .style("cursor", "move")
                 .on("dblclick", function () {
 
                     var anns = inflection.ann
@@ -947,15 +951,11 @@ function Inflection() {
 
                     that.updateHash()
 
-
                     
                 })
                 .call(d3.drag()
                     .on("start", function () {
-                        // var text_object = d3.select(this)
-                        // text_object
-                        //     .attr("x", event.sourceEvent.clientX)
-                        //     .attr("y", event.sourceEvent.clientY);
+                        d3.select(this).raise()
                     })
                     .on("drag", function (event) {
                         var text_object = d3.select(this);
@@ -967,9 +967,19 @@ function Inflection() {
                         const xdragAmount = event.dx;
                         const ydragAmount = event.dy;
 
+                        const new_x = clampToWidth(text_current_pos.x + xdragAmount);
+                        const new_y = clampToHeight(text_current_pos.y + ydragAmount);
+
                         text_object
-                            .attr("x", clampToWidth(text_current_pos.x + xdragAmount))
-                            .attr("y", clampToHeight(text_current_pos.y + ydragAmount));
+                            .attr("x", new_x)
+                            .attr("y", new_y);
+
+
+                        // Update the positions of the tspans
+                        text_object.selectAll("tspan")
+                            .attr("x", new_x)
+                            .attr("y", new_y)
+
                     })
                     .on("end", function () {
                         var anns = inflection.ann
@@ -1401,6 +1411,7 @@ function Inflection() {
             //     .range([SVGheight, 0]);
             var currXScale = that.getXAxScale()
             var currYScale = that.getYAxScale()
+            //TODO NANs when text is on the edge of SVG
             
 
             let data = [];
@@ -1431,8 +1442,6 @@ function Inflection() {
                     }
                 })
 
-                // console.log(text.split("\n")) //TODO Umbruch in Texts
-
             });
 
             
@@ -1442,10 +1451,22 @@ function Inflection() {
                 .style("text-anchor", "middle")
                 .attr("class", "infl-ann-text")
                 .style("fill", inflection.col)
+                .each(function(d) {
+                    const lines = d.text.split("\n");
+                    const textElement = d3.select(this);
+                    lines.forEach((line, i) => {
+                        textElement.append("tspan")
+                            .attr("x", d.x)
+                            .attr("y", d.y)
+                            .attr("class", "infl-ann-text-span")
+                            .attr("dy", `${i * 1.2}em`)
+                            .text(line);
+                    });
+                })
                 .transition("move-ann")
                 .duration(200)
                 .ease(d3.easeLinear)
-                    .text(d => d.text)
+                    // .text(d => d.text)
                     .attr("x", d => d.x)
                     .attr("y", d => d.y)
 
@@ -1793,20 +1814,21 @@ function Inflection() {
             var curr_num_of_ticks = label_nodeArray.length;
             var max_tick_value = +d3.select(label_nodeArray[curr_num_of_ticks - 1]).text().replaceAll(",", "");
             var min_tick_value = +d3.select(label_nodeArray[0]).text().replaceAll(",", "");
-            var tick_val_dist = max_tick_value - +d3.select(label_nodeArray[curr_num_of_ticks - 2]).text().replaceAll(",", "");
-    
+            var tick_val_dist = max_tick_value - parseFloat(d3.select(label_nodeArray[curr_num_of_ticks - 2]).text().replaceAll(",", ""));
+            var is_US_string = d3.select(label_nodeArray[curr_num_of_ticks - 2]).text().includes(",");
+
             let period = detectPeriodicity(opacities);
             if ((maxValue - tick_val_dist) > max_tick_value || (minValue + tick_val_dist) < min_tick_value) {
                 var num_of_missin_max_ticks = Math.floor((+maxValue - max_tick_value) / tick_val_dist);
     
-                for (let i = 0; i < num_of_missin_max_ticks; i++) {
+                for (let i = 0; i < num_of_missin_max_ticks; i++) { //in upper range
                     var new_tick_val = max_tick_value + (i + 1) * tick_val_dist;
                     var new_tick_pos = newScale(new_tick_val);
                     let new_opacity = opacities[(curr_num_of_ticks + i) % period];
     
                     axisSelection.select('.mark-text.role-axis-label text').clone().call(function(sel) {
                         sel.attr("transform", 'translate(' + (axisType === "yax" ? label_transf + ',' + (new_tick_pos + 3) : (new_tick_pos + 3) + ',15') + ')')
-                            .text(new_tick_val.toLocaleString('en-US'))
+                            .text(is_US_string ? new_tick_val.toLocaleString('en-US') : new_tick_val)
                             .attr("opacity", new_opacity);
                         sel.node().parentNode.appendChild(sel.node());
                     });
@@ -1824,14 +1846,14 @@ function Inflection() {
     
                 var num_of_missin_min_ticks = Math.floor(Math.abs(+minValue + min_tick_value) / tick_val_dist);
     
-                for (let i = 0; i < num_of_missin_min_ticks; i++) {
+                for (let i = 0; i < num_of_missin_min_ticks; i++) { // in lower range
                     var new_tick_val = min_tick_value - (i + 1) * tick_val_dist;
                     var new_tick_pos = newScale(new_tick_val);
                     let new_opacity = opacities[(curr_num_of_ticks + i) % period];
     
                     axisSelection.select('.mark-text.role-axis-label text').clone().call(function(sel) {
                         sel.attr("transform", 'translate(' + (axisType === "yax" ? label_transf + ',' + (new_tick_pos + 3) : (new_tick_pos + 3) + ',15') + ')')
-                            .text(new_tick_val.toLocaleString('en-US'))
+                            .text(is_US_string ? new_tick_val.toLocaleString('en-US') : new_tick_val)
                             .attr("opacity", new_opacity);
                         let parent = sel.node().parentNode;
                         parent.insertBefore(sel.node(), parent.firstChild);
@@ -1864,7 +1886,7 @@ function Inflection() {
     
                     let other_transl = axisType === "yax" ? get_x_translate(marker.attr("transform")) : get_y_translate(marker.attr("transform"));
     
-                    if (other_transl != -1) {
+                    if (other_transl != -1) { //points and circles
                         let new_transl = newScale(value);
                         const markerPromise = new Promise((resolve) => {
                             marker
@@ -1880,10 +1902,7 @@ function Inflection() {
                             if (x > SVGwidth || y > SVGheight || x < 0 || y < 0) {
                                 marker.style("visibility", "hidden");
                             }
-                            //  else {
-                            //     marker.style("visibility", "visible");
-                            // }
-                    } else {
+                    } else { //bars
                         var path = marker.attr("d");
                         let regex = /M(-?[0-9.]+),(-?[0-9.]+)h(-?[0-9.]+)v(-?[0-9.]+)/;
                         let match = path.match(regex);
@@ -1900,12 +1919,7 @@ function Inflection() {
                                 newPath = axisType === "yax" ? `M${match[1]},${new_end}h${match[3]}v${new_length}h-${match[3]}Z` : `M${new_end},${match[2]}h${new_length}v${match[4]}h-${new_length}Z`;
     
                             } else {
-                                // let start_x = datum.x;
-                                // let start_y = datum.y;
-                                // let width = datum.width;
-                                // let height = parseFloat(match[4]);
                                 let new_length = Math.max(newScale(value), 0);
-                                // newPath = axisType === "yax" ? `M${match[1]},${new_length}h${match[3]}v${SVnew_length}h-${match[3]}Z` : `M${new_end},${match[2]}h${new_length}v${match[4]}h-${new_length}Z`;
                                 newPath = axisType === "yax" ? `M${match[1]},${new_length}h${match[3]}v${SVGheight - new_length}h-${match[3]}Z` : `M${match[1]},${match[2]}h${new_length}v${match[4]}h-${new_length}Z`;
                             }
                             const markerPromise = new Promise((resolve) => {
