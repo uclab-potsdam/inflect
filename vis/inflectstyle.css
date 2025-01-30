@@ -12,10 +12,7 @@
     src: local('sans-serif'), url(http://example.com/fonts/sans-serif.woff) format('woff');
 } */
 
-#vis {
-    margin-left: 30px;
-    margin-top: 25px;
-}
+
 body {
     overflow: hidden;
     height: 100vh;

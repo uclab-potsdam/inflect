@@ -1,7 +1,6 @@
 
 function Inflection() {
     // set base URL
-    this.baseurl = "";
     this.hash = window.location.hash.substring(1);
     var inflection = {
         line: [],
@@ -13,31 +12,28 @@ function Inflection() {
     };
 
     this.chartPath = "";
-    this.xAxQuant = false; //if axis is quantitative
-    this.yAxQuant = false;
+    this.xAxQuant = false; //if x axis is quantitative or qualitative
+    this.yAxQuant = false; //if y axis is quantitative or qualitative
 
     this.default_infl_col = "#00F05E"
-    this.baseyax = [0, 0];
-    this.basexax = [0, 0];
+    this.baseyax = [0, 0]; //min and max values displayed of y axis
+    this.basexax = [0, 0]; //min and max values displayed of x axis
 
     this.editable = true; // states if page in iframe or separate window with UI
-    this.isScatter = false;
+    this.isDragable = false; // if chart is dragable e.g. for scatterplot or linechart
 
     var SVGheight = 0;
     var SVGwidth = 0;
-    var dataPointsLinechart = [];
+    var dataPointsLinechart = []; //array to store datapoints if chart is a linechart
     
     var promises = []; // Array to store promises for transitions
     var tooltip;
 
 
     //initialise
-    this.init = function (chartPath, xAxQuant, yAxQuant, isScatter) {
+    this.init = function (chartPath, xAxQuant, yAxQuant, isDragable) {
 
         var that = this;
-        this.baseurl = document.URL.split("#")[0];
-        // that.col = that.hash.split("_")[0]
-        
 
         // establish borders
         let first_transform = d3.select("svg").select("g").attr("transform");
@@ -48,17 +44,17 @@ function Inflection() {
 
         // append groups to insert lines and annotations
         d3.select("svg").append("g").attr("class", "line-group")
-        .attr("transform", "translate(" + border_x + "," + border_y + ")")
+            .attr("transform", "translate(" + border_x + "," + border_y + ")")
         
 
         d3.select("svg").append("g").attr("class", "ann-group")
-        .attr("transform", "translate(" + border_x + "," + border_y + ")")
-        // .append("rect").style("border", "2px solid black") //for debugging
-        // .style("width", "210px").style("height", "333px")
-        // .style("fill", "red").style("opacity", "0.4")
+            .attr("transform", "translate(" + border_x + "," + border_y + ")")
 
 
         d3.select("svg").append("g").attr("class", "highlight-group")
+        .attr("transform", "translate(" + border_x + "," + border_y + ")")
+
+        d3.select("svg").append("g").attr("class", "drag-areas-group")
         .attr("transform", "translate(" + border_x + "," + border_y + ")")
 
         // Establish plot area height and width
@@ -77,9 +73,9 @@ function Inflection() {
         }).select(".role-axis-domain").select("line").attr("x2")
 
 
-        // Set Axis
+        // set default inflection variables
         inflection.col = this.default_infl_col
-        this.isScatter = isScatter;
+        this.isDragable = isDragable;
         this.xAxQuant = xAxQuant;
         this.yAxQuant = yAxQuant;
 
@@ -91,9 +87,6 @@ function Inflection() {
 
         this.chartPath = chartPath;
 
-
-
-                
      
 
         // if plot is a linechart, we need an array to store the data
@@ -102,7 +95,7 @@ function Inflection() {
                     let role_descr = d3.select(this).attr("aria-roledescription");
                     return (role_descr == "line mark");
                 })
-        if (!lineElement.empty() && isScatter) { //we have a linechart
+        if (!lineElement.empty() && isDragable) { //we have a linechart
             var Xscale = that.getXAxScale()
             var Yscale = that.getYAxScale()
             lineElement.each(function(d) {
@@ -146,6 +139,7 @@ function Inflection() {
 
 
         if (window.top == window.self) {
+            // Top level window, edit mode of inflections
             d3.select("body").style("background-color", "#f2f2f2")
             let svg_width = d3.select("svg").attr("width")
             let svg_height = d3.select("svg").attr("height")
@@ -155,7 +149,7 @@ function Inflection() {
             that.addUI();
 
         } else {
-            // Not top level. An iframe, popup or something
+            // Not top level as it ppears in storytelling
             that.editable = false;
             d3.select("details").remove()
         }
@@ -165,17 +159,13 @@ function Inflection() {
 
         checkHash(that.hash)
 
-        setInterval(function () {
+        setInterval(function () { //repeat every 500ms
             var newhash = window.location.hash.substring(1);
 
             if (that.hash != newhash) {
-
                 that.hash = newhash;
-
                 checkHash(that.hash);
                 that.updateEditable()
-                // d3.selectAll(".annotation-group").raise()
-
             }
         }
             , 500);
@@ -189,7 +179,7 @@ function Inflection() {
                 let value = decodeURIComponent(splitted[1])
                 switch (cat) {
                     case "vis":
-                        if (value != that.chartPath) {
+                        if (value != that.chartPath) { //new visualisation type and specs
                             location.reload() //reload page!
                         }
                         break;
@@ -236,11 +226,11 @@ function Inflection() {
                 cats_in_hash.push(cat)
             });
 
+            //if not all categories are in hash, set to default
             if ((!cats_in_hash.includes("col") && inflection.col != that.default_infl_col) | inflection.col == "") {
                 inflection.col = that.default_infl_col
                 that.col();
             }
-
             if (!cats_in_hash.includes("line")) {
                 inflection.line = []
                 that.line();
@@ -249,12 +239,10 @@ function Inflection() {
                 inflection.yax = that.baseyax
                 that.axis("yax");
             }
-
             if (((!cats_in_hash.includes("xax") && inflection.xax != that.basexax)) && that.xAxQuant) {
                 inflection.xax = that.basexax
                 that.axis("xax");
             }
-
             if (!cats_in_hash.includes("ann")) {
                 inflection.ann = [];
                 that.ann();
@@ -266,7 +254,7 @@ function Inflection() {
 
         }
 
-
+        //initialise inflections
         this.axis("yax");
         this.axis("xax");
         this.line();
@@ -279,12 +267,11 @@ function Inflection() {
     }
 
 
-
+    //add UI to page if it is in edit mode
     this.addUI = function () {
 
         var that = this;
         var icon_button_width = 18;
-        // Top level window
 
         // #region UI Structure
         d3.select("body").append("div").attr("class", "inflect_ui")
@@ -331,7 +318,7 @@ function Inflection() {
             })
             .on("click", function () {
 
-                // Copy the hash
+                // Copy the hash to clipboard
                 navigator.clipboard.writeText("#" + that.hash);
 
                 // Alert the copied text
@@ -342,14 +329,12 @@ function Inflection() {
         
 
         // #region Lines button UI
-        
-
         d3.select("#line-div").append("button")
             .attr("id", "line-button")
             .on("click", function () {
                 let lines = inflection.line
-                // var list = lines.split(",");
-                                
+                
+                // establish random place for the new line to appear in
                 let random_x1_pixel = Math.random() * SVGwidth;
                 let random_x2_pixel = Math.random() * SVGwidth;
                 let random_y1_pixel = Math.random() * SVGheight;
@@ -363,11 +348,8 @@ function Inflection() {
                 var array = [x1_data, x1_between, x2_data, x2_between, y1_data, y1_between, y2_data, y2_between]
                 var roundedArray = array.map(num => parseFloat(parseFloat(num).toFixed(2)));
 
+                //add new line to existing lines
                 lines.push(roundedArray.join(";"))
-                // lines.push(x1_data + ";" + x1_between + ";" +
-                //         x2_data + ";" + x2_between + ";" +
-                //         y1_data + ";" + y1_between + ";" +
-                //         y2_data + ";" + y2_between)
 
 
                 inflection.line = lines;
@@ -442,7 +424,6 @@ function Inflection() {
                 if (text == "") {
                     text = d3.select("#infl-text-input").attr("placeholder")
                 }
-                
 
                 //position in middle
                 var mid_x_pixel = SVGwidth/2;
@@ -490,7 +471,7 @@ function Inflection() {
         
         d3.select("#ann-icon")
             .append("text")
-                .attr("x", icon_button_width/2)
+                .attr("x", icon_button_width/2+0.5)
                 .attr("y", icon_button_width/2)
                 .attr("dy", "0.35em")
                 .style("font-size", "13px")
@@ -561,13 +542,14 @@ function Inflection() {
 
     }
 
+    // handles the interactions with inflections (e.g. ability to move lines and text in the visualisation, edit axis)
     this.updateEditable = async function () {
         await Promise.all(promises);
         promises = [];
 
         let that = this;
 
-        if (that.editable) {
+        if (that.editable) { //only if in edit mode, not in storytelling mode
 
             var shiftPressed = false;
 
@@ -815,7 +797,7 @@ function Inflection() {
             )
             // #endregion
 
-            // #region highlight
+            // #region highlight data element
             d3.selectAll("path")
                 .filter(function() {
                     let role_descr = d3.select(this).attr("aria-roledescription");
@@ -883,17 +865,16 @@ function Inflection() {
 
                 var res;
                 d3.selectAll([...lineSelection, ...d3.select(".background"), ...tooltip_point])
-                    .on("mouseover", function (event) {
-                        // var label = lineSelection.attr("aria-label")
+                    .on("mouseover", function () {
                         tooltip.style("visibility", "visible")
-                            // .text(label);
                     })
-                    .on("mousemove", function (event) {
+                    .on("mousemove", function (event) { //show tooltip and transparent circle if hovering next to a line
                         let mouse_x_data = that.invertXScale(event.layerX)[0]
                         let xScale = that.getXAxScale()
                         let yScale = that.getYAxScale()
                         let points_in_reach = 0;
                         let description = [];
+                        //check if mouse is close to a data point in the lines
                         dataPointsLinechart.forEach((line) => {
                             let data = line.data
                             let descr = line.description
@@ -910,12 +891,12 @@ function Inflection() {
 
                         
 
-                        if(points_in_reach == 0) {
+                        if(points_in_reach == 0) { //remove tooltip and circle
                             tooltip.style("visibility", "hidden");
                             tooltip_point.style("visibility", "hidden")
                             res = null;
                         } else {
-                            var closest_descr = mostFrequent(description)
+                            var closest_descr = mostFrequent(description) //determine which line is "closest"
                             var data_points = d3.selectAll(dataPointsLinechart).filter((d, i, array) => {
                                 return array[i].description == closest_descr})
                                 .node().data
@@ -929,7 +910,7 @@ function Inflection() {
                             }
                             
 
-                            if (!point1 || !point2) {
+                            if (!point1 || !point2) { //if mouse is on left or right of line
                                 if(data_points[0][0] >= mouse_x_data) { //first point
                                     res = { x_data: data_points[0][0], y_data: data_points[0][1],
                                         x_pixel: event.layerX, y_pixel: yScale(data_points[0][1])
@@ -942,7 +923,7 @@ function Inflection() {
                                     }
                                 }
                             } else {
-                                // Perform linear interpolation
+                                // Perform linear interpolation to place circle on line
                                 const t = (mouse_x_data - point1[0]) / (point2[0] - point1[0]);
                                 const y_data = point1[1] + t * (point2[1] - point1[1]);
                                 const y_pixel = yScale(y_data);
@@ -966,7 +947,7 @@ function Inflection() {
 
 
                     })
-                    .on("mouseout", function (event) {
+                    .on("mouseout", function (event) { //remove circle
                         let new_element = d3.select(event.relatedTarget)
                         if(new_element && !new_element.empty()) {var class_new_element = new_element.attr("class")}
                         if(class_new_element && class_new_element != "tooltip-point" && class_new_element != "background") {
@@ -975,7 +956,7 @@ function Inflection() {
                             res = null;
                         }
                     })
-                    .on("click", function () {
+                    .on("click", function () { //highlight point on line
                         if(res){
                             inflection.high = [res.x_data.toFixed(2), res.y_data.toFixed(2)]
                             that.highlight()
@@ -994,11 +975,9 @@ function Inflection() {
             // #endregion
 
             // #region annotation text
-            // d3.selectAll([...d3.selectAll(".infl-ann-text-span"), ...d3.selectAll(".infl-ann-text")])
             d3.selectAll(".infl-ann-text")
-            .style("cursor", "move")
-                .on("dblclick", function () {
-
+                .style("cursor", "move")
+                .on("dblclick", function () { //remove text annotation
                     var anns = inflection.ann
 
                     var ann = d3.select(this);
@@ -1019,7 +998,7 @@ function Inflection() {
                     .on("start", function () {
                         d3.select(this).raise()
                     })
-                    .on("drag", function (event) {
+                    .on("drag", function (event) { //drag text annotation
                         var text_object = d3.select(this);
 
                         var text_current_pos = {
@@ -1076,12 +1055,13 @@ function Inflection() {
             // #endregion 
 
             // #region scale y-Axis
-            if(that.yAxQuant && !that.isScatter) {
+            if(that.yAxQuant && !that.isDragable) {
+                //add transparent rect on top of y-axis to add dragging behaviour
                 var yaxis_placement = d3.selectAll("g.mark-group.role-axis").filter(function() {
                     return String(d3.select(this).attr("aria-label")).includes("Y-axis")
-                    }).select("g").node().getBoundingClientRect()
-
-                d3.select("svg").selectAll(".infl-drag-area.yaxis")
+                    }).select("g").node().getBBox()
+                
+                d3.select(".drag-areas-group").selectAll(".infl-drag-area.yaxis")
                     .data([""])
                     .enter()
                     .insert("rect", ".line-group")
@@ -1095,11 +1075,9 @@ function Inflection() {
                             .style("cursor", "ns-resize")
 
 
-                // y-axis drag
+                // define drag of axis
                 var yScaleReconstructed = d3.scaleLinear()
 
-
-                // define drag of axis
                 d3.select(".infl-drag-area.yaxis")
                     .on("dblclick", function(){
                         inflection.yax = that.baseyax;
@@ -1138,20 +1116,21 @@ function Inflection() {
             // #endregion
 
             // #region scale x-Axis
-            if(that.xAxQuant && !that.isScatter) {
+            if(that.xAxQuant && !that.isDragable) {
+                //add transparent rect on top of x-axis to add dragging behaviour
                 var xaxis_placement = d3.selectAll("g.mark-group.role-axis").filter(function() {
                     return String(d3.select(this).attr("aria-label")).includes("X-axis")
-                    }).select("g").node().getBoundingClientRect()
+                    }).select("g").node().getBBox()
     
-                d3.select("svg").selectAll(".infl-drag-area.xaxis")
+                d3.select(".drag-areas-group").selectAll(".infl-drag-area.xaxis")
                     .data([""])
                     .enter()
                     .insert("rect", ".line-group")
                     .attr("class", "infl-drag-area xaxis")
                     .attr("width", xaxis_placement.width)
                     .attr("height", xaxis_placement.height)
-                    .attr("x", xaxis_placement.x)
-                    .attr("y", xaxis_placement.y)
+                    .attr("x", 0.5)
+                    .attr("y", SVGheight)
                     .style("fill", "none")
                     .style("pointer-events", "all")
                             .style("cursor", "ew-resize")
@@ -1159,7 +1138,6 @@ function Inflection() {
                             
                 // define drag of axis
                 var xScaleReconstructed = d3.scaleLinear()
-    
     
                 d3.select(".infl-drag-area.xaxis")
                     .on("dblclick", function(){
@@ -1199,11 +1177,11 @@ function Inflection() {
             }
             // #endregion
 
-            // #region move if scatterplot
+            // #region move if dragable
             // y-axis drag
             var xScaleReconstructed = d3.scaleLinear()
             var yScaleReconstructed = d3.scaleLinear()
-            if(that.xAxQuant && that.isScatter) {
+            if(that.xAxQuant && that.isDragable) {
                 d3.select(".background")
                     .call(d3.drag()
                     .on("start", function () {
@@ -1251,6 +1229,7 @@ function Inflection() {
                         that.updateHash()
                     }))
 
+                    //reset on doubleclick
                     d3.select(".background")
                         .on("dblclick", function(){
                             inflection.yax = that.baseyax;
@@ -1260,7 +1239,7 @@ function Inflection() {
                             that.updateHash()
                         })
                         
-
+                    // zoom on scroll
                     d3.select(".background").call(
                         d3.zoom()
                         .on("zoom", function(event) {
@@ -1293,6 +1272,7 @@ function Inflection() {
 
     }
 
+    // updates the hash in the URL with current inflection object content
     this.updateHash = async function() {
         await Promise.all(promises);
         promises = [];
@@ -1316,7 +1296,6 @@ function Inflection() {
 
 
     this.line = async function () {
-        
         var that = this;
         let lines = inflection.line
 
@@ -1380,7 +1359,7 @@ function Inflection() {
             });
 
 
-
+            // add lines to screen
             d3.select(".line-group").selectAll(".infl-line")
                 .data(data)
                 .join("g").attr("class", "infl-line")
@@ -1391,7 +1370,7 @@ function Inflection() {
                             .data([d])
                             .join("line")
                             .attr("class", "mark-line single-line")
-                            .transition("move-line") // bei erstem Rendern?!
+                            .transition("move-line") 
                             .duration(200)
                             .ease(d3.easeLinear)
                                 .attr("stroke", inflection.col)
@@ -1420,7 +1399,7 @@ function Inflection() {
                         }
                     }
     
-                    // Append circle at the end of the line
+                    // Append circle at the start of the line
                     g.selectAll(".infl-handle.line.left")
                         .data([left_data])
                         .join("circle")
@@ -1464,13 +1443,6 @@ function Inflection() {
             await Promise.all(promises);
             promises = [];
 
-            // var currXScale = d3.scaleLinear()
-            //     .domain(inflection.xax)
-            //     .range([0, SVGwidth]);
-
-            // var currYScale = d3.scaleLinear()
-            //     .domain(inflection.yax)
-            //     .range([SVGheight, 0]);
             var currXScale = that.getXAxScale()
             var currYScale = that.getYAxScale()
             //TODO NANs when text is on the edge of SVG
@@ -1517,7 +1489,7 @@ function Inflection() {
                     const lines = d.text.split("\n");
                     const textElement = d3.select(this);
                     d3.select(this).selectAll("tspan").remove();
-                    lines.forEach((line, i) => {
+                    lines.forEach((line, i) => { //tspans for multiple lines of text
                         textElement.append("tspan")
                             .attr("x", d.x)
                             .attr("y", d.y)
@@ -1529,7 +1501,6 @@ function Inflection() {
                 .transition("move-ann")
                 .duration(200)
                 .ease(d3.easeLinear)
-                    // .text(d => d.text)
                     .attr("x", d => d.x)
                     .attr("y", d => d.y)
 
@@ -1539,7 +1510,6 @@ function Inflection() {
 
     this.highlight = async function () {
         // bar rects are defined as paths like this:
-        // <path aria-label="a: A; b: 28" role="graphics-symbol" aria-roledescription="bar" d="M1,144h18v56h-18Z" fill="#4c78a8"></path>
         var that = this;
         let highlight = inflection.high
 
@@ -1574,9 +1544,7 @@ function Inflection() {
             await Promise.all(promises);
             promises = [];
 
-
-
-            var path = d3.selectAll("path")
+            var path = d3.selectAll("path") //select data element to highlight
                 .filter(function() {
                     let role_descr = d3.select(this).attr("aria-roledescription");
                     var ismarker = (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
@@ -1587,27 +1555,22 @@ function Inflection() {
                         let axis_values_splitted = axis_values.map((e) => e.split(": "))
                         let values = axis_values_splitted.map(e => e[1]);
                         let erg = [];
-                        values.forEach((e, i) => {
+                        values.forEach((e, i) => { //check if values are the ones to be highlighted
                             erg.push(e == highlight[i])
                         })
 
-                        // let xvalue = get_x_of_aria_label(aria_label);
-                        // let yvalue = get_y_of_aria_label(aria_label);
-
-                        // var isx = (xvalue == x_of_high);
-                        // var isy = (yvalue == y_of_high);
-                        return  ismarker && erg.every(Boolean)
+                        return  ismarker && erg.every(Boolean) //returns true for element that should be highlighted
                     } else {
                         return false;
                     }
 
                     })
-
+            
+            //colour element to inflection colour
             path
                 .transition("trans-high")
                 .duration(200)
                 .ease(d3.easeLinear)
-                // .attr("fill", inflection.col)
                 .attr("fill", function() {
                     let current_col = d3.select(this).attr("fill")
                     if(current_col && (typeof current_col !== 'undefined') && (current_col !== 'transparent')) {
@@ -1803,8 +1766,6 @@ function Inflection() {
                         return d3.select(this).datum().stroke
                     }
                 })
-                
-            
 
         }
     }
@@ -2077,7 +2038,6 @@ function Inflection() {
 
 
     this.col = function () {
-     
         var that = this;
         var colour = inflection.col
 
@@ -2151,7 +2111,6 @@ function Inflection() {
         }
     }
 
-    // helper functions
 
     function rgbToHex(rgb) {
         // Extract the RGB values using a regular expression
@@ -2197,7 +2156,6 @@ function Inflection() {
     } 
 
     this.getLinAxisScale = function(axis) {
-        var that = this;
         if(axis == "xax") {
             var scale = d3.scaleLinear()
                 .domain(inflection.xax)
@@ -2209,8 +2167,6 @@ function Inflection() {
                 .domain(inflection.yax)
                 .range([SVGheight, 0]);
         }
-
-
         return scale;
     }
 
@@ -2220,9 +2176,7 @@ function Inflection() {
                 return String(d3.select(this).attr("aria-label")).includes("Y-axis")
             })
 
-            // get length of y-axis 
             // get distance between ticks
-            
             var tickPositions = axisSelection.select(".role-axis-tick").selectAll("line")
             .filter(function() {return d3.select(this).style("visibility") === "visible"})
             .nodes()
@@ -2260,8 +2214,6 @@ function Inflection() {
                 return String(d3.select(this).attr("aria-label")).includes("X-axis")
             })
 
-            // get length of y-axis 
-            // get distance between ticks
             
             var tickPositions = axisSelection.select(".role-axis-tick").selectAll("line")
                 .filter(function() {return d3.select(this).style("visibility") === "visible"})
@@ -2386,11 +2338,6 @@ function Inflection() {
         }
         return match;
 
-
-        // if(aria_label && aria_label.match(/\b\w+:\s*([\w.]+)/)) {
-        //     var match = aria_label.match(/\b\w+:\s*([\w.]+)/)[1];
-        // }
-        // return match;
     }
 
     function get_y_of_aria_label(aria_label) { // Extract X value from translate(X,Y)
@@ -2419,9 +2366,6 @@ function Inflection() {
     
         return mostFrequentValue;
     }
-
-
-
 
     return this
 }
