@@ -146,6 +146,12 @@ function Inflection() {
 
 
         if (window.top == window.self) {
+            d3.select("body").style("background-color", "#f2f2f2")
+            let svg_width = d3.select("svg").attr("width")
+            let svg_height = d3.select("svg").attr("height")
+            let zoom_factor = 1
+            d3.select("svg").attr("width", svg_width*zoom_factor)
+            d3.select("svg").attr("height", svg_height*zoom_factor)
             that.addUI();
 
         } else {
@@ -277,13 +283,39 @@ function Inflection() {
     this.addUI = function () {
 
         var that = this;
-        var icon_button_width = 27;
+        var icon_button_width = 18;
         // Top level window
-        d3.select("body").append("div").attr("class", "inflect_ui");
-        
-        
+
+        // #region UI Structure
+        d3.select("body").append("div").attr("class", "inflect_ui")
+            .style("width", "250px");
+
         d3.select(".inflect_ui")
-            .append("span").text("🔗")
+            .append("span")
+            .attr("id", "hash")
+
+        d3.select(".inflect_ui").append("div")
+            .style("margin-bottom", "5px")
+            .style("padding", "0px 5px")
+            .append("h1").text("Edit Annotations")
+
+        d3.select(".inflect_ui").append("div")
+            .attr("class", "infl-ui-div")
+            .attr("id", "annotation-div");
+
+        d3.select(".inflect_ui").append("div")
+            .attr("class", "infl-ui-div")
+            .attr("id", "line-div");
+
+        d3.select(".inflect_ui").append("div")
+            .attr("class", "infl-ui-div")
+            .attr("id", "colour-div");
+        // #endregion
+        
+        
+        
+        d3.select("#hash")
+            .text("🔗")
             .style("font-size", "20px")
             .style("float", "right")
             .style("cursor", "pointer")
@@ -307,29 +339,13 @@ function Inflection() {
 
             });
 
-        // #region Lines button UI
-        d3.select(".inflect_ui").append("div")
-            .attr("class", "infl-ui-div")
-            .attr("id", "line-div");
+        
 
-        d3.select("#line-div").append("svg")
-            .attr("class", "icon-button")
+        // #region Lines button UI
+        
+
+        d3.select("#line-div").append("button")
             .attr("id", "line-button")
-            .attr("width", icon_button_width)
-            .attr("height", icon_button_width)
-            // .style("float", "left")
-            .style("margin-right", "15px")
-            .style("cursor", "pointer")
-            .on("mouseover", function () {
-                tooltip.style("visibility", "visible").text("Add line");
-            })
-            .on("mousemove", function (event) {
-                tooltip.style("top", (event.pageY - 35) + "px")
-                    .style("left", (event.pageX - 20) + "px");
-            })
-            .on("mouseout", function () {
-                tooltip.style("visibility", "hidden");
-            })
             .on("click", function () {
                 let lines = inflection.line
                 // var list = lines.split(",");
@@ -360,39 +376,52 @@ function Inflection() {
                 that.updateEditable()
 
             });
-        
+
+        // Append the SVG icon to the button
         d3.select("#line-button")
-            .append("rect")
+            .append("svg")
+            .attr("id", "line-icon")
+            .attr("class", "icon-button")
+            .attr("width", icon_button_width)
+            .attr("height", icon_button_width)
+            
+        // Append the text to the button
+        d3.select("#line-button")
+            .append("span")
+            .attr("class", "button-text")
+            .text("add line")
+
+        
+        d3.select("#line-icon")
+            .append("circle")
                 .attr("class", "button-bg")
-                .attr("width", icon_button_width)
-                .attr("height", icon_button_width)
-                .style("stroke-width", "2.5px")
-                .style("stroke", "black")
+                .attr("cx", icon_button_width/2)
+                .attr("cy", icon_button_width/2)
+                .attr("r", icon_button_width/2)
+                .style("stroke", "none")
                 .style("fill", inflection.col)
-                .style("fill-opacity", 0.3);
+                .style("fill-opacity", 0.7)
+
         
-        var dist = 5;
-        d3.select("#line-button")
+        var dist = 5.5;
+        d3.select("#line-icon")
             .append("line")
             .attr("x1", dist)
             .attr("x2", icon_button_width - dist)
             .attr("y1", icon_button_width - dist)
             .attr("y2", dist)
             .style("stroke", "black")
-            .style("stroke-width", "3px")
+            .style("stroke-width", "2px")
             .style("stroke-linecap", "round")
         // #endregion
 
         // #region Annotations button UI
-        d3.select(".inflect_ui").append("div")
-            .attr("class", "infl-ui-div")
-            .attr("id", "annotation-div");
-
+        //text area
         d3.select("#annotation-div").append("textarea")
             .attr("id", "infl-text-input")
             .attr("type", "text")
-            .attr("placeholder", "input")
-            .style("margin-top", "3px")
+            .attr("placeholder", "type label here")
+            .style("margin-bottom", "3px")
             .style("border-color", inflection.col)
             .on("focus", function() {
                 d3.select(this)
@@ -403,55 +432,9 @@ function Inflection() {
                     .style("border-color", inflection.col);
             });
 
-        d3.select("#annotation-div").append("svg")
-            .attr("class", "icon-button")
+        // Create the button element
+        d3.select("#annotation-div").append("button")
             .attr("id", "ann-button")
-            .attr("width", icon_button_width)
-            .attr("height", icon_button_width)
-            // .style("float", "left")
-            .style("margin-left", "15px")
-            .style("cursor", "pointer")
-            .on("mouseover", function () {
-                tooltip.style("visibility", "visible").text("Add annotation");
-            })
-            .on("mousemove", function (event) {
-                tooltip.style("top", (event.pageY - 35) + "px")
-                    .style("left", (event.pageX - 20) + "px");
-            })
-            .on("mouseout", function () {
-                tooltip.style("visibility", "hidden");
-            })
-        
-        d3.select("#ann-button")
-            .append("rect")
-                .attr("class", "button-bg")
-                .attr("width", icon_button_width)
-                .attr("height", icon_button_width)
-                .style("stroke-width", "2.5px")
-                .style("stroke", "black")
-                .style("fill", inflection.col)
-                .style("fill-opacity", 0.3);
-        
-        var dist = 5;
-        d3.select("#ann-button")
-            .append("text")
-            .attr("x", icon_button_width/2)
-            .attr("y", icon_button_width/2)
-            .attr("dy", "0.35em")
-            // .style("font-family", "sans-serif")
-            .style("font-size", "10px")
-            .style("text-anchor", "middle")
-            .text("text");
-
-        // d3.select("#annotation-div").append("button")
-        //     .attr("class", "infl-buttons").html("Add Annotation")
-        //     .attr("id", "ann-button")
-
-
-
-
-        // now define button behaviour to add annotation
-        d3.select("#ann-button")
             .on("click", function () {
                 let anns = inflection.ann
                 
@@ -472,34 +455,97 @@ function Inflection() {
 
                 roundedArray[4] = text
                 anns.push(roundedArray.join(";"))
-          
+        
                 inflection.ann = anns;
                 that.ann()
                 that.updateHash()
                 that.updateEditable()
 
-                
-
             });
+
+        // Append the SVG icon to the button
+        d3.select("#ann-button")
+            .append("svg")
+            .attr("id", "ann-icon")
+            .attr("class", "icon-button")
+            .attr("width", icon_button_width)
+            .attr("height", icon_button_width)
+
+        // Append the text to the button
+        d3.select("#ann-button")
+            .append("span")
+            .attr("class", "button-text")
+            .text("add label")
+  
+        
+        d3.select("#ann-icon")
+            .append("circle")
+                .attr("class", "button-bg")
+                .attr("cx", icon_button_width/2)
+                .attr("cy", icon_button_width/2)
+                .attr("r", icon_button_width/2)
+                .style("stroke", "none")
+                .style("fill", inflection.col)
+                .style("fill-opacity", 0.7)
+        
+        d3.select("#ann-icon")
+            .append("text")
+                .attr("x", icon_button_width/2)
+                .attr("y", icon_button_width/2)
+                .attr("dy", "0.35em")
+                .style("font-size", "13px")
+                .style("text-anchor", "middle")
+                .text("&");
+
+
+            
         // #endregion
 
         // #region Colour button UI
-        d3.select(".inflect_ui").append("div")
-            .attr("class", "infl-ui-div")
-            .attr("id", "colour-div");
-
-            // <input type="color" id="head" name="head" value="#e66465" />
         d3.select("#colour-div").append("input")
-            .attr("class", "infl-col-input")
+            .attr("id", "infl-col-input")
             .attr("type", "color")
+            .style("display", "none")
             .attr("value", inflection.col)
-            .on("change", function(d) {
+            .on("change", function(d, event) {
+                console.log(event)
                 var new_col = d3.select(this).property("value")
                 // highlight_colour = new_col
                 inflection.col = new_col
                 that.col()
                 that.updateHash()
             })
+
+        // Create the button element
+        d3.select("#colour-div").append("button")
+            .attr("id", "col-button")
+            .on("click", function () {
+                document.getElementById("infl-col-input").click();
+            });
+
+        // Append the SVG icon to the button
+        d3.select("#col-button")
+            .append("svg")
+            .attr("id", "col-icon")
+            .attr("class", "icon-button")
+            .attr("width", icon_button_width)
+            .attr("height", icon_button_width)
+
+        // Append the text to the button
+        d3.select("#col-button")
+            .append("span")
+            .attr("class", "button-text")
+            .text("edit colour")
+  
+        
+        d3.select("#col-icon")
+            .append("circle")
+                .attr("class", "button-bg")
+                .attr("cx", icon_button_width/2)
+                .attr("cy", icon_button_width/2)
+                .attr("r", icon_button_width/2)
+                .style("stroke", "none")
+                .style("fill", inflection.col)
         // #endregion
 
 
@@ -507,13 +553,11 @@ function Inflection() {
         d3.select(".inflect_ui")
             .append("div")
             .attr("class", "infl-ui-div")
+            .style("margin", "0px")
+            .style("padding", "0px 5px")
             // .attr("id", "annotation-div")
             .append("p").html("double click on element to remove/reset")
-            // .style("margin-top", "12px")
             .style("font-size", "13px")
-            .style("float", "right")
-
-
 
     }
 
