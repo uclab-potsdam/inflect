@@ -1,6 +1,4 @@
-
-
-[This](vis/index.html) is a visualisation that is inflectable!
+[This](vis/index.html#vis=barchart) is a visualisation that is inflectable!
 
 I can tell you something interesting about the [left](vis/index.html#vis=barchart&col=%2300F05E&yax=0;107.8&line=A;0;I;0.9;65.8;0;66.3;0&ann=C%3B0.5%3B97.3%3B0%3Ba%3A%20D%0Ab%3A%2091&high=D;91) bar.
 
@@ -35,11 +33,40 @@ While the wave is impressive, the center of the print is [Mount Fiji](img/#1528,
 
 ... which is echoed by the [smaller wave to the left](img/#322,972,3384,3342&ff40ff&632,1569,2257,2706,2361,1752,2898,2192&&https://upload.wikimedia.org/wikipedia/commons/b/b3/Katsushika_Hokusai_-_Thirty-Six_Views_of_Mount_Fuji-_The_Great_Wave_Off_the_Coast_of_Kanagawa_-_Google_Art_Project.jpg)
 
-
-
 The Wikipedia entry on [this print](https://en.wikipedia.org/wiki/The_Great_Wave_off_Kanagawa) has some details...
 
 ... like [this one](https://en.wikipedia.org/wiki/The_Great_Wave_off_Kanagawa#Sea_and_waves)
+
+The [folder structure](img/#-347,-1,584,422&ff0000&&&http://127.0.0.1:5500/img/folder_structure.png) of this project enables a complicated something.
+
+The [VIS folder](img/#-347,-1,584,422&ff0000&1,120,236,322&&http://127.0.0.1:5500/img/folder_structure.png) contains all the pieces of code concerning the data visualisations and inflections.
+
+To add a new visualisation to your story, we recommend using the [Vega-Lite editor](https://vega.github.io/editor/#/examples/vega-lite/bar) to create the basic visualisation.
+
+The vega-lite spec json file can then be placed in the [SPECS](img/#-329,0,566,422&ff0000&23,178,104,206&&http://127.0.0.1:5500/img/folder_structure.png) folder.
+
+The corresponding data should be copied to the [DATA](img/#-329,0,566,422&ff0000&23,147,99,176&&http://127.0.0.1:5500/img/folder_structure.png) folder.
+
+Open the [edit mode](img/#0,0,912,746&ff0000&&&http://127.0.0.1:5500/img/inflections_editor.png) of the inflection tool by opening the inflection page in your browser.
+
+Make sure the [vis parameter](img/#44,-51,862,336&ff0000&496,10,610,45&&http://127.0.0.1:5500/img/inflections_editor.png) in the URL is set to the filename of your vega-lite spec.
+
+The [UI](img/#0,0,912,746&ff0000&522,352,761,646&&http://127.0.0.1:5500/img/inflections_editor.png
+) offers some options to add annotations to your visualisation.
+
+You can use the [link emoji](img/#0,0,912,746&ff0000&814,346,863,397&&http://127.0.0.1:5500/img/inflections_editor.png) to copy the current inflection of your visualisation to your clipboard.
+
+Add the link to the [README markdown file](img/#-329,0,566,422&ff0000&8,379,138,413&&http://127.0.0.1:5500/img/folder_structure.png) to add the inflected visualisation to your story.
+
+Also have a look at the [documentation image](img/#0,0,3500,7287&ff0000&&&http://127.0.0.1:5500/img/documentation_image.png) in the img folder to find out more.
+
+It contains further detail on the [folder structure](img/#0,192,3500,2375&ff0000&&&http://127.0.0.1:5500/img/documentation_image.png)...
+
+...has a [cheat sheet](img/#0,2496,3500,5582&ff0000&&&http://127.0.0.1:5500/img/documentation_image.png) for the usage of the repo...
+
+...and explains how the [URL hash](img/#0,5037,3500,7656&ff0000&&&http://127.0.0.1:5500/img/documentation_image.png) encodes the inflections.
+
+
 
 Linguistically speaking an [inflection](https://en.wiktionary.org/wiki/inflection) refers to a modification of a word to convey grammatical information.
 
