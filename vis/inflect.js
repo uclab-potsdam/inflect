@@ -316,18 +316,22 @@ function Inflection() {
             .attr("class", "infl-ui-div")
             .style("margin", "0px")
             .style("padding", "0px 5px")
-            // .attr("id", "annotation-div")
-            .append("p").html("Double click on element to remove it")
             .style("font-size", "13px")
+            .append("p").html("Double click on element to remove it")
 
+        // note about hash
         d3.select(".inflect_ui")
             .append("div")
             .attr("class", "infl-ui-div")
             .style("margin", "0px")
             .style("padding", "0px 5px")
-            // .attr("id", "annotation-div")
-            .append("p").html("Copy hash to add to story")
             .style("font-size", "13px")
+            .append("p").html("Copy hash to add to story")
+
+        // reset button
+        d3.select(".inflect_ui").append("div")
+            .attr("class", "infl-ui-div")
+            .attr("id", "reset-div");
         // #endregion
         
         
@@ -521,9 +525,7 @@ function Inflection() {
             .style("display", "none")
             .attr("value", inflection.col)
             .on("change", function(d, event) {
-                console.log(event)
                 var new_col = d3.select(this).property("value")
-                // highlight_colour = new_col
                 inflection.col = new_col
                 that.col()
                 that.updateHash()
@@ -561,6 +563,34 @@ function Inflection() {
                 .style("fill", inflection.col)
         // #endregion
 
+        // #region Reset button UI
+        d3.select("#reset-div").append("button")
+            .attr("id", "reset-button")
+            .on("click", function () {
+                inflection.line = []
+                inflection.ann = []
+                inflection.high = []
+                inflection.yax = that.baseyax
+                inflection.xax = that.basexax
+                that.updateHash()
+
+                that.axis("yax");
+                that.axis("xax");
+                that.line();
+                that.ann();
+                that.highlight();
+                
+                
+                that.updateEditable()
+
+            });
+
+            // Append the text to the button
+            d3.select("#reset-button")
+                .append("span")
+                .attr("class", "button-text")
+                .text("Reset")
+    // #endregion
 
         
 
