@@ -281,10 +281,22 @@ function Inflection() {
             .append("span")
             .attr("id", "hash")
 
+        //title
         d3.select(".inflect_ui").append("div")
             .style("margin-bottom", "5px")
             .style("padding", "0px 5px")
-            .append("h1").text("Edit Annotations")
+            .append("h1").text("INFLECT THIS CHART")
+
+        //subtitles
+        d3.select(".inflect_ui")
+            .append("div")
+            .attr("class", "infl-ui-div")
+            .style("margin", "0px")
+            .style("padding", "0px 5px")
+            // .attr("id", "annotation-div")
+            .append("p").html("Change the scale of a quantitative axis by dragging along its ticks." + "<br>" +
+                "Zoom in and out via scrollwheel or respective gesture on trackpad.")
+            .style("font-size", "13px")
 
         d3.select(".inflect_ui").append("div")
             .attr("class", "infl-ui-div")
@@ -297,6 +309,25 @@ function Inflection() {
         d3.select(".inflect_ui").append("div")
             .attr("class", "infl-ui-div")
             .attr("id", "colour-div");
+
+        // note about double click
+        d3.select(".inflect_ui")
+            .append("div")
+            .attr("class", "infl-ui-div")
+            .style("margin", "0px")
+            .style("padding", "0px 5px")
+            // .attr("id", "annotation-div")
+            .append("p").html("Double click on element to remove it")
+            .style("font-size", "13px")
+
+        d3.select(".inflect_ui")
+            .append("div")
+            .attr("class", "infl-ui-div")
+            .style("margin", "0px")
+            .style("padding", "0px 5px")
+            // .attr("id", "annotation-div")
+            .append("p").html("Copy hash to add to story")
+            .style("font-size", "13px")
         // #endregion
         
         
@@ -346,7 +377,8 @@ function Inflection() {
                 var [y2_data, y2_between] = that.invertYScale(random_y2_pixel)
 
                 var array = [x1_data, x1_between, x2_data, x2_between, y1_data, y1_between, y2_data, y2_between]
-                var roundedArray = array.map(num => parseFloat(parseFloat(num).toFixed(2)));
+                
+                var roundedArray = array.map(num => typeof(num) == "number"? parseFloat(parseFloat(num).toFixed(2)) : num);
 
                 //add new line to existing lines
                 lines.push(roundedArray.join(";"))
@@ -371,7 +403,7 @@ function Inflection() {
         d3.select("#line-button")
             .append("span")
             .attr("class", "button-text")
-            .text("add line")
+            .text("Add line")
 
         
         d3.select("#line-icon")
@@ -402,7 +434,7 @@ function Inflection() {
         d3.select("#annotation-div").append("textarea")
             .attr("id", "infl-text-input")
             .attr("type", "text")
-            .attr("placeholder", "type label here")
+            .attr("placeholder", "Enter label text here")
             .style("margin-bottom", "3px")
             .style("border-color", inflection.col)
             .on("focus", function() {
@@ -456,7 +488,7 @@ function Inflection() {
         d3.select("#ann-button")
             .append("span")
             .attr("class", "button-text")
-            .text("add label")
+            .text("Add label")
   
         
         d3.select("#ann-icon")
@@ -516,7 +548,7 @@ function Inflection() {
         d3.select("#col-button")
             .append("span")
             .attr("class", "button-text")
-            .text("edit colour")
+            .text("Set color")
   
         
         d3.select("#col-icon")
@@ -530,15 +562,7 @@ function Inflection() {
         // #endregion
 
 
-        // note about double click
-        d3.select(".inflect_ui")
-            .append("div")
-            .attr("class", "infl-ui-div")
-            .style("margin", "0px")
-            .style("padding", "0px 5px")
-            // .attr("id", "annotation-div")
-            .append("p").html("double click on element to remove/reset")
-            .style("font-size", "13px")
+        
 
     }
 
@@ -659,7 +683,7 @@ function Inflection() {
 
                             // update hash
                             var array = [linedata.x1Data, linedata.x2Data, linedata.y1Data, linedata.y2Data].flat()
-                            var roundedArray = array.map(num => parseFloat(parseFloat(num).toFixed(2)));
+                            var roundedArray = array.map(num => typeof(num) == "number"? parseFloat(parseFloat(num).toFixed(2)) : num);
 
                             linedata.hash = roundedArray.join(";")
             
@@ -695,7 +719,7 @@ function Inflection() {
 
                         // update hash
                         var array = [linedata.x1Data, linedata.x2Data, linedata.y1Data, linedata.y2Data].flat()
-                        var roundedArray = array.map(num => parseFloat(parseFloat(num).toFixed(2)));
+                        var roundedArray = array.map(num => typeof(num) == "number"? parseFloat(parseFloat(num).toFixed(2)) : num);
 
                         linedata.hash = roundedArray.join(";")
         
@@ -786,7 +810,7 @@ function Inflection() {
 
                     // update hash
                     var array = [linedata.x1Data, linedata.x2Data, linedata.y1Data, linedata.y2Data].flat()
-                    var roundedArray = array.map(num => parseFloat(parseFloat(num).toFixed(2)));
+                    var roundedArray = array.map(num => typeof(num) == "number"? parseFloat(parseFloat(num).toFixed(2)) : num);
 
                     linedata.hash = roundedArray.join(";")
     
