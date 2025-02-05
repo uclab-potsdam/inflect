@@ -3,7 +3,7 @@
     <link rel="icon" type="image/svg+xml" sizes="any" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📄</text></svg>"/>
 
     <meta charset="UTF-8">
-    <title>Inflect!</title>
+    <title>!NFLECT</title>
     <script src="src/marked.min.js"></script>
     
     <style>
@@ -78,6 +78,10 @@
         try {
             const hash = window.location.hash.substring(1); // Remove '#' from hash
             const file = hash ? hash : 'README.md';
+
+            const fileA = file.split(".");
+            if (fileA[0]=="README") document.title = "!NFLECT";
+            else document.title = "!NFLECT · "+fileA[0];
 
             const response = await fetch(file); 
             let readme = await response.text();

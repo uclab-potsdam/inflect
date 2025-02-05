@@ -1,5 +1,5 @@
 
-# INFLECT! 
+# !NFLECT
 ## Modulating visualizations to tell stories with data
 
 This repository contains a template and example stories that illustrate the idea of interpretative interactions with data visualizations and other inflectable media.
