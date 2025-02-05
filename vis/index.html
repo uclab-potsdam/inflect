@@ -24,22 +24,17 @@
         // e.g. http://localhost:8000/vis/index.html#vis=barchart
         // the code searches for the filename.json file in the SPECS folder
         // if no vis is defined, barchart is default
-
+        
+        var chartPath = "";
         if(document.URL.split("#")[1]) {
             var hash_array = document.URL.split("#")[1].split("&");
-            var which_definition = hash_array.find(function(d) {return d.includes("vis")})
-            var spec = [];
-            try {
-                var chartPath = which_definition.split("=")[1]
-            } catch (error) {
-                console.warning("You forgot to define which visualisation to use!")
-                var chartPath = "barchart"; //default
-            }
-        } else {
-            var chartPath = "barchart"; //default
+            var chartPath = hash_array[0];
         }
-    
-        
+        if (chartPath=="") {
+            console.warn("You forgot to define which visualisation to use!")
+            chartPath = "barchart"; //default
+        }
+
         fetch('specs/' + chartPath + '.json') 
             .then(response => {return response.json()})
             .then(function(data) {

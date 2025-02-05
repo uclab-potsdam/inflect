@@ -173,16 +173,26 @@ function Inflection() {
         function checkHash(hash) {
             var hash_elements = hash.split("&");
             var cats_in_hash = [];
-            hash_elements.forEach(element => {
+
+            // extract vis directly (first element after hash)
+            if (hash_elements.length > 0) {
+                let visValue = decodeURIComponent(hash_elements[0]); // First element is the visualization type
+                if (visValue !== that.chartPath) { // If the visualization type changes
+                    location.reload(); // Reload page!
+                    return; // Stop further processing since page is reloading
+                }
+            }
+
+            hash_elements.splice(1).forEach(element => {
                 let splitted = element.split("=")
                 let cat = splitted[0]
                 let value = decodeURIComponent(splitted[1])
                 switch (cat) {
-                    case "vis":
-                        if (value != that.chartPath) { //new visualisation type and specs
-                            location.reload() //reload page!
-                        }
-                        break;
+                    // case "vis":
+                    //     if (value != that.chartPath) { //new visualisation type and specs
+                    //         location.reload() //reload page!
+                    //     }
+                    //     break;
                     case "yax":
                         if (value != inflection.yax.join(";") && that.yAxQuant) {
                             inflection.yax = value.split(";").map(Number);
@@ -1289,7 +1299,7 @@ function Inflection() {
         promises = [];
          
         this.hash =
-            "vis=" + this.chartPath + "&" +
+            this.chartPath + "&" +
             "col=" + encodeURIComponent(inflection.col) + "&"
 
         if (this.yAxQuant) {
