@@ -25,15 +25,19 @@
             background: #fff;
             border: 0;
         }
+        main {
+            position: absolute;
+            left: 50vw;
+            width: 40vw;
+            padding: 5vh;
+            margin: 0;
+        }
 
         p {
-            font-size: 1em;
-            left: 50%;
-            width: 40%;
+            font-size: 1em;            
             min-height: 50vh;
             margin: 0;
-            padding: 40vh 5vh;
-            position: relative;
+            padding: 50vh 0;
         }
 
         a {
@@ -90,10 +94,13 @@
 
                         // Add active class only to the visible link
                         const visibleLink = entry.target;
-                        visibleLink.classList.add('active');
 
-                        // Update iframe to match visible link
-                        iframe.src = visibleLink.href;
+                        if (!visibleLink.getAttribute("href").startsWith("#")) {
+                            visibleLink.classList.add('active');
+
+                            // Update iframe to match visible link, unless it is hash link to another markdown
+                            iframe.src = visibleLink.href;
+                        }
                     }
                 });
             });
@@ -103,14 +110,17 @@
             inflectLinks.forEach(link => {
                 observer.observe(link);
 
-                // Add event listener to deactivate link on click
-                link.addEventListener('click', function(event) {
-                    event.preventDefault();
-                    const iframe = document.getElementById('if');
-                    iframe.src = link.href;
-                    document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
-                    link.classList.add('active');
-                });
+                // ignore local links to markdown files
+                if (!link.getAttribute("href").startsWith("#")) {
+                    // Add event listener to deactivate link on click
+                    link.addEventListener('click', function(event) {
+                        event.preventDefault();
+                        const iframe = document.getElementById('if');
+                        iframe.src = link.href;
+                        document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
+                        link.classList.add('active');
+                    });
+                }
             });
         }
 
