@@ -5,9 +5,9 @@
 This repository contains a template and example stories that illustrate the idea of interpretative interactions with data visualizations and other inflectable media.
 
 Example stories
-- [visualizations](#visualizations.md)
-- [images](#images.md)
-- [webpages](#webpages.md)
+- <a href="#visualizations.md">visualizations</a>
+- <a href="#images.md">images</a>
+- <a href="#webpages.md">webpages</a>
 
 
 The [folder structure](img/#-347,-1,584,422&ff0000&&&folder_structure.png) is quite straightforward and enables you to add inflected visualisations to your own story.
@@ -15,8 +15,7 @@ The [folder structure](img/#-347,-1,584,422&ff0000&&&folder_structure.png) is qu
 <!-- The [VIS folder](img/#-347,-1,584,422&ff0000&1,120,236,322&&folder_structure.png) contains all the pieces of code concerning the data visualisations and inflections. -->
 
 
-To add a new visualisation to your story, we recommend using the [Vega-Lite editor](https://vega.github.io/editor/#/examples/vega-lite/bar) to create the basic visualisation.
-
+To add a new visualisation to your story, we recommend using the <a href="https://vega.github.io/editor/#/examples/vega-lite/bar">Vega-Lite editor</a> to create the basic visualisation.
 
 The vega-lite spec json file can then be placed in the [SPECS](img/#-329,0,566,422&ff0000&23,178,104,206&&folder_structure.png) folder.
 

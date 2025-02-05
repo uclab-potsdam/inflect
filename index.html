@@ -49,16 +49,15 @@
         
         p {
             font-size: 1em;                        
-            margin: 0;
         }
 
         a {
             color: black;
-            text-decoration: none;    
         }
 
         a.active {
             background: white;
+            text-decoration: none;    
         }
 
     </style>
@@ -83,8 +82,13 @@
             const response = await fetch(file); 
             let readme = await response.text();
 
+            // split sections by two empty lines
             readme = readme.replace(/\s*\n\s*\n\s*\n\s*/g, '\n\n</section>\n\n<section>\n\n');
             readme = "<section>\n\n" + readme + "\n\n</section>";
+            
+            // add class dontinflect to regular html links
+            readme = readme.replace(/<a\b([^>]*)>/gi, (m, attrs) => `<a${/class\s*=\s*["']([^"']*)["']/i.test(attrs) ? attrs.replace(/class\s*=\s*["']([^"']*)["']/i, (m, c) => `class="${c} dontinflect"`) : ` class="dontinflect"${attrs}`}>`);
+
             const html = marked.parse(readme); 
             
             document.querySelector('main').innerHTML = html;
@@ -114,7 +118,7 @@
                         // Add active class only to the visible link
                         const visibleLink = entry.target;
 
-                        if (!visibleLink.getAttribute("href").startsWith("#")) {
+                        if (!visibleLink.classList.contains("dontinflect")) {
                             visibleLink.classList.add('active');
 
                             // Update iframe to match visible link, unless it is hash link to another markdown
@@ -130,7 +134,7 @@
                 observer.observe(link);
 
                 // ignore local links to markdown files
-                if (!link.getAttribute("href").startsWith("#")) {
+                if (!link.classList.contains("dontinflect")) {
                     // Add event listener to deactivate link on click
                     link.addEventListener('click', function(event) {
                         event.preventDefault();
