@@ -19,11 +19,6 @@ Even more [linecharts](vis/index.html#vis=linechart&col=%2300F05E&yax=250;700&xa
 
 And when you have [multiple lines](vis/index.html#vis=multiple_linechart&col=%2300F05E&yax=0;549.5&xax=2000;2010&line=&ann=2007.7%3B0%3B250%3B0%3BMean%20of%20price%3A%0A286.4725&high=2005;286.4725;GOOG) it adds to the overall experience.
 
-Transition test [part 1](vis/index.html#vis=linechart&col=%2300F05E&yax=249.77;751.38&xax=2006.29;2009.82&line=2009.504625;0;2008.60;0;343.8;0;577.1;0&ann=2008.96%3B0%3B603.4%3B0%3B2007.62%0A525.07&high=2007.31;484.30).
-
-Transition test [part 2](vis/index.html#vis=linechart&col=%2300F05E&yax=230.36;837.31&xax=2006.64;2010.91&line=2007.06;0;2008.81;0;623.4;0;732.6;0,2007.56;0;2009.34;0;371.5;0;593;0&ann=2008.2821549999999%3B0%3B345.4%3B0%3Binput&high=2009.46;423.79).
-
-
 We can also inflect images, let's start with Hokusai's 
 [The Great Wave off Kanagawa](img/#https://upload.wikimedia.org/wikipedia/commons/b/b3/Katsushika_Hokusai_-_Thirty-Six_Views_of_Mount_Fuji-_The_Great_Wave_Off_the_Coast_of_Kanagawa_-_Google_Art_Project.jpg) 
 
@@ -37,15 +32,15 @@ The Wikipedia entry on [this print](https://en.wikipedia.org/wiki/The_Great_Wave
 
 ... like [this one](https://en.wikipedia.org/wiki/The_Great_Wave_off_Kanagawa#Sea_and_waves)
 
-The [folder structure](img/#-347,-1,584,422&ff0000&&&http://127.0.0.1:5500/img/folder_structure.png) of this project enables a complicated something.
+The [folder structure](img/#-347,-1,584,422&ff0000&&&http://127.0.0.1:5500/img/folder_structure.png) is quite straightforward and enables you to add inflected visualisations to your own story.
 
-The [VIS folder](img/#-347,-1,584,422&ff0000&1,120,236,322&&http://127.0.0.1:5500/img/folder_structure.png) contains all the pieces of code concerning the data visualisations and inflections.
+<!-- The [VIS folder](img/#-347,-1,584,422&ff0000&1,120,236,322&&http://127.0.0.1:5500/img/folder_structure.png) contains all the pieces of code concerning the data visualisations and inflections. -->
 
 To add a new visualisation to your story, we recommend using the [Vega-Lite editor](https://vega.github.io/editor/#/examples/vega-lite/bar) to create the basic visualisation.
 
 The vega-lite spec json file can then be placed in the [SPECS](img/#-329,0,566,422&ff0000&23,178,104,206&&http://127.0.0.1:5500/img/folder_structure.png) folder.
 
-The corresponding data should be copied to the [DATA](img/#-329,0,566,422&ff0000&23,147,99,176&&http://127.0.0.1:5500/img/folder_structure.png) folder.
+Copy the corresponding data to the [DATA](img/#-329,0,566,422&ff0000&23,147,99,176&&http://127.0.0.1:5500/img/folder_structure.png) folder.
 
 Open the [edit mode](img/#0,0,912,746&ff0000&&&http://127.0.0.1:5500/img/inflections_editor.png) of the inflection tool by opening the inflection page in your browser.
 
@@ -62,7 +57,7 @@ Also have a look at the [documentation image](img/#0,0,3500,7287&ff0000&&&http:/
 
 It contains further detail on the [folder structure](img/#0,192,3500,2375&ff0000&&&http://127.0.0.1:5500/img/documentation_image.png)...
 
-...has a [cheat sheet](img/#0,2496,3500,5582&ff0000&&&http://127.0.0.1:5500/img/documentation_image.png) for the usage of the repo...
+...has a [cheat sheet](img/#0,2496,3500,5582&ff0000&&&http://127.0.0.1:5500/img/documentation_image.png) on how to use and author the repo...
 
 ...and explains how the [URL hash](img/#0,5037,3500,7656&ff0000&&&http://127.0.0.1:5500/img/documentation_image.png) encodes the inflections.
 

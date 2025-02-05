@@ -418,7 +418,7 @@ function Inflection() {
                 .attr("r", icon_button_width/2)
                 .style("stroke", "none")
                 .style("fill", inflection.col)
-                .style("fill-opacity", 0.7)
+                .style("fill-opacity", 0.3)
 
         
         var dist = 5.5;
@@ -503,7 +503,7 @@ function Inflection() {
                 .attr("r", icon_button_width/2)
                 .style("stroke", "none")
                 .style("fill", inflection.col)
-                .style("fill-opacity", 0.7)
+                .style("fill-opacity", 0.3)
         
         d3.select("#ann-icon")
             .append("text")
@@ -566,6 +566,7 @@ function Inflection() {
         // #region Reset button UI
         d3.select("#reset-div").append("button")
             .attr("id", "reset-button")
+            .style("background-color", hexToRgb(inflection.col, 0.3))
             .on("click", function () {
                 inflection.line = []
                 inflection.ann = []
@@ -914,7 +915,7 @@ function Inflection() {
                     .attr("r", 5)
                     .attr("class", "tooltip-point")
                     .attr("fill", inflection.col)
-                    .attr("opacity", 0.7)
+                    .attr("opacity", 0.3)
                     .attr("visibility", "hidden")
 
                 var res;
@@ -1097,7 +1098,8 @@ function Inflection() {
                         
                         // update hash
                         var array = [textdata.xData, textdata.yData, text].flat()
-                        textdata.hash = array.join(";")
+                        var roundedArray = array.map(num => typeof(num) == "number"? parseFloat(parseFloat(num).toFixed(2)) : num);
+                        textdata.hash = roundedArray.join(";")
                         
                         inflection.ann[index_in_anns] = textdata.hash
                         
@@ -1499,7 +1501,6 @@ function Inflection() {
 
             var currXScale = that.getXAxScale()
             var currYScale = that.getYAxScale()
-            //TODO NANs when text is on the edge of SVG
             
 
             let data = [];
@@ -2103,6 +2104,9 @@ function Inflection() {
         //Change UI
         d3.select(".infl-col-input")
             .attr("value", colour)
+        d3.select("#reset-button")
+            .style("background-color", hexToRgb(colour, 0.3))
+            
         d3.selectAll(".button-bg").style("fill", colour)
         d3.select("#infl-text-input").style("border-color", colour)
 
@@ -2179,6 +2183,22 @@ function Inflection() {
         return `#${r}${g}${b}`.toUpperCase(); // Uppercase for consistency
     }
 
+    function hexToRgb(hex, alpha) {
+        // Remove the hash at the start if it's there
+        hex = hex.replace(/^#/, '');
+    
+        // Parse the r, g, b values
+        let r = parseInt(hex.substring(0, 2), 16);
+        let g = parseInt(hex.substring(2, 4), 16);
+        let b = parseInt(hex.substring(4, 6), 16);
+    
+        if (alpha !== undefined) {
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        } else {
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+    }
+    
 
     function snapAngle(dx, dy) {
         // Calculate the angle of the line in degrees
@@ -2340,12 +2360,17 @@ function Inflection() {
     }
 
     function invertCatScale(axis, position) {
-            var scale = getCatAxisScale(axis)
+        var scale = getCatAxisScale(axis)
+        var isOnEdge = axis == "xax" ? position == SVGwidth : position == SVGheight
+        if(isOnEdge) {
+            return [scale.domain()[scale.domain().length - 1], 1]
+        } else {
             var step = scale.step();
             var index = Math.floor((position / step));
             var val = scale.domain()[index];
             var between = (position - scale(val)) / step
-        return [val, Math.round(10*between)/10]
+            return [val, Math.round(10*between)/10]
+        }
     }
 
 
