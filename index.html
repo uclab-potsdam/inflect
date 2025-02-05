@@ -7,7 +7,12 @@
     <script src="src/marked.min.js"></script>
     
     <style>
+        :root {
+            scroll-behavior: smooth;
+        }
+        
         body {
+            
             font-family: "HelveticaNeueLight", "HelveticaNeue-Light", "Helvetica Neue Light", "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Arial", sans-serif;
             font-weight: 200;
             font-size: calc(1vw + 1vh);
@@ -80,7 +85,10 @@
     }
 
     // Update markdown when hash changes
-    window.addEventListener('hashchange', renderMarkdown);
+    window.addEventListener('hashchange', function() {
+        window.scrollTo(0, 0);
+        renderMarkdown();        
+    });
 
     // with IntersectionObserver we can check what is visible    
     function initializeObservers() {
