@@ -5,9 +5,9 @@
 This repository contains a template and example stories that illustrate the idea of interpretative interactions with data visualizations and other inflectable media.
 
 Example stories
-- <a href="#visualizations.md">visualizations</a>
-- <a href="#images.md">images</a>
-- <a href="#webpages.md">webpages</a>
+- <a href="#visualizations">visualizations</a>
+- <a href="#images">images</a>
+- <a href="#webpages">webpages</a>
 
 
 The [folder structure](img/#-347,-1,584,422&ff0000&&&folder_structure.png) is quite straightforward and enables you to add inflected visualisations to your own story.

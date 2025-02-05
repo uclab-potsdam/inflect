@@ -77,13 +77,13 @@
     async function renderMarkdown() {
         try {
             const hash = window.location.hash.substring(1); // Remove '#' from hash
-            const file = hash ? hash : 'README.md';
+            const file = hash ? hash : 'README';
 
-            const fileA = file.split(".");
-            if (fileA[0]=="README") document.title = "!NFLECT";
-            else document.title = "!NFLECT · "+fileA[0];
+            
+            if (file=="README") document.title = "!NFLECT";
+            else document.title = "!NFLECT · " + file;
 
-            const response = await fetch(file); 
+            const response = await fetch(file+".md"); 
             let readme = await response.text();
 
             // split sections by two empty lines
