@@ -61,7 +61,10 @@
     // Function to fetch and render the markdown
     async function renderMarkdown() {
         try {
-            const response = await fetch('README.md'); 
+            const hash = window.location.hash.substring(1); // Remove '#' from hash
+            const file = hash ? hash : 'README.md';
+
+            const response = await fetch(file); 
             const readme = await response.text();
             const html = marked.parse(readme); 
             document.querySelector('main').innerHTML = html;
@@ -71,6 +74,9 @@
             console.error('Error fetching or rendering the markdown file:', error);
         }
     }
+
+    // Update markdown when hash changes
+    window.addEventListener('hashchange', renderMarkdown);
 
     // with IntersectionObserver we can check what is visible    
     function initializeObservers() {
