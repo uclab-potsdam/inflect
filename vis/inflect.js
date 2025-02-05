@@ -277,9 +277,9 @@ function Inflection() {
         d3.select("body").append("div").attr("class", "inflect_ui")
             .style("width", "250px");
 
-        d3.select(".inflect_ui")
-            .append("span")
-            .attr("id", "hash")
+        // d3.select(".inflect_ui")
+        //     .append("span")
+        //     .attr("id", "hash")
 
         //title
         d3.select(".inflect_ui").append("div")
@@ -310,6 +310,15 @@ function Inflection() {
             .attr("class", "infl-ui-div")
             .attr("id", "colour-div");
 
+            d3.select(".inflect_ui").append("div")
+            .attr("class", "infl-ui-div")
+            .attr("id", "hash-div");
+
+        // reset button
+        d3.select(".inflect_ui").append("div")
+            .attr("class", "infl-ui-div")
+            .attr("id", "reset-div");
+            
         // note about double click
         d3.select(".inflect_ui")
             .append("div")
@@ -319,47 +328,36 @@ function Inflection() {
             .style("font-size", "13px")
             .append("p").html("Double click on element to remove it")
 
-        // note about hash
-        d3.select(".inflect_ui")
-            .append("div")
-            .attr("class", "infl-ui-div")
-            .style("margin", "0px")
-            .style("padding", "0px 5px")
-            .style("font-size", "13px")
-            .append("p").html("Copy hash to add to story")
 
-        // reset button
-        d3.select(".inflect_ui").append("div")
-            .attr("class", "infl-ui-div")
-            .attr("id", "reset-div");
+
         // #endregion
         
         
         
-        d3.select("#hash")
-            .text("🔗")
-            .style("font-size", "20px")
-            .style("float", "right")
-            .style("cursor", "pointer")
-            .on("mouseover", function () {
-                tooltip.style("visibility", "visible").text("Copy hash to clipboard");
-            })
-            .on("mousemove", function (event) {
-                tooltip.style("top", (event.pageY - 35) + "px")
-                    .style("left", (event.pageX - 20) + "px");
-            })
-            .on("mouseout", function () {
-                tooltip.style("visibility", "hidden");
-            })
-            .on("click", function () {
+        // d3.select("#hash")
+        //     .text("🔗")
+        //     .style("font-size", "20px")
+        //     .style("float", "right")
+        //     .style("cursor", "pointer")
+        //     .on("mouseover", function () {
+        //         tooltip.style("visibility", "visible").text("Copy hash to clipboard");
+        //     })
+        //     .on("mousemove", function (event) {
+        //         tooltip.style("top", (event.pageY - 35) + "px")
+        //             .style("left", (event.pageX - 20) + "px");
+        //     })
+        //     .on("mouseout", function () {
+        //         tooltip.style("visibility", "hidden");
+        //     })
+        //     .on("click", function () {
 
-                // Copy the hash to clipboard
-                navigator.clipboard.writeText("#" + that.hash);
+        //         // Copy the hash to clipboard
+        //         navigator.clipboard.writeText("#" + that.hash);
 
-                // Alert the copied text
-                tooltip.text("Copied to clipboard.");
+        //         // Alert the copied text
+        //         tooltip.text("Copied to clipboard.");
 
-            });
+        //     });
 
         
 
@@ -395,30 +393,12 @@ function Inflection() {
 
             });
 
-        // Append the SVG icon to the button
-        d3.select("#line-button")
-            .append("svg")
-            .attr("id", "line-icon")
-            .attr("class", "icon-button")
-            .attr("width", icon_button_width)
-            .attr("height", icon_button_width)
             
         // Append the text to the button
         d3.select("#line-button")
             .append("span")
             .attr("class", "button-text")
-            .text("Add line")
-
-        
-        d3.select("#line-icon")
-            .append("circle")
-                .attr("class", "button-bg")
-                .attr("cx", icon_button_width/2)
-                .attr("cy", icon_button_width/2)
-                .attr("r", icon_button_width/2)
-                .style("stroke", "none")
-                .style("fill", inflection.col)
-                .style("fill-opacity", 0.3)
+            .text("╱  Add line")
 
         
         var dist = 5.5;
@@ -480,41 +460,11 @@ function Inflection() {
 
             });
 
-        // Append the SVG icon to the button
-        d3.select("#ann-button")
-            .append("svg")
-            .attr("id", "ann-icon")
-            .attr("class", "icon-button")
-            .attr("width", icon_button_width)
-            .attr("height", icon_button_width)
-
         // Append the text to the button
         d3.select("#ann-button")
             .append("span")
             .attr("class", "button-text")
-            .text("Add label")
-  
-        
-        d3.select("#ann-icon")
-            .append("circle")
-                .attr("class", "button-bg")
-                .attr("cx", icon_button_width/2)
-                .attr("cy", icon_button_width/2)
-                .attr("r", icon_button_width/2)
-                .style("stroke", "none")
-                .style("fill", inflection.col)
-                .style("fill-opacity", 0.3)
-        
-        d3.select("#ann-icon")
-            .append("text")
-                .attr("x", icon_button_width/2+0.5)
-                .attr("y", icon_button_width/2)
-                .attr("dy", "0.35em")
-                .style("font-size", "13px")
-                .style("text-anchor", "middle")
-                .text("&");
-
-
+            .text("🏷️ Add label")
             
         // #endregion
 
@@ -538,35 +488,40 @@ function Inflection() {
                 document.getElementById("infl-col-input").click();
             });
 
-        // Append the SVG icon to the button
-        d3.select("#col-button")
-            .append("svg")
-            .attr("id", "col-icon")
-            .attr("class", "icon-button")
-            .attr("width", icon_button_width)
-            .attr("height", icon_button_width)
-
         // Append the text to the button
         d3.select("#col-button")
             .append("span")
             .attr("class", "button-text")
-            .text("Set color")
+            .text("🌈 Set color")
   
-        
-        d3.select("#col-icon")
-            .append("circle")
-                .attr("class", "button-bg")
-                .attr("cx", icon_button_width/2)
-                .attr("cy", icon_button_width/2)
-                .attr("r", icon_button_width/2)
-                .style("stroke", "none")
-                .style("fill", inflection.col)
+
+        // #endregion
+
+        // #region Annotations button UI
+
+        // Create the button element
+        d3.select("#hash-div").append("button")
+            .attr("id", "hash-button")
+            .on("click", function () {
+                // Copy the hash to clipboard
+                navigator.clipboard.writeText("#" + that.hash);
+
+                // Alert the copied text
+                // tooltip.text("Copied to clipboard.");
+
+            });
+
+        // Append the text to the button
+        d3.select("#hash-button")
+            .append("span")
+            .attr("class", "button-text")
+            .text("🔗 Copy hash")
+            
         // #endregion
 
         // #region Reset button UI
         d3.select("#reset-div").append("button")
             .attr("id", "reset-button")
-            .style("background-color", hexToRgb(inflection.col, 0.3))
             .on("click", function () {
                 inflection.line = []
                 inflection.ann = []
@@ -590,7 +545,7 @@ function Inflection() {
             d3.select("#reset-button")
                 .append("span")
                 .attr("class", "button-text")
-                .text("Reset")
+                .text("🧽 Reset")
     // #endregion
 
         
@@ -2102,12 +2057,6 @@ function Inflection() {
         d3.select(".tooltip-point").attr("fill", colour)
 
         //Change UI
-        d3.select(".infl-col-input")
-            .attr("value", colour)
-        d3.select("#reset-button")
-            .style("background-color", hexToRgb(colour, 0.3))
-            
-        d3.selectAll(".button-bg").style("fill", colour)
         d3.select("#infl-text-input").style("border-color", colour)
 
     }
