@@ -10,7 +10,7 @@
         :root {
             scroll-behavior: smooth;
         }
-        
+
         body {
             
             font-family: "HelveticaNeueLight", "HelveticaNeue-Light", "Helvetica Neue Light", "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Arial", sans-serif;
@@ -38,11 +38,13 @@
             margin: 0;
         }
 
+        section {
+            min-height: 100vh;
+        }
+        
         p {
-            font-size: 1em;            
-            min-height: 50vh;
+            font-size: 1em;                        
             margin: 0;
-            padding: 50vh 0;
         }
 
         a {
@@ -74,8 +76,12 @@
             const file = hash ? hash : 'README.md';
 
             const response = await fetch(file); 
-            const readme = await response.text();
+            let readme = await response.text();
+
+            readme = readme.replace(/\s*\n\s*\n\s*\n\s*/g, '\n\n</section>\n\n<section>\n\n');
+            readme = "<section>\n\n" + readme + "\n\n</section>";
             const html = marked.parse(readme); 
+            
             document.querySelector('main').innerHTML = html;
 
             initializeObservers();

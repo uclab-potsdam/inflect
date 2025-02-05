@@ -16,7 +16,7 @@
             overflow: hidden;
             width: 100%;
             height: 100%;
-            background: #000;
+            background: #fff;
         }
         canvas {
             display: block;
@@ -27,7 +27,7 @@
         body.frame nav { display: none; }
         nav {
             padding: .5em;
-            background-color: gray;
+            background-color: #ccc;
             z-index: 2;
             position: fixed;
             top: 0;
@@ -506,7 +506,7 @@
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.font = '20px Arial';
-            ctx.fillText('Please paste an image URL', canvas.width / 2, canvas.height / 2);
+            ctx.fillText('Paste URL or path to image', canvas.width / 2, canvas.height / 2);
         }
 
         setupInteractions();
