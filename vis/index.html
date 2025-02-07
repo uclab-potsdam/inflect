@@ -172,17 +172,17 @@
                     var spec = data;
                     
                     // find out if axis are quantitative or not, look at definition in spec
-                    var x_encoding_type = spec.encoding.x.type
-                    var x_aggregate = spec.encoding.x.aggregate
-                    if(x_encoding_type === "quantitative" || x_encoding_type === "temporal" || x_aggregate) {
+                    var x_encoding_type = spec.encoding.x ? spec.encoding.x.type : false
+                    var x_aggregate = spec.encoding.x ? spec.encoding.x.aggregate : false
+                    if(x_encoding_type && (x_encoding_type === "quantitative" || x_encoding_type === "temporal" || x_aggregate)) {
                         var x_quant = true;
                     } else { // nominal is default in vega-lite
                         var x_quant = false;
                     }
 
-                    var y_encoding_type = spec.encoding.y.type
-                    var y_aggregate = spec.encoding.y.aggregate
-                    if(y_encoding_type === "quantitative" || y_encoding_type === "temporal" || y_aggregate) {
+                    var y_encoding_type = spec.encoding.y ? spec.encoding.y.type : false
+                    var y_aggregate = spec.encoding.y ? spec.encoding.y.aggregate : false 
+                    if(y_encoding_type && (y_encoding_type === "quantitative" || y_encoding_type === "temporal" || y_aggregate)) {
                         var y_quant = true;
                     } else {
                         var y_quant = false;
@@ -197,11 +197,18 @@
                         spec.usermeta = {"embedOptions": {"renderer": "svg"}}; //should be rendered as SVG and not Canvas
                     }
 
+                    var piechart = false;
+                    if(spec.encoding.theta && spec.encoding.color) {
+                        piechart = true;
+                        var y_quant = false;
+                        var x_quant = false;
+                    }
+
                     var result = vegaEmbed("#vis", spec, {mode: "vega-lite"}).then(
                         function() {
                             var vis;
                             vis = new Inflection();	
-                            vis.init(chartPath, x_quant, y_quant, dragable); //initialize inflection from inflect.js
+                            vis.init(chartPath, x_quant, y_quant, dragable, piechart); //initialize inflection from inflect.js
                         }
                     ).catch(console.error);
                 }
@@ -234,6 +241,7 @@
 
             this.editable = true; // states if page in iframe or separate window with UI
             this.isDragable = false; // if chart is dragable e.g. for scatterplot or linechart
+            this.isPiechart = false; // if chart is a piechart
 
             var SVGheight = 0;
             var SVGwidth = 0;
@@ -244,7 +252,7 @@
 
 
             //initialise
-            this.init = function (chartPath, xAxQuant, yAxQuant, isDragable) {
+            this.init = function (chartPath, xAxQuant, yAxQuant, isDragable, isPiechart) {
 
                 var that = this;
 
@@ -271,19 +279,22 @@
                 .attr("transform", "translate(" + border_x + "," + border_y + ")")
 
                 // Establish plot area height and width
-                SVGheight = +get_y_translate(d3.selectAll("g.mark-group.role-axis").filter(function() {
-                    return String(d3.select(this).attr("aria-label")).includes("Y-axis")
-                }).select(".role-axis-domain").select("line").attr("transform")) // get length in y-direction of y-axis line
-                // alternative method, if this is 0:
-                if (SVGheight == 0) {
-                    SVGheight = +d3.selectAll("g.mark-group.role-axis").filter(function() {
+                this.isPiechart = isPiechart;
+                if(!isPiechart) {
+                    SVGheight = +get_y_translate(d3.selectAll("g.mark-group.role-axis").filter(function() {
                         return String(d3.select(this).attr("aria-label")).includes("Y-axis")
-                    }).select(".role-axis-domain").select("line").attr("y2")
-                }
+                    }).select(".role-axis-domain").select("line").attr("transform")) // get length in y-direction of y-axis line
+                    // alternative method, if this is 0:
+                    if (SVGheight == 0) {
+                        SVGheight = +d3.selectAll("g.mark-group.role-axis").filter(function() {
+                            return String(d3.select(this).attr("aria-label")).includes("Y-axis")
+                        }).select(".role-axis-domain").select("line").attr("y2")
+                    }
 
-                SVGwidth = +d3.selectAll("g.mark-group.role-axis").filter(function() {
-                    return String(d3.select(this).attr("aria-label")).includes("X-axis")
-                }).select(".role-axis-domain").select("line").attr("x2")
+                    SVGwidth = +d3.selectAll("g.mark-group.role-axis").filter(function() {
+                        return String(d3.select(this).attr("aria-label")).includes("X-axis")
+                    }).select(".role-axis-domain").select("line").attr("x2")
+                }
 
 
                 // set default inflection variables
@@ -291,6 +302,7 @@
                 this.isDragable = isDragable;
                 this.xAxQuant = xAxQuant;
                 this.yAxQuant = yAxQuant;
+                
 
                 this.basexax = this.xAxQuant ? getValuesOfQuantAx("xax") : [0, 0];
                 inflection.xax = this.basexax;
@@ -362,7 +374,7 @@
                     that.addUI();
 
                 } else {
-                    // Not top level as it ppears in storytelling
+                    // Not top level as it appears in storytelling
                     that.editable = false;
                     d3.select("details").remove()
                 }
@@ -1034,7 +1046,7 @@
                     d3.selectAll("path")
                         .filter(function() {
                             let role_descr = d3.select(this).attr("aria-roledescription");
-                            return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
+                            return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle") || (role_descr == "arc mark")
                             })
                         .style("cursor", "pointer")
                         .on("mouseover", function () {
@@ -1750,7 +1762,7 @@
                     d3.selectAll("path")
                         .filter(function() {
                             let role_descr = d3.select(this).attr("aria-roledescription");
-                            return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
+                            return (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle") || (role_descr == "arc mark")
                             })
                         .transition()
                         .duration(200)
@@ -1780,7 +1792,7 @@
                     var path = d3.selectAll("path") //select data element to highlight
                         .filter(function() {
                             let role_descr = d3.select(this).attr("aria-roledescription");
-                            var ismarker = (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
+                            var ismarker = (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle") || (role_descr == "arc mark")
 
                             let aria_label = d3.select(this).attr("aria-label") // e.g. "a: D; b: 91"
                             if(aria_label) {
@@ -1967,7 +1979,7 @@
                     d3.selectAll("path")
                         .filter(function() {
                             let role_descr = d3.select(this).attr("aria-roledescription");
-                            var ismarker = (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle")
+                            var ismarker = (role_descr == "bar") || (role_descr == "point") || (role_descr == "circle") || (role_descr == "arc mark")
 
                             let aria_label = d3.select(this).attr("aria-label") // e.g. "a: D; b: 91"
                             if(aria_label) {
