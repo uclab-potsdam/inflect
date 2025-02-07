@@ -2,22 +2,22 @@
 
 
 
-[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/) Test 1
+[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/) - overview
 
 
-[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#filter=Gebäude) Test 2
+[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#filter=Geb%C3%A4ude) buildings
 
 
-[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#filter=Gebäude,Kutsche) Test 3
+[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#filter=Geb%C3%A4ude&borders=VII_59_761_x,VII_62_195_x,VII_59_940_x,VII_59_758_x&translate=-4611,-8383&scale=0.33247382922424834) Four highlighted buildings
 
 
-[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#mode=Test&filter=Gebäude,Kutsche&translate=0,-3&scale=0.00) Test 4
+[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#filter=Geb%C3%A4ude&selected=VII_59_758_x) One selected building
 
 
-[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#mode=Datierung&filter=Gebäude,Kutsche&translate=0,-10&scale=0.00) Test 5
+[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#filter=Geb%C3%A4ude,Stadt&translate=-296,-5119&scale=0.0707816412966984) buildings & city
 
 
-[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#mode=Datierung&filter=Gebäude,Kutsche&selected=GEM_75_5) Test 6
+[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#filter=Stadt&translate=-7214,-9274&scale=0.9632527541541163) zoom in on two street pieces
 
 
 
