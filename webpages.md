@@ -1,5 +1,26 @@
 # <a href="./">!NFLECT</a> webpages
 
+
+
+[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/) Test 1
+
+
+[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#filter=Gebäude) Test 2
+
+
+[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#filter=Gebäude,Kutsche) Test 3
+
+
+[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#mode=Test&filter=Gebäude,Kutsche&translate=0,-3&scale=0.00) Test 4
+
+
+[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#mode=Datierung&filter=Gebäude,Kutsche&translate=0,-10&scale=0.00) Test 5
+
+
+[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#mode=Datierung&filter=Gebäude,Kutsche&selected=GEM_75_5) Test 6
+
+
+
 The Wikipedia entry on [this print](https://en.wikipedia.org/wiki/The_Great_Wave_off_Kanagawa) has some details...
 
 
@@ -52,4 +73,3 @@ It is possible to focus on a subset, e.g., just the [tactics, principles, and th
 
 
 [Esther Truhe](https://uclab.fh-potsdam.de/closeupcloud/#/viz/detail/P2017.3.212)
-
