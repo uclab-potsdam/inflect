@@ -164,7 +164,9 @@
         if (chartPath=="") {
             console.warn("You forgot to define which visualization to use!")
             chartPath = "barchart"; //default
+            window.location.hash = "#barchart";
         }
+        
 
         fetch(chartPath + '.json') 
             .then(response => {return response.json()})
@@ -402,7 +404,7 @@
                     // extract vis directly (first element after hash)
                     if (hash_elements.length > 0) {
                         let visValue = decodeURIComponent(hash_elements[0]); // First element is the visualization type
-                        if (visValue !== that.chartPath) { // If the visualization type changes
+                        if ( visValue !== that.chartPath) { // If the visualization type changes
                             location.reload(); // Reload page!
                             return; // Stop further processing since page is reloading
                         }
