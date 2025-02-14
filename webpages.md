@@ -15,7 +15,7 @@ With the rise of data stories, [scrollytelling](https://books.google.com/ngrams/
 [Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#filter=Gebäude&translate=-4775,-14148&scale=0.728453094629017) Four buildings in 1860
 
 
-[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#filter=Gebäude&translate=-4922,-9200&scale=1.664370612949067&borders=GEM_89_24) One selected building
+[Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#filter=Gebäude&translate=-4877,-14223&scale=1.2683105037281917&borders=GEM_89_24) One selected building
 
 
 [Vikus Viewer](https://cpietsch.github.io/vikus-viewer/#filter=Gebäude&borders=GEM_89_24&selected=GEM_89_24) Selected and info shown
