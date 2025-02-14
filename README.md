@@ -1,6 +1,9 @@
-
 # !NFLECT
-## Modulating visualizations to tell stories with data
+## Bridging Data Exploration and Scholarly Argumentation in Humanities Research
+
+This is a web-based template implementing inflections as a method to record and recount interpretative interactions with data visualizations. By parameterizing view changes and annotations in visualizations, scholars can document and share insights from their data analysis and research process. The intention is to bridge the gap between data exploration and scholarly argumentation, by interweaving visualization states with narrative segments.
+
+
 
 This repository contains a template and example stories that illustrate the idea of interpretative interactions with data visualizations and other inflectable media.
 
