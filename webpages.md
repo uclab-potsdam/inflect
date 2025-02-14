@@ -3,6 +3,9 @@
 Is it [inflectible or inflectable](https://books.google.com/ngrams/graph?content=inflectible%2Cinflectable&year_start=1900&year_end=2022&corpus=en&smoothing=3&case_insensitive=false)?
 
 
+With the rise of data stories, [scrollytelling](https://books.google.com/ngrams/graph?content=long-reads%2Cscrollytelling%2Cdata+stories&year_start=2000&year_end=2022&corpus=en&smoothing=3&case_insensitive=false) also really took off...
+
+
 [Vikus Viewer](https://cpietsch.github.io/vikus-viewer/) - overview
 
 
