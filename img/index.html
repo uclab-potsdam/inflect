@@ -62,7 +62,11 @@
         const inFrame = window.self !== window.top;
         let lineWidth = parseInt(window.getComputedStyle(document.body).fontSize, 10)/7.5*pixelRatio;
         let interactiveChange = false;
+        // We will store the original URL (including relative path) in currentUrl
+        let currentUrl = null;
+
         if (inFrame) document.body.classList.add("frame");
+
         let image = new Image();
         let view = { topLeft: [0, 0], bottomRight: [0, 0] };
         let isDragging = false;
@@ -70,7 +74,6 @@
 
         const ANIMATION_DURATION = 1000;
         
-
         function browserToImageSpace(bx, by) {
             // Determine how large the visible region is in image coordinates
             const zoomWidth = view.bottomRight[0] - view.topLeft[0];
@@ -84,7 +87,6 @@
             const imageX = view.topLeft[0] + bx * scaleX;
             const imageY = view.topLeft[1] + by * scaleY;
 
-            // Return integer coordinates if desired (rounding is optional)
             return [Math.round(imageX), Math.round(imageY)];
         }
 
@@ -154,7 +156,6 @@
             view.bottomRight = [(image.width + offsetX / scale), (image.height + offsetY / scale)];
         }
 
-
         function render() {
             // Set the canvas size for Retina displays
             canvas.width = Math.floor(window.innerWidth * pixelRatio);
@@ -188,7 +189,8 @@
             ctx.drawImage(image, 0, 0);
 
             // Retrieve annotations from the hash
-            const annotations = parseHash().annotations;
+            const parsed = parseHash();
+            const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
 
             // Draw all rectangles (boxes)
             if (annotations.boxes) {
@@ -265,36 +267,39 @@
         }
 
         function loadImage(url) {
+            // Preserve the original URL (including relative path) in currentUrl
+            currentUrl = url;
+
             image.onload = () => {
                 const parsed = parseHash();
-
-                if (parsed && parsed.view) updateView(parsed.view, false);                
-                fitViewToCanvas(image);
-
+                if (parsed && parsed.view) {
+                    updateView(parsed.view, false);
+                } else {
+                    fitViewToCanvas(image);
+                }
                 render(); // Ensure the image and view are rendered
             };
 
-            image.src = url; // Set the image source to trigger loading
+            // Setting image.src will resolve it, but we keep currentUrl unchanged
+            image.src = url;
         }
-
 
         function setupInteractions() {
             let currentTool = 'none';
             let annotationStart = null;
 
-            // Update the current tool based on the selected radio button
             toolInputs.forEach((input) => {
                 input.addEventListener('change', () => {
                     currentTool = input.value;
                 });
             });
 
-            // Update the annotation color in the hash when the color picker changes
             colorInput.addEventListener('change', () => {
-                const annotations = parseHash().annotations;
+                const parsed = parseHash();
+                const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
                 annotations.color = colorInput.value.slice(1);
-                updateHash(image.src, view, annotations);
-                render(); // Re-render to apply the new color
+                updateHash(currentUrl, view, annotations);
+                render(); 
             });
 
             canvas.addEventListener('mousedown', (e) => {
@@ -344,7 +349,6 @@
                     ctx.lineWidth = lineWidth;
 
                     if (currentTool === 'box') {
-                        // Draw box preview
                         ctx.strokeRect(
                             annotationStart[0],
                             annotationStart[1],
@@ -352,7 +356,6 @@
                             y - annotationStart[1]
                         );
                     } else if (currentTool === 'arrow') {
-                        // Draw arrow preview
                         ctx.beginPath();
                         ctx.moveTo(annotationStart[0], annotationStart[1]);
                         ctx.lineTo(x, y);
@@ -364,13 +367,14 @@
             });
 
             canvas.addEventListener('mouseup', (e) => {
-                const annotations = parseHash().annotations;
+                const parsed = parseHash();
+                const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
 
                 if (currentTool === 'none' && isDragging) {
                     // End panning
                     isDragging = false;
                     canvas.style.cursor = 'grab';
-                    updateHash(image.src, view, annotations);
+                    updateHash(currentUrl, view, annotations);
                 } else if (annotationStart) {
                     // Finalize the annotation
                     const rect = canvas.getBoundingClientRect();
@@ -385,9 +389,6 @@
                         Math.round(view.topLeft[0] + (x / canvas.width) * (view.bottomRight[0] - view.topLeft[0])),
                         Math.round(view.topLeft[1] + (y / canvas.height) * (view.bottomRight[1] - view.topLeft[1])),
                     ];
-                    
-                    // console.log( browserToImageSpace(annotationStart[0], annotationStart[1]), scaledStart);
-                    // console.log( browserToImageSpace(x, y), scaledEnd);
 
                     if (currentTool === 'box') {
                         annotations.boxes.push(
@@ -406,17 +407,17 @@
                     }
 
                     annotationStart = null;
-                    updateHash(image.src, view, annotations);
-                    render(); // Re-render to include the finalized annotation
+                    updateHash(currentUrl, view, annotations);
+                    render(); 
                 }
             });
 
-
-        canvas.addEventListener('wheel', (e) => {
+            canvas.addEventListener('wheel', (e) => {
                 if (inFrame) return;
                 e.preventDefault();
 
-                const annotations = parseHash().annotations;
+                const parsed = parseHash();
+                const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
 
                 const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
 
@@ -440,19 +441,18 @@
                 ];
 
                 render();
-                updateHash(image.src, view, annotations);
+                updateHash(currentUrl, view, annotations);
             });
-
         }
 
         window.addEventListener('hashchange', () => {
             if (interactiveChange) return;
 
             const parsed = parseHash();
-
             if (parsed) {
                 const { url, view, annotations } = parsed;
-                if (url !== image.src) {
+                // If hash-changed URL differs from our currentUrl, load it
+                if (url && url !== currentUrl) {
                     loadImage(url);
                 }
                 const animate = inFrame;
@@ -464,12 +464,14 @@
             const clipboardData = e.clipboardData || window.clipboardData;
             const pastedText = clipboardData.getData('Text');
 
-            // Check if the pasted content is a valid image URL
+            // Check if the pasted content is a valid image URL (http or https).
+            // You can modify this check if you allow relative paths to be pasted as well.
             if (pastedText && (pastedText.startsWith('http://') || pastedText.startsWith('https://'))) {
                 const img = new Image();
                 img.onload = () => {
-                    // If the image loads successfully, reset the viewer and load the new image
+                    // If the image loads successfully, reset and load the new image
                     loadImage(pastedText);
+
                     const annotations = {
                         boxes: [],
                         lines: [],
@@ -492,16 +494,14 @@
         });
 
         const parsed = parseHash();
-        
         if (parsed) {
-            const { url, view, annotations } = parsed;
-
-            // Set the color picker value based on the parsed annotations
-            if (annotations && annotations.color) colorInput.value = "#"+annotations.color;
-
-            // Load the image and update the view
-            loadImage(url);            
+            currentUrl = parsed.url; // store original URL from the hash
+            if (parsed.annotations && parsed.annotations.color) {
+                colorInput.value = "#"+parsed.annotations.color;
+            }
+            loadImage(currentUrl);
         } else {
+            // Show a friendly message
             ctx.fillStyle = '#fff';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -524,13 +524,12 @@
                 fitViewToCanvas(image);
 
                 // Update the hash with no annotations and the default view
-                updateHash(image.src, view, annotations);
+                updateHash(currentUrl, view, annotations);
 
                 // Render the reset view
                 render();
             }
         });
-
     </script>
 </body>
 </html>
