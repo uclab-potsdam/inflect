@@ -1803,6 +1803,17 @@
                     
                         d3.select(".highlight-group").select(".highlight-circle")
                             .style("visibility", "hidden");
+
+                        //colour circle in legend
+                        if(that.isPiechart) {
+                            d3.select(".role-legend-entry").select(".role-scope").selectAll("path")
+                            .attr("fill", function() {
+                                if(d3.select(this).datum() && d3.select(this).datum().fill) {
+                                    return d3.select(this).datum().fill
+                                }
+                                
+                            })
+                        }
                     
                 }
                 else {
@@ -1868,132 +1879,37 @@
                         .attr("fill", inflection.col)
                         .attr("cx", that.getXAxScale()(+x_of_high))
                         .attr("cy", that.getYAxScale()(+y_of_high))
+
+                    //colour circle in legend
+                    if(that.isPiechart) {
+                        d3.select(".role-legend-entry").select(".role-scope").selectAll("path").filter(function(){
+                            let datum = d3.select(this).datum().datum
+                            let label = datum.label
+                            return label == y_of_high
+                        })
+                        .transition()
+                        .duration(200)
+                        .ease(d3.easeLinear)
+                        .attr("fill", inflection.col)
+
+                        d3.select(".role-legend-entry").select(".role-scope").selectAll("path").filter(function(){
+                            let datum = d3.select(this).datum().datum
+                            let label = datum.label
+                            return label != y_of_high
+                            })
+                        .transition()
+                        .duration(200)
+                        .ease(d3.easeLinear)
+                        .attr("fill", function() {
+                                if(d3.select(this).datum() && d3.select(this).datum().fill) {
+                                    return d3.select(this).datum().fill
+                                }
+                                
+                            })
+
+                    }
                     
-                    // switch (that.chartPath) {
-                    //     case "barchart":
-                    //         var xscale = that.getXAxScale()
-                    //         var yscale = that.getYAxScale()
-
-                    //         //in the middle of the bar, if categorical
-                    //         var xStepValue = (typeof xscale.step === 'function') ? xscale.step() : 0 
-                    //         var yStepValue = (typeof yscale.step === 'function') ? yscale.step() : 0
-
-                    //         //add labels
-                    //         var label_data = [{
-                    //             x: Math.round(10*(xscale(x_of_high) + xStepValue*0.5))/10,
-                    //             y: Math.round(10*(yscale(y_of_high) + yStepValue*0.5))/10,
-                    //             value: [x_of_high, y_of_high],
-                    //             text: y_of_high,
-                    //             mark: {
-                    //                 marktype: "text",
-                    //                 markgroup: "inflection"
-                    //             }
-                    //         }]
-
-                    //         // label
-                    //         d3.select(".label-group")
-                    //             .selectAll("text.infl-label")
-                    //             .data(label_data)
-                    //             .join("text")
-                    //             .attr("class", "infl-label")
-                    //             d3.selectAll(".infl-label")
-                    //                 .attr("dy", "-1em")
-                    //                 // .attr("dy", ".35em")
-                    //                 .style("text-anchor", "middle")
-                    //                 .transition("trans-high")
-                    //                 .duration(200)
-                    //                 .ease(d3.easeLinear)
-                    //                     .text(d => d.text)
-                    //                     .attr("x", (d) => d.x)
-                    //                     .attr("y", (d) => d.y)
-                    //                     .style("fill", inflection.col)
-
-                            
-                    //         break;
-                    //     case "columnchart":
-                    //         var xscale = that.getXAxScale()
-                    //         var yscale = that.getYAxScale()
-
-                    //         //in the middle of the bar, if categorical
-                    //         var xStepValue = (typeof xscale.step === 'function') ? xscale.step() : 0 
-                    //         var yStepValue = (typeof yscale.step === 'function') ? yscale.step() : 0
-
-                    //         //add labels
-                    //         var label_data = [{
-                    //             x: Math.round(10*(xscale(x_of_high) + xStepValue*0.5))/10,
-                    //             y: Math.round(10*(yscale(y_of_high) + yStepValue*0.5))/10,
-                    //             value: [x_of_high, y_of_high],
-                    //             text: x_of_high,
-                    //             mark: {
-                    //                 marktype: "text",
-                    //                 markgroup: "inflection"
-                    //             }
-                    //         }]
-
-                    //         // label
-                    //         d3.select(".label-group")
-                    //             .selectAll("text.infl-label")
-                    //             .data(label_data)
-                    //             .join("text")
-                    //             .attr("class", "infl-label")
-                    //             d3.selectAll(".infl-label")
-                    //                 .attr("dx", "1em")
-                    //                 .attr("dy", ".35em")
-                    //                 .style("text-anchor", "start")
-                    //                 .transition("trans-high")
-                    //                 .duration(200)
-                    //                 .ease(d3.easeLinear)
-                    //                     .text(d => d.text)
-                    //                     .attr("x", (d) => d.x)
-                    //                     .attr("y", (d) => d.y)
-                    //                     .style("fill", inflection.col)
-
-                    //         break;
-
-                    //     case "scatterplot":
-                    //         // get x-and y-position
-                    //         var transform = path.attr("transform");
-                    //         var x_pos = get_x_translate(transform);
-                    //         var y_pos = get_y_translate(transform);
-
-
-                    //         //add labels
-                    //         var label_data = [{
-                    //             x: x_pos,
-                    //             y: y_pos,
-                    //             value: [x_of_high, y_of_high],
-                    //             text: x_of_high + ", " + y_of_high,
-                    //             mark: {
-                    //                 marktype: "text",
-                    //                 markgroup: "inflection"
-                    //             }
-                    //         }]
-
-                    //         // label
-                    //         d3.select(".label-group")
-                    //             .selectAll("text.infl-label")
-                    //             .data(label_data)
-                    //             .join("text")
-                    //             .attr("class", "infl-label")
-                    //             d3.selectAll(".infl-label")
-                    //                 .attr("dx", "1em")
-                    //                 .attr("dy", ".35em")
-                    //                 .style("text-anchor", "start")
-                    //                 .transition("trans-high")
-                    //                 .duration(200)
-                    //                 .ease(d3.easeLinear)
-                    //                     .text(d => d.text)
-                    //                     .attr("x", (d) => d.x)
-                    //                     .attr("y", (d) => d.y)
-                    //                     .style("fill", inflection.col)
-
-                    //         break;
                     
-                    //     default:
-                    //         break;
-                    // }
-
-
                             
                     
                     // colour non-highlight mark back to normal
