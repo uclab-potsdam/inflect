@@ -13,7 +13,7 @@
         "point": true
     },
     "encoding": {
-        "x": {"timeUnit": "year", "field": "Year", "type":"temporal"},
+        "x": {"timeUnit": "year", "field": "Year", "type":"temporal", "title": "Year"},
         "y": {"aggregate":"count", "field": "title", "type": "quantitative",  "title": "Number of Papers"},
         "color": {"field": "Conference", "type": "nominal"}
     },

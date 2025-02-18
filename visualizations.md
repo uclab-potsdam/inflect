@@ -6,11 +6,14 @@ There are [four conferences](vis/#IEEEvis_CountPerConf&col=%2300F05E&yax=0;2000&
 
 
 
-With 1818 publication, [VIS](vis/#IEEEvis_CountPerConf&col=%2300F05E&yax=0;2000&line=&ann=Vis%3B0.5%3B1868.5%3B0%3B1818&high=Vis;1818) seems to be the most popular conference... 
+With 1818 publication, [VIS](vis/#IEEEvis_CountPerConf&col=%2300F05E&yax=0;2000&line=&ann=Vis%3B0.5%3B1873.8%3B0%3B1818&high=Vis;1818) seems to be the most popular conference...
+
+
+...you can see it even better in this piechart. VIS published [almost half](vis/#IEEEvis_CountPerConf_pie&col=%2300F05E&line=&ann=&high=) of all papers.
 
 
 
-... and especially [SciVis](vis/#IEEEvis_CountPerConf&col=%2300F05E&yax=0;1078.3&line=&ann=Vis%3B0.5%3B1868.5%3B0%3B1818&high=SciVis;305) falls behind.
+Especially [SciVis](vis/#IEEEvis_CountPerConf_pie&col=%2300F05E&line=&ann=&high=305;SciVis) falls behind.
 
 What could be the reason?
 
@@ -26,14 +29,14 @@ Look at the spike in [2004](vis/#IEEEvis_overTime&col=%2300F05E&yax=0;179.6&line
 111 papers in the [VIS](vis/#IEEEvis_overTime&col=%2300F05E&yax=0;179.6&line=2003;0.8;2002;0.9;121.6;0;131.3;0&ann=2002%3B0.2%3B133.3%3B0%3B111&high=2004;111;Vis) conference alone.
 
 
-Looking only at the smaller conferences between 2006-2013 [left](vis/#IEEEvis_smallerConf&col=%2300F05E&yax=0;70&xax=2006;2020&line=&ann=&high=), you can see they had different importance over time.
+Looking only at the smaller conferences between [2006-2013](vis/#IEEEvis_smallerConf&col=%2300F05E&yax=0;70&xax=2006;2020&line=&ann=&high=), you can see they had varying importance over time.
 
 
 
 There was a curious dip in papers in [2013](vis/#IEEEvis_smallerConf&col=%2300F05E&yax=0;70&xax=2009;2017&line=2013;0;2013;0;-1.1;0;70;0&ann=&high=2013;32;VAST).
 
 
-Cite and be Cited! [Most papers](vis/#IEEEvis_citationHisto&col=%2300F05E&yax=0;4000&line=&ann=&high=) are referenced <100 times.
+Cite and be Cited! [Most papers](vis/#IEEEvis_citationHisto&col=%2300F05E&yax=0;4000&line=&ann=&high=0%20%E2%80%93%20100;3532) are referenced <100 times.
 
 
 [Only a few](vis/#IEEEvis_citationHisto&col=%2300F05E&yax=0;209&line=0;0;2,0;0;2,0;0;2&ann=300%3B0.2%3B33.9%3B0%3B27%2C200%3B0.5%3B178%3B0%3B172&high=) have many more references.
