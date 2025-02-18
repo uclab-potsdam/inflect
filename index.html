@@ -16,7 +16,7 @@
                          "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Arial", sans-serif;
             font-weight: 200;
             font-size: calc(1vw + 1vh);
-            background: #fff;
+            background-color: #ddd;
             margin: 0;
             padding: 0;
         }
@@ -35,7 +35,7 @@
             z-index: 100;
         }
 
-        iframe {
+        iframe, #frameBox {
             top: 0;
             left: 0;
             height: 100vh;
@@ -44,7 +44,10 @@
             background-color: #fff;
             border: 0;
             margin: 0;
-            padding: 0;
+            padding: 0;            
+        }
+
+        iframe {
             opacity: 0;
             transition: opacity 0.1s ease-in;
         }
@@ -59,9 +62,10 @@
             right: 0;
             width: 35vw;
             padding: 5vh;
-            margin: 0;
-            background-color: #ddd;
+            margin: 0;            
         }
+
+   
 
         section {
             min-height: 100vh;
@@ -90,7 +94,7 @@
 
 <div id="orientationWarning">Please turn your device around or widen your browser window.</div>
 
-<iframe id="if"></iframe>
+<div id="frameBox"><iframe id="if"></iframe></div>
 
 <main></main>
 
