@@ -14,7 +14,7 @@
             height: 100vh;
             width: 100vw;
             display: flex;
-            justify-content: center;
+            justify-content: left;
             align-items: center;
             margin: 0;
             padding: 0;    
@@ -25,7 +25,6 @@
             font-size: 11px;
         }
         .inflect_ui {
-            margin-top: 25px;
             margin-left: 30px;
             margin-right: 30px;
             padding: 10px;
@@ -371,16 +370,24 @@
                     let svg_width = d3.select("svg").attr("width")
                     let svg_height = d3.select("svg").attr("height")
                     let zoom_factor = 1
-                    d3.select(".chart-wrapper").style("width", "300px")
-                    // d3.select("svg").attr("width", svg_width*zoom_factor)
-                    // d3.select("svg").attr("height", svg_height*zoom_factor)
+                    d3.select(".chart-wrapper").style("width", "50vw")
+                    // d3.select(".chart-wrapper").style("max-width", "50vw")
+                    d3.select(".chart-wrapper").style("text-align", "right")
+                    d3.select(".chart-wrapper").style("margin-left", "10px")
                     d3.select("svg").attr("width", null)
                     d3.select("svg").attr("height", null)
+                    d3.select("svg").style("max-height", "360px")
                     that.addUI();
 
                 } else {
                     // Not top level as it appears in storytelling
                     that.editable = false;
+                    d3.select("svg").attr("width", null)
+                    d3.select("svg").attr("height", null)
+                    d3.select("svg").style("max-height", "300px")
+                    d3.select("svg").style("margin-left", "10px")
+                    d3.select(".chart-wrapper").style("width", "95vw")
+                    d3.select(".chart-wrapper").style("text-align", "center")
                     d3.select("details").remove()
                 }
                 //add tooltip on top
