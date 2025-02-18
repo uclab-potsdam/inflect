@@ -80,8 +80,8 @@
 
         .infl-ui-div {
             display: block;
-            padding: 7px;
-            margin-bottom: 8px;
+            padding: 0px;
+            margin-bottom: 10px;
         }
 
         .infl-tooltip {
@@ -176,7 +176,7 @@
                     // find out if axis are quantitative or not, look at definition in spec
                     var x_encoding_type = spec.encoding.x ? spec.encoding.x.type : false
                     var x_aggregate = spec.encoding.x ? spec.encoding.x.aggregate : false
-                    if(x_encoding_type && (x_encoding_type === "quantitative" || x_encoding_type === "temporal" || x_aggregate)) {
+                    if(x_encoding_type && (x_encoding_type === "quantitative" || x_encoding_type === "temporal") || x_aggregate) {
                         var x_quant = true;
                     } else { // nominal is default in vega-lite
                         var x_quant = false;
@@ -184,7 +184,7 @@
 
                     var y_encoding_type = spec.encoding.y ? spec.encoding.y.type : false
                     var y_aggregate = spec.encoding.y ? spec.encoding.y.aggregate : false 
-                    if(y_encoding_type && (y_encoding_type === "quantitative" || y_encoding_type === "temporal" || y_aggregate)) {
+                    if(y_encoding_type && (y_encoding_type === "quantitative" || y_encoding_type === "temporal") || y_aggregate) {
                         var y_quant = true;
                     } else {
                         var y_quant = false;
@@ -371,8 +371,11 @@
                     let svg_width = d3.select("svg").attr("width")
                     let svg_height = d3.select("svg").attr("height")
                     let zoom_factor = 1
-                    d3.select("svg").attr("width", svg_width*zoom_factor)
-                    d3.select("svg").attr("height", svg_height*zoom_factor)
+                    d3.select(".chart-wrapper").style("width", "300px")
+                    // d3.select("svg").attr("width", svg_width*zoom_factor)
+                    // d3.select("svg").attr("height", svg_height*zoom_factor)
+                    d3.select("svg").attr("width", null)
+                    d3.select("svg").attr("height", null)
                     that.addUI();
 
                 } else {
@@ -525,15 +528,24 @@
                     .append("h1").text("INFLECT THIS CHART")
 
                 //subtitles
-                d3.select(".inflect_ui")
+                if(that.isDragable) {
+                    d3.select(".inflect_ui")
                     .append("div")
                     .attr("class", "infl-ui-div")
                     .style("margin", "0px")
                     .style("padding", "0px 5px")
-                    // .attr("id", "annotation-div")
-                    .append("p").html("Change the scale of a quantitative axis by dragging along its ticks." + "<br>" +
-                        "Zoom in and out via scrollwheel or respective gesture on trackpad.")
+                    .append("p").html("Zoom in and out via scrollwheel or respective gesture on trackpad.")
                     .style("font-size", "13px")
+                } else {
+                    d3.select(".inflect_ui")
+                        .append("div")
+                        .attr("class", "infl-ui-div")
+                        .style("margin", "0px")
+                        .style("padding", "0px 5px")
+                        .append("p").html("Change the scale of a quantitative axis by dragging along its ticks.")
+                        .style("font-size", "13px")
+
+                }
 
                 d3.select(".inflect_ui").append("div")
                     .attr("class", "infl-ui-div")

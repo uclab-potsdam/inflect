@@ -1,0 +1,14 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "description": "A simple bar chart with embedded data.",
+    "data": { "url": "data/IEEE VIS papers 1990-2023 - Main dataset.csv"},
+    "title": "IEEE VIS papers 1990-2023",
+    "mark": {"type": "bar", "width": {"band": 0.7}},
+    "encoding": {
+      "x": {"field": "Conference", "type": "nominal"},
+      "y": {"aggregate": "count", "field": "Title", "title": "Number of Papers"}
+    },
+    "config": {},
+    "width": 200
+
+  }

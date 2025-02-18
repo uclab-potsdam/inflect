@@ -13,20 +13,21 @@ Example stories
 - <a href="#webpages">webpages</a>
 
 
-The [folder structure](img/#-347,-1,584,422&ff0000&&&folder_structure.png) is quite straightforward and enables you to add inflected visualisations to your own story.
+The [folder structure](img/#0,0,369,865&ff0000&&&folder_structure.png) is quite straightforward and enables you to add inflected visualisations to your own story.
 
 <!-- The [VIS folder](img/#-347,-1,584,422&ff0000&1,120,236,322&&folder_structure.png) contains all the pieces of code concerning the data visualisations and inflections. -->
 
 
 To add a new visualisation to your story, we recommend using the <a href="https://vega.github.io/editor/#/examples/vega-lite/bar">Vega-Lite editor</a> to create the basic visualisation.
 
-The vega-lite spec json file can then be placed in the [SPECS](img/#-329,0,566,422&ff0000&23,178,104,206&&folder_structure.png) folder.
+The vega-lite spec json file can then be placed in the [/vis](img/#0,120,369,680&85eb1f&12,237,353,615&&http://localhost:5500/img/folder_structure.png) folder.
 
 
-Copy the corresponding data to the [DATA](img/#-329,0,566,422&ff0000&23,147,99,176&&folder_structure.png) folder.
+
+Copy the corresponding data to the [/vis/data](img/#0,120,369,680&85eb1f&52,273,131,313&&http://localhost:5500/img/folder_structure.png) folder.
 
 
-Open the [edit mode](img/#0,0,912,746&ff0000&&&inflections_editor.png) of the inflection tool by opening the inflection page in your browser.
+Open the [author mode](img/#0,0,912,746&ff0000&&&inflections_editor.png) of the inflection tool by opening the inflection page in your browser.
 
 
 Make sure the [vis parameter](img/#44,-51,862,336&ff0000&496,10,610,45&&inflections_editor.png) in the URL is set to the filename of your vega-lite spec.
@@ -39,7 +40,15 @@ The [UI](img/#0,0,912,746&ff0000&522,352,761,646&&inflections_editor.png
 You can use the [link emoji](img/#0,0,912,746&ff0000&814,346,863,397&&inflections_editor.png) to copy the current inflection of your visualisation to your clipboard.
 
 
-Add the link to the [README markdown file](img/#-329,0,566,422&ff0000&8,379,138,413&&folder_structure.png) to add the inflected visualisation to your story.
+Create a new markdown file and add it to the [main directory](img/#0,0,369,865&85eb1f&38,660,273,852&&http://localhost:5500/img/folder_structure.png).
+
+To add the inflected visualisation to your story, reference its URL in a paragraph to connect it to your story.
+
+
+
+To read your story in the browser, use the hash to specify which markdown file should be parsed. In theory, you could therefore also embed other markdown files in the current one, like this: [#visualizations](#visualizations)
+
+
 
 
 Also have a look at the [documentation image](img/#0,0,3500,7287&ff0000&&&documentation_image.png) in the img folder to find out more.

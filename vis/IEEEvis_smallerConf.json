@@ -1,0 +1,21 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "usermeta": {"embedOptions": {"renderer": "svg"}},
+    "title": "Smaller conferences 2006-2019",
+    "data": {"url": "data/IEEE VIS papers 1990-2023 - Main dataset.csv"},
+    "transform": [{"filter": {"and": [
+        {"field": "Conference", "oneOf": ["InfoVis", "SciVis", "VAST"]},
+        {"timeUnit": "year", "field": "Year", "range": [2006, 2019]}
+            ]}
+        }],
+    "mark": {
+        "type": "line",
+        "point": true
+    },
+    "encoding": {
+        "x": {"timeUnit": "year", "field": "Year", "type":"temporal"},
+        "y": {"aggregate":"count", "field": "title", "type": "quantitative",  "title": "Number of Papers"},
+        "color": {"field": "Conference", "type": "nominal"}
+    },
+    "config": {}
+}

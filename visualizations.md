@@ -1,30 +1,60 @@
 # <a href="./">!NFLECT</a> visualizations
 
-[This](vis/#barchart) is a visualisation that is inflectable!
+Do you know about the <a href="https://sites.google.com/site/vispubdata/home">Vispubdata</a> dataset? It contains information on IEEE Visualization (IEEE VIS) publications from 1990-2023 and we will investigate a few interesting aspects to showcase our inflection framework.
+
+There are [four conferences](vis/#IEEEvis_CountPerConf&col=%2300F05E&yax=0;2000&line=&ann=&high=) organised by the IEEE and in total, 3754 papers were published across all of them.
 
 
-I can tell you something interesting about the [left](vis/#barchart&col=%2300F05E&yax=0;107.8&line=A;0;I;0.9;65.8;0;66.3;0&ann=C%3B0.5%3B97.3%3B0%3Ba%3A%20D%0Ab%3A%2091&high=D;91) bar.
+
+With 1818 publication, [VIS](vis/#IEEEvis_CountPerConf&col=%2300F05E&yax=0;2000&line=&ann=Vis%3B0.5%3B1868.5%3B0%3B1818&high=Vis;1818) seems to be the most popular conference... 
 
 
-And now you can see an explanation of [another](vis/#barchart&col=%2300F05E&yax=0;139.5&line=,A;0.1;I;0.9;60.3;0;60.3;0&ann=G%3B0.8%3B103%3B0%3Ba%3A%20H%0Ab%3A%2087&high=H;87) bar.
+
+... and especially [SciVis](vis/#IEEEvis_CountPerConf&col=%2300F05E&yax=0;1078.3&line=&ann=Vis%3B0.5%3B1868.5%3B0%3B1818&high=SciVis;305) falls behind.
+
+What could be the reason?
 
 
-And this is a [columnchart](vis/#columnchart&col=%23d08120&xax=0;23952095.8&line=8203592.8;0;11916167.7;0;75;0.3;85;0.4&ann=15568862.3%3B0%3B90%3B0.4%3Bpopulation%3A%208977000&high=8977000;70) now!
+
+Looking at the conferences [over time](vis/#IEEEvis_overTime&col=%2300F05E&yax=0;179.6&line=&ann=&high=), you can see that SciVis only ran for a short amount of time and VIS took over from 2021 onwards!
 
 
-And this is a [stacked barchart](vis/#stacked_barchart) now!
+
+Look at the spike in [2004](vis/#IEEEvis_overTime&col=%2300F05E&yax=0;179.6&line=2001;0.8;2003;0.7;169.6;0;172.1;0&ann=2000%3B0.9%3B161.7%3B0%3B174&high=)!
 
 
-Look, a [scatterplot!](vis/#scatterplot&col=%2300F05E&yax=4.5;54.5&xax=20.36;259.86&line=&ann=153.3%3B0%3B34.3%3B0%3B132&high=132;32.7)
+111 papers in the [VIS](vis/#IEEEvis_overTime&col=%2300F05E&yax=0;179.6&line=2003;0.8;2002;0.9;121.6;0;131.3;0&ann=2002%3B0.2%3B133.3%3B0%3B111&high=2004;111;Vis) conference alone.
 
 
-More details about [this](vis/#scatterplot&col=%23d08120&yax=12.58;40.18&xax=46.88;179.38&line=&ann=127.5%3B0%3B27.8%3B0%3B115&high=115;28.8) data point.
+Looking only at the smaller conferences between 2006-2013 [left](vis/#IEEEvis_smallerConf&col=%2300F05E&yax=0;70&xax=2006;2020&line=&ann=&high=), you can see they had different importance over time.
 
 
-More details about [linecharts](vis/#linechart&col=%2300F05E&yax=92;892&xax=2004.82;2010.42&line=&ann=&high=2008.54;473.04) are always interesting.
+
+There was a curious dip in papers in [2013](vis/#IEEEvis_smallerConf&col=%2300F05E&yax=0;70&xax=2009;2017&line=2013;0;2013;0;-1.1;0;70;0&ann=&high=2013;32;VAST).
 
 
-Even more [linecharts](vis/#linechart&col=%2300F05E&yax=250;700&xax=2007;2010&line=&ann=&high=2008.54;473.04) are extra fun.
+Cite and be Cited! [Most papers](vis/#IEEEvis_citationHisto&col=%2300F05E&yax=0;4000&line=&ann=&high=) are referenced <100 times.
 
 
-And when you have [multiple lines](vis/#multiple_linechart&col=%2300F05E&yax=0;549.5&xax=2000;2010&line=&ann=2007.7%3B0%3B250%3B0%3BMean%20of%20price%3A%0A286.4725&high=2005;286.4725;GOOG) it adds to the overall experience.
+[Only a few](vis/#IEEEvis_citationHisto&col=%2300F05E&yax=0;209&line=0;0;2,0;0;2,0;0;2&ann=300%3B0.2%3B33.9%3B0%3B27%2C200%3B0.5%3B178%3B0%3B172&high=) have many more references.
+
+
+Is there a [connection](vis/#IEEEvis_citeAndCited&col=%2300F05E&yax=0;200&xax=0;2197.8&line=&ann=&high=) between the number of references in a paper and the number of papers that reference to it?
+
+Doesn't appear so.
+
+
+
+The paper ["D³ Data-Driven Documents"](vis/#IEEEvis_citeAndCited&col=%2300F05E&yax=0;200&xax=0;2197.8&line=&ann=1558.39%3B0%3B58.2%3B0%3BD%C2%B3%20Data-Driven%0ADocuments&high=2061;41) by Michael Bostock et al. is the most cited of them all - 2061 times!
+
+
+And it makes sense that the paper that references the most is a [review](vis/#IEEEvis_citeAndCited&col=%2300F05E&yax=0;200&xax=0;2197.8&line=&ann=&high=9;195): "A Structured Review of Data Management Technology for Interactive Visualization and Analysis" by Leilani Battle and Carlos Scheidegger.
+
+
+[So](vis/#IEEEvis_citeAndCited&col=%2300F05E&yax=0;60&xax=0;500&line=&ann=&high=9;195)...
+
+
+...[many](vis/#IEEEvis_citeAndCited&col=%2300F05E&yax=40;110&xax=0;500&line=&ann=&high=)...
+
+
+...[papers](vis/#IEEEvis_citeAndCited&col=%2300F05E&yax=90;150&xax=0;500&line=&ann=&high=).

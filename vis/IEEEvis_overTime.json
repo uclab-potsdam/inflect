@@ -1,0 +1,14 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "usermeta": {"embedOptions": {"renderer": "svg"}},
+    "title": "IEEE conferences over time",
+    "data": {"url": "data/IEEE VIS papers 1990-2023 - Main dataset.csv"},
+    
+    "mark": "bar",
+    "encoding": {
+        "x": {"field": "Year", "type":"nominal"},
+        "y": {"aggregate":"count", "field": "title", "type": "quantitative", "title": "Number of Papers"},
+        "color": {"field": "Conference", "type": "nominal"}
+    },
+    "config": {}
+}
