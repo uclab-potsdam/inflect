@@ -84,8 +84,8 @@
             const file = hash ? hash : 'README';
 
             
-            if (file=="README") document.title = "!NFLECT";
-            else document.title = "!NFLECT · " + file;
+            if (file=="README") document.title = "!nflect";
+            else document.title = "!nflect · " + file;
 
             const response = await fetch(file+".md"); 
             let readme = await response.text();
