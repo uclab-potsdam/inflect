@@ -2,18 +2,18 @@
 
 Do you know about the <a href="https://sites.google.com/site/vispubdata/home">Vispubdata</a> dataset? It contains information on IEEE Visualization (IEEE VIS) publications from 1990-2023 and we will investigate a few interesting aspects to showcase our inflection framework.
 
-There are [four conferences](vis/#IEEEvis_CountPerConf&col=%2300F05E&yax=0;2000&line=&ann=&high=) organised by the IEEE and in total, 3754 papers were published across all of them.
+There are [four conferences](vis/#IEEEvis_countPerConf&col=%2300F05E&yax=0;2000&line=&ann=&high=) organised by the IEEE and in total, 3754 papers were published across all of them.
 
 
 
-With 1818 publication, [VIS](vis/#IEEEvis_CountPerConf&col=%2300F05E&yax=0;2000&line=&ann=Vis%3B0.5%3B1873.8%3B0%3B1818&high=Vis;1818) seems to be the most popular conference...
+With 1818 publication, [VIS](vis/#IEEEvis_countPerConf&col=%2300F05E&yax=0;2000&line=&ann=Vis%3B0.5%3B1873.8%3B0%3B1818&high=Vis;1818) seems to be the most popular conference...
 
 
-...you can see it even better in this piechart. VIS published [almost half](vis/#IEEEvis_CountPerConf_pie&col=%2300F05E&line=&ann=&high=) of all papers.
+...you can see it even better in this piechart. VIS published [almost half](vis/#IEEEvis_countPerConf_pie&col=%2300F05E&line=&ann=&high=) of all papers.
 
 
 
-Especially [SciVis](vis/#IEEEvis_CountPerConf_pie&col=%2300F05E&line=&ann=&high=305;SciVis) falls behind.
+Especially [SciVis](vis/#IEEEvis_countPerConf_pie&col=%2300F05E&line=&ann=&high=305;SciVis) falls behind.
 
 What could be the reason?
 
