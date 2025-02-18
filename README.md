@@ -1,7 +1,7 @@
 # !NFLECT
 ## Bridging Data Exploration and Scholarly Argumentation in Humanities Research
 
-This is a web-based template implementing inflections as a method to record and recount interpretative interactions with data visualizations. By parameterizing view changes and annotations in visualizations, scholars can document and share insights from their data analysis and research process. The intention is to bridge the gap between data exploration and scholarly argumentation, by interweaving [visualization](img/#chart_overview.png) states with narrative segments.
+This is a web-based template implementing inflections as a method to record and recount interpretative interactions with data visualizations. By parameterizing view changes and annotations in visualizations, scholars can document and share insights from their data analysis and research process. The intention is to bridge the gap between data exploration and scholarly argumentation, by interweaving [visualization](img/#10,8,1162,1455&ff0000&&&chart_overview.png) states with narrative segments.
 
 
 
@@ -19,11 +19,11 @@ The [folder structure](img/#0,0,369,865&ff0000&&&folder_structure.png) is quite 
 
 To add a new visualisation to your story, we recommend using the <a href="https://vega.github.io/editor/#/examples/vega-lite/bar">Vega-Lite editor</a> to create the basic visualisation.
 
-The vega-lite spec json file can then be placed in the [/vis](img/#0,120,369,680&85eb1f&12,237,353,615&&http://localhost:5500/img/folder_structure.png) folder.
+The vega-lite spec json file can then be placed in the [/vis](img/#0,120,369,680&85eb1f&12,237,353,615&&folder_structure.png) folder.
 
 
 
-Copy the corresponding data to the [/vis/data](img/#0,120,369,680&85eb1f&52,273,131,313&&http://localhost:5500/img/folder_structure.png) folder.
+Copy the corresponding data to the [/vis/data](img/#0,120,369,680&85eb1f&52,273,131,313&&folder_structure.png) folder.
 
 
 Open the [author mode](img/#0,0,912,746&ff0000&&&inflections_editor.png) of the inflection tool by opening the inflection page in your browser.
@@ -39,7 +39,7 @@ The [UI](img/#0,0,912,746&ff0000&522,352,761,646&&inflections_editor.png
 You can use the [link emoji](img/#0,0,912,746&ff0000&814,346,863,397&&inflections_editor.png) to copy the current inflection of your visualisation to your clipboard.
 
 
-Create a new markdown file and add it to the [main directory](img/#0,0,369,865&85eb1f&38,660,273,852&&http://localhost:5500/img/folder_structure.png).
+Create a new markdown file and add it to the [main directory](img/#0,0,369,865&85eb1f&38,660,273,852&&folder_structure.png).
 
 To add the inflected visualisation to your story, reference its URL in a paragraph to connect it to your story.
 
