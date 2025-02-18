@@ -1,4 +1,4 @@
-# <a href="./">!NFLECT</a> visualizations
+# <a href="./">!nflect</a> visualizations
 
 Do you know about the <a href="https://sites.google.com/site/vispubdata/home">Vispubdata</a> dataset? It contains information on IEEE Visualization (IEEE VIS) publications from 1990-2023 and we will investigate a few interesting aspects to showcase our inflection framework.
 

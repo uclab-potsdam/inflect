@@ -1,4 +1,4 @@
-# <a href="./">!NFLECT</a> webpages
+# <a href="./">!nflect</a> webpages
 
 Is it [inflectible or inflectable](https://books.google.com/ngrams/graph?content=inflectible%2Cinflectable&year_start=1900&year_end=2022&corpus=en&smoothing=3&case_insensitive=false)?
 

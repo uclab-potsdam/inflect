@@ -1,11 +1,13 @@
-# <a href="./">!NFLECT</a> images
+# <a href="./">!nflect</a> images
+
+How about we start with an iconic [artwork](img/#1313,425,1728,843&ff0000&&&https://upload.wikimedia.org/wikipedia/commons/b/b3/Katsushika_Hokusai_-_Thirty-Six_Views_of_Mount_Fuji-_The_Great_Wave_Off_the_Coast_of_Kanagawa_-_Google_Art_Project.jpg)
 
 
-Look at the [signature](img/#-221,0,1037,624&ff0000&&&https://upload.wikimedia.org/wikipedia/commons/b/b3/Katsushika_Hokusai_-_Thirty-Six_Views_of_Mount_Fuji-_The_Great_Wave_Off_the_Coast_of_Kanagawa_-_Google_Art_Project.jpg)
+Let's look at the [signature](img/#-221,0,1037,624&ff0000&&&https://upload.wikimedia.org/wikipedia/commons/b/b3/Katsushika_Hokusai_-_Thirty-Six_Views_of_Mount_Fuji-_The_Great_Wave_Off_the_Coast_of_Kanagawa_-_Google_Art_Project.jpg)
 
 
 We can also inflect images, let's start with Hokusai's 
-[The Great Wave off Kanagawa](img/#https://upload.wikimedia.org/wikipedia/commons/b/b3/Katsushika_Hokusai_-_Thirty-Six_Views_of_Mount_Fuji-_The_Great_Wave_Off_the_Coast_of_Kanagawa_-_Google_Art_Project.jpg) 
+[The Great Wave off Kanagawa](img/#-429,78,4765,2676&ff0000&&&https://upload.wikimedia.org/wikipedia/commons/b/b3/Katsushika_Hokusai_-_Thirty-Six_Views_of_Mount_Fuji-_The_Great_Wave_Off_the_Coast_of_Kanagawa_-_Google_Art_Project.jpg) 
 
 
 Take a look at the »Fractal-like detail of the [crest of the wave](img/#738,-5,2925,1868&00a3d7&1320,283,2548,1350&&https://upload.wikimedia.org/wikipedia/commons/b/b3/Katsushika_Hokusai_-_Thirty-Six_Views_of_Mount_Fuji-_The_Great_Wave_Off_the_Coast_of_Kanagawa_-_Google_Art_Project.jpg), similar in appearance to "claws"«
