@@ -1,7 +1,7 @@
 # !NFLECT
 ## Bridging Data Exploration and Scholarly Argumentation in Humanities Research
 
-This is a web-based template implementing inflections as a method to record and recount interpretative interactions with data visualizations. By parameterizing view changes and annotations in visualizations, scholars can document and share insights from their data analysis and research process. The intention is to bridge the gap between data exploration and scholarly argumentation, by interweaving visualization states with narrative segments.
+This is a web-based template implementing inflections as a method to record and recount interpretative interactions with data visualizations. By parameterizing view changes and annotations in visualizations, scholars can document and share insights from their data analysis and research process. The intention is to bridge the gap between data exploration and scholarly argumentation, by interweaving [visualization](img/#chart_overview.png) states with narrative segments.
 
 
 
@@ -15,7 +15,6 @@ Example stories
 
 The [folder structure](img/#0,0,369,865&ff0000&&&folder_structure.png) is quite straightforward and enables you to add inflected visualisations to your own story.
 
-<!-- The [VIS folder](img/#-347,-1,584,422&ff0000&1,120,236,322&&folder_structure.png) contains all the pieces of code concerning the data visualisations and inflections. -->
 
 
 To add a new visualisation to your story, we recommend using the <a href="https://vega.github.io/editor/#/examples/vega-lite/bar">Vega-Lite editor</a> to create the basic visualisation.
