@@ -12,24 +12,40 @@
         }
 
         body {
-            
-            font-family: "HelveticaNeueLight", "HelveticaNeue-Light", "Helvetica Neue Light", "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Arial", sans-serif;
+            font-family: "HelveticaNeueLight", "HelveticaNeue-Light", "Helvetica Neue Light", 
+                         "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Arial", sans-serif;
             font-weight: 200;
             font-size: calc(1vw + 1vh);
-            background: #ddd;
+            background: #fff;
             margin: 0;
             padding: 0;
+        }
+
+        #orientationWarning {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: black;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            padding: 1em;
+            z-index: 100;
         }
 
         iframe {
             top: 0;
             left: 0;
             height: 100vh;
-            width: 50%;
+            width: 60vw;
             position: fixed;
-            background: #fff;
+            background-color: #fff;
             border: 0;
-            padding: 10px
+            padding: 0;
+            margin: 0;
+            transition: opacity 0.1s;
         }
 
         h1 { font-size: 2em; font-weight: 100;}
@@ -38,10 +54,11 @@
 
         main {
             position: absolute;
-            left: 51vw;
-            width: 40vw;
+            right: 0;
+            width: 30vw;
             padding: 5vh;
             margin: 0;
+            background-color: #ddd;
         }
 
         section {
@@ -69,13 +86,49 @@
 
 <body>
 
+<div id="orientationWarning">Please turn your device around or widen your browser window.</div>
+
 <iframe id="if"></iframe>
 
 <main></main>
 
-<!-- todo: change ?, place myfirstVis afterVis! -->
-
 <script>
+    // Track the last path (excluding hash) used in the iframe,
+    // so we can detect "path" changes (not just hash).
+    let lastIframePath = null;
+
+    // Fade out & in the iframe if the path changes.
+    function setIframeIfPathChanged(newHref) {
+      const iframe = document.getElementById('if');
+
+      // Construct a URL to compare path without hash:
+      const newURL = new URL(newHref, window.location.origin);
+      newURL.hash = ''; // remove hash for path comparison
+      const newPath = newURL.href;
+
+      // If path differs from last path, do fade transition.
+      if (newPath !== lastIframePath) {
+        fadeIframe(iframe, newHref);
+        lastIframePath = newPath;
+      } else {
+        // If path is the same, no fade needed—just update if needed.
+        iframe.src = newHref;
+      }
+    }
+
+    function fadeIframe(iframe, href) {
+      // Fade out (100ms)
+      iframe.style.opacity = '0';
+      setTimeout(() => {
+        // Update src after fade-out
+        iframe.src = href;
+      }, 100);
+
+      // Fade in (another 100ms)
+      setTimeout(() => {
+        iframe.style.opacity = '1';
+      }, 200);
+    }
 
     // Function to fetch and render the markdown
     async function renderMarkdown() {
@@ -83,11 +136,10 @@
             const hash = window.location.hash.substring(1); // Remove '#' from hash
             const file = hash ? hash : 'README';
 
-            
             if (file=="README") document.title = "!nflect";
             else document.title = "!nflect · " + file;
 
-            const response = await fetch(file+".md"); 
+            const response = await fetch(file + ".md"); 
             let readme = await response.text();
 
             // split sections by two empty lines
@@ -95,10 +147,14 @@
             readme = "<section>\n\n" + readme + "\n\n</section>";
             
             // add class dontinflect to regular html links
-            readme = readme.replace(/<a\b([^>]*)>/gi, (m, attrs) => `<a${/class\s*=\s*["']([^"']*)["']/i.test(attrs) ? attrs.replace(/class\s*=\s*["']([^"']*)["']/i, (m, c) => `class="${c} dontinflect"`) : ` class="dontinflect"${attrs}`}>`);
+            readme = readme.replace(/<a\b([^>]*)>/gi, (m, attrs) => 
+              `<a${/class\s*=\s*["']([^"']*)["']/i.test(attrs) 
+                  ? attrs.replace(/class\s*=\s*["']([^"']*)["']/i, 
+                                  (m, c) => `class="${c} dontinflect"`) 
+                  : ` class="dontinflect"${attrs}`}>`
+            );
 
             const html = marked.parse(readme); 
-            
             document.querySelector('main').innerHTML = html;
 
             initializeObservers();
@@ -115,45 +171,40 @@
 
     // with IntersectionObserver we can check what is visible    
     function initializeObservers() {
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        const iframe = document.getElementById('if');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    // Remove active class from all links
+                    document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
 
-                        // Remove active class from all links
-                        document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
-
-                        // Add active class only to the visible link
-                        const visibleLink = entry.target;
-
-                        if (!visibleLink.classList.contains("dontinflect")) {
-                            visibleLink.classList.add('active');
-
-                            // Update iframe to match visible link, unless it is hash link to another markdown
-                            iframe.src = visibleLink.href;
-                        }
+                    // Add active class only to the visible link
+                    const visibleLink = entry.target;
+                    if (!visibleLink.classList.contains("dontinflect")) {
+                        visibleLink.classList.add('active');
+                        // Update iframe, ignoring just hash changes
+                        setIframeIfPathChanged(visibleLink.href);
                     }
-                });
-            });
-
-            // Add observer to all inflect links
-            const inflectLinks = document.querySelectorAll('a');
-            inflectLinks.forEach(link => {
-                observer.observe(link);
-
-                // ignore local links to markdown files
-                if (!link.classList.contains("dontinflect")) {
-                    // Add event listener to deactivate link on click
-                    link.addEventListener('click', function(event) {
-                        event.preventDefault();
-                        const iframe = document.getElementById('if');
-                        iframe.src = link.href;
-                        document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
-                        link.classList.add('active');
-                    });
                 }
             });
-        }
+        });
+
+        // Add observer to all inflect links
+        const inflectLinks = document.querySelectorAll('a');
+        inflectLinks.forEach(link => {
+            observer.observe(link);
+
+            // ignore local links to markdown files
+            if (!link.classList.contains("dontinflect")) {
+                // Add event listener to manually handle click
+                link.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
+                    link.classList.add('active');
+                    setIframeIfPathChanged(link.href);
+                });
+            }
+        });
+    }
 
     // scroll up when pressing escape
     document.addEventListener('keydown', function(event) {
@@ -162,8 +213,18 @@
         }
     });
 
-    // load, parse, and display markdown on page load
+    // Show/hide orientation warning when window is taller than wide
+    function checkOrientation() {
+        const warning = document.getElementById('orientationWarning');
+        if (window.innerHeight > window.innerWidth) warning.style.display = 'block';
+        else warning.style.display = 'none';        
+    }
+    window.addEventListener('resize', checkOrientation);
+    checkOrientation();
+
+    // Load, parse, and display markdown on page load
     renderMarkdown();
 </script>
 
 </body>
+</html>

@@ -45,7 +45,7 @@ To add the inflected visualisation to your story, reference its URL in a paragra
 
 
 
-To read your story in the browser, use the hash to specify which markdown file should be parsed. In theory, you could therefore also embed other markdown files in the current one, like this: [#visualizations](#visualizations)
+To read your story in the browser, use the hash to specify which markdown file should be parsed. You can also embed other markdown files in the current one, like this: <a href="#visualizations">#visualizations</a>
 
 
 
