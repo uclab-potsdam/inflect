@@ -654,7 +654,7 @@
                 d3.select("#line-button")
                     .append("span")
                     .attr("class", "button-text")
-                    .text("╱  Add line")
+                    .text("╱  Add Line")
 
                 
                 var dist = 5.5;
@@ -720,7 +720,7 @@
                 d3.select("#ann-button")
                     .append("span")
                     .attr("class", "button-text")
-                    .text("🏷️ Add label")
+                    .text("🏷️ Add Label")
                     
                 // #endregion
 
@@ -748,7 +748,7 @@
                 d3.select("#col-button")
                     .append("span")
                     .attr("class", "button-text")
-                    .text("🌈 Set color")
+                    .text("🌈 Set Color")
         
 
                 // #endregion
@@ -760,7 +760,7 @@
                     .attr("id", "hash-button")
                     .on("click", function () {
                         // Copy the hash to clipboard
-                        navigator.clipboard.writeText("#" + that.hash);
+                        navigator.clipboard.writeText("vis/#" + that.hash);
 
                         // Alert the copied text
                         // tooltip.text("Copied to clipboard.");
@@ -771,7 +771,7 @@
                 d3.select("#hash-button")
                     .append("span")
                     .attr("class", "button-text")
-                    .text("🔗 Copy hash")
+                    .text("🔗 Copy Link")
                     
                 // #endregion
 
