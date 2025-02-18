@@ -1,535 +1,823 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/svg+xml" sizes="any" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖼️</text></svg>"/>
-    <title>Inflective Image Viewer</title>
-    <style>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+  <link
+    rel="icon"
+    type="image/svg+xml"
+    sizes="any"
+    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖼️</text></svg>"
+  />
+  <title>Inflective Image Viewer</title>
+  <style>
+    html,
+    body {
+      font-family: 'HelveticaNeueLight', 'HelveticaNeue-Light',
+        'Helvetica Neue Light', 'HelveticaNeue', 'Helvetica Neue',
+        TeXGyreHerosRegular, Arial, sans-serif;
+      font-weight: 200;
+      font-size: calc(0.75vw + 0.75vh);
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+      background: #fff;
+    }
+    canvas {
+      display: block;
+      cursor: grab;
+      z-index: 1;
+    }
 
-        html, body {
-            font-family: "HelveticaNeueLight", "HelveticaNeue-Light", "Helvetica Neue Light", "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Arial", sans-serif;
-            font-weight: 200;
-            font-size: calc(.75vw + .75vh);
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            width: 100%;
-            height: 100%;
-            background: #fff;
-        }
-        canvas {
-            display: block;
-            cursor: grab;
-            z-index: 1;
-        }
-        body.frame canvas { cursor: default; }
-        body.frame nav { display: none; }
-        nav {
-            padding: .5em;
-            background-color: #ccc;
-            z-index: 2;
-            position: fixed;
-            top: 0;
-            right: 0;            
-            text-align: right;
-        }
-        #color {
-            width: 3em;
-            height: 2em;
-        }
-        #box, #arr, #none {
-            margin: 0 1em;
-        }
+    /* If inside an iframe, hide the nav and remove the grab cursor */
+    body.frame canvas {
+      cursor: default;
+    }
+    body.frame nav {
+      display: none;
+    }
 
-    </style>
+    nav {
+      padding: 0.5em;
+      background-color: #ccc;
+      z-index: 2;
+      position: fixed;
+      top: 0;
+      right: 0;
+      text-align: right;
+    }
+    #color {
+      width: 3em;
+      height: 2em;
+    }
+    #box,
+    #arr,
+    #none {
+      margin: 0 1em;
+    }
+  </style>
 </head>
 <body>
-    <canvas id="imageViewer"></canvas>
-    <nav>
-        <label for="color">Color</label> <input id="color" type="color" value="#ff0000"><br>
-        <label for="arr">Line</label> <input type="radio" id="arr" name="tool" value="arrow"> <br>
-        <label for="box">Box</label> <input type="radio" id="box" name="tool" value="box"> <br>
-        <label for="none">Pan</label> <input type="radio" id="none" name="tool" value="none" checked>
-    </nav>
-    <script>
-        const canvas = document.getElementById('imageViewer');
-        const ctx = canvas.getContext('2d');
-        const colorInput = document.getElementById('color');
-        const toolInputs = document.querySelectorAll('input[name="tool"]');
-        
-        const pixelRatio = window.devicePixelRatio || 1;
-        const inFrame = window.self !== window.top;
-        let lineWidth = parseInt(window.getComputedStyle(document.body).fontSize, 10)/7.5*pixelRatio;
-        let interactiveChange = false;
-        // We will store the original URL (including relative path) in currentUrl
-        let currentUrl = null;
+  <canvas id="imageViewer"></canvas>
+  <nav>
+    <label for="color">Color</label>
+    <input id="color" type="color" value="#ff0000" /><br />
+    <label for="arr">Line</label>
+    <input type="radio" id="arr" name="tool" value="arrow" /> <br />
+    <label for="box">Box</label>
+    <input type="radio" id="box" name="tool" value="box" /> <br />
+    <label for="none">Pan</label>
+    <input
+      type="radio"
+      id="none"
+      name="tool"
+      value="none"
+      checked
+    />
+  </nav>
 
-        if (inFrame) document.body.classList.add("frame");
+  <script>
+    // ---------------------------------------------------------------------
+    // Basic Setup
+    // ---------------------------------------------------------------------
+    const canvas = document.getElementById('imageViewer');
+    const ctx = canvas.getContext('2d');
+    const colorInput = document.getElementById('color');
+    const toolInputs = document.querySelectorAll('input[name="tool"]');
 
-        let image = new Image();
-        let view = { topLeft: [0, 0], bottomRight: [0, 0] };
-        let isDragging = false;
-        let startDrag = null;
+    const pixelRatio = window.devicePixelRatio || 1;
+    const inFrame = window.self !== window.top; // Are we in an iframe?
 
-        const ANIMATION_DURATION = 1000;
-        
-        function browserToImageSpace(bx, by) {
-            // Determine how large the visible region is in image coordinates
-            const zoomWidth = view.bottomRight[0] - view.topLeft[0];
-            const zoomHeight = view.bottomRight[1] - view.topLeft[1];
+    // If we're in a frame, hide the controls
+    if (inFrame) {
+      document.body.classList.add('frame');
+    }
 
-            // Each canvas pixel corresponds to this many 'image pixels' in X and Y
-            const scaleX = zoomWidth / canvas.width;
-            const scaleY = zoomHeight / canvas.height;
+    let lineWidth =
+      (parseInt(window.getComputedStyle(document.body).fontSize, 10) /
+        7.5) *
+      pixelRatio;
+    let interactiveChange = false;
 
-            // Shift from the 'view' origin, then scale
-            const imageX = view.topLeft[0] + bx * scaleX;
-            const imageY = view.topLeft[1] + by * scaleY;
+    // The current image (old) and its URL
+    let currentUrl = null;
+    let image = new Image();
 
-            return [Math.round(imageX), Math.round(imageY)];
+    // Pan/zoom "view" in image coords
+    let view = { topLeft: [0, 0], bottomRight: [0, 0] };
+
+    let isDragging = false;
+    let startDrag = null;
+
+    const ANIMATION_DURATION = 1000; // used for pan/zoom if same URL changes
+
+    // Durations for fade out/in
+    const FADE_OUT_DURATION = 100;
+    const FADE_IN_DURATION = 100;
+
+    // ---------------------------------------------------------------------
+    // Animation cancel token
+    // ---------------------------------------------------------------------
+    // Each time we start a new animation or hashchange, increment this
+    // so that older animations exit early if they see the token changed.
+    let animationCancelToken = 0;
+
+    // ---------------------------------------------------------------------
+    // parseHash / updateHash
+    // ---------------------------------------------------------------------
+    function parseHash() {
+      const hash = location.hash.slice(1);
+      if (!hash) return null;
+
+      if (!hash.includes('&')) {
+        // If no ampersand is found, assume the hash is just a URL
+        return {
+          url: hash,
+          view: null,
+          annotations: { boxes: [], lines: [], color: '#ff0000' },
+        };
+      }
+
+      const [viewPart, color, boxes, lines, url] = hash.split('&');
+      const result = {
+        url,
+        view: null,
+        annotations: { boxes: [], lines: [], color: '#ff0000' },
+      };
+
+      if (viewPart) {
+        const coords = viewPart.split(',').map(Number);
+        result.view = {
+          topLeft: coords.slice(0, 2).map(Math.floor),
+          bottomRight: coords.slice(2, 4).map(Math.floor),
+        };
+      }
+      if (color) {
+        result.annotations.color = color;
+      }
+      if (boxes) {
+        result.annotations.boxes = boxes.split(',').map(Number);
+      }
+      if (lines) {
+        result.annotations.lines = lines.split(',').map(Number);
+      }
+      return result;
+    }
+
+    function updateHash(url, theView, annotations = {}) {
+      interactiveChange = true;
+      const defaultAnnotations = {
+        boxes: [],
+        lines: [],
+        color: '#ff0000',
+      };
+      annotations = { ...defaultAnnotations, ...annotations };
+
+      const viewParams = theView
+        ? `${theView.topLeft.map(Math.floor).join(',')},${theView.bottomRight
+            .map(Math.floor)
+            .join(',')}`
+        : '';
+      let color = annotations.color || 'ff0000';
+      if (color.startsWith('#')) color = color.slice(1);
+
+      const boxParams =
+        annotations.boxes.length > 0 ? annotations.boxes.join(',') : '';
+      const arrowParams =
+        annotations.lines.length > 0 ? annotations.lines.join(',') : '';
+
+      location.hash = `${viewParams}&${color}&${boxParams}&${arrowParams}&${url}`;
+
+      setTimeout(() => {
+        interactiveChange = false;
+      }, 1);
+    }
+
+    // ---------------------------------------------------------------------
+    // Pan/Zoom Helpers
+    // ---------------------------------------------------------------------
+    function fitViewToCanvas(img) {
+      if (!img || !img.width || !img.height) return;
+
+      const scaleX = canvas.width / img.width;
+      const scaleY = canvas.height / img.height;
+      const scale = Math.min(scaleX, scaleY);
+
+      const displayWidth = img.width * scale;
+      const displayHeight = img.height * scale;
+
+      const offsetX = (canvas.width - displayWidth) / 2;
+      const offsetY = (canvas.height - displayHeight) / 2;
+
+      view.topLeft = [-offsetX / scale, -offsetY / scale];
+      view.bottomRight = [
+        img.width + offsetX / scale,
+        img.height + offsetY / scale,
+      ];
+    }
+
+    function animateView(targetView) {
+      // Grab a local token so we can detect if a new animation has started
+      const localToken = animationCancelToken;
+      const startView = { ...view };
+      const startTime = performance.now();
+
+      function animate(time) {
+        // If animationCancelToken changes, stop this old animation
+        if (localToken !== animationCancelToken) {
+          return;
         }
 
-        function parseHash() {
-            const hash = location.hash.slice(1);
-            if (!hash) return null;
+        const progress = Math.min((time - startTime) / ANIMATION_DURATION, 1);
 
-            if (!hash.includes('&')) {
-                // If no ampersand is found, assume the hash is just a URL
-                return { url: hash, view: null, annotations: { boxes: [], lines: [], color: '#ff0000' } };
-            }
+        view.topLeft[0] = Math.floor(
+          startView.topLeft[0] +
+            progress * (targetView.topLeft[0] - startView.topLeft[0])
+        );
+        view.topLeft[1] = Math.floor(
+          startView.topLeft[1] +
+            progress * (targetView.topLeft[1] - startView.topLeft[1])
+        );
+        view.bottomRight[0] = Math.floor(
+          startView.bottomRight[0] +
+            progress *
+              (targetView.bottomRight[0] - startView.bottomRight[0])
+        );
+        view.bottomRight[1] = Math.floor(
+          startView.bottomRight[1] +
+            progress *
+              (targetView.bottomRight[1] - startView.bottomRight[1])
+        );
 
-            const [viewPart, color, boxes, lines, url] = hash.split('&');
-            const result = { url, view: null, annotations: { boxes: [], lines: [], color: '#ff0000' } };
+        render();
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        }
+      }
+      requestAnimationFrame(animate);
+    }
 
-            if (viewPart) {
-                const coords = viewPart.split(',').map(Number);
-                result.view = {
-                    topLeft: coords.slice(0, 2).map(Math.floor),
-                    bottomRight: coords.slice(2, 4).map(Math.floor),
-                };
-            }
-            if (color) {
-                result.annotations.color = color;
-            }
-            if (boxes) {
-                result.annotations.boxes = boxes.split(',').map(Number);
-            }
-            if (lines) {
-                result.annotations.lines = lines.split(',').map(Number);
-            }
+    function updateView(coords, animate = false) {
+      if (coords) {
+        const targetView = {
+          topLeft: coords.topLeft,
+          bottomRight: coords.bottomRight,
+        };
+        if (animate) {
+          animateView(targetView);
+        } else {
+          view = targetView;
+          render();
+        }
+      } else {
+        fitViewToCanvas(image);
+        render();
+      }
+    }
 
-            return result;
+    function setViewImmediately(coords) {
+      if (coords) {
+        view.topLeft = coords.topLeft.slice();
+        view.bottomRight = coords.bottomRight.slice();
+      } else {
+        fitViewToCanvas(image);
+      }
+      render();
+    }
+
+    // ---------------------------------------------------------------------
+    // Rendering
+    // ---------------------------------------------------------------------
+    function render() {
+      canvas.width = Math.floor(window.innerWidth * pixelRatio);
+      canvas.height = Math.floor(window.innerHeight * pixelRatio);
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+
+      const { topLeft, bottomRight } = view;
+      const zoomWidth = bottomRight[0] - topLeft[0];
+      const zoomHeight = bottomRight[1] - topLeft[1];
+      const scale = Math.min(
+        canvas.width / pixelRatio / zoomWidth,
+        canvas.height / pixelRatio / zoomHeight
+      );
+
+      ctx.translate(
+        canvas.width / pixelRatio / 2 -
+          (topLeft[0] + zoomWidth / 2) * scale,
+        canvas.height / pixelRatio / 2 -
+          (topLeft[1] + zoomHeight / 2) * scale
+      );
+      ctx.scale(scale, scale);
+
+      // Draw the image
+      if (image && image.width && image.height) {
+        ctx.drawImage(image, 0, 0);
+      }
+
+      // Draw annotations from the hash
+      const parsed = parseHash();
+      const annotations =
+        (parsed && parsed.annotations) || {
+          boxes: [],
+          lines: [],
+          color: 'ff0000',
+        };
+
+      // Boxes
+      if (annotations.boxes) {
+        ctx.save();
+        ctx.strokeStyle = '#' + annotations.color;
+        ctx.lineWidth = lineWidth / scale;
+        for (let i = 0; i < annotations.boxes.length; i += 4) {
+          const [x1, y1, x2, y2] = annotations.boxes.slice(i, i + 4);
+          ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+        }
+        ctx.restore();
+      }
+
+      // Lines
+      if (annotations.lines) {
+        ctx.save();
+        ctx.strokeStyle = '#' + annotations.color;
+        ctx.lineWidth = lineWidth / scale;
+        for (let i = 0; i < annotations.lines.length; i += 4) {
+          const [x1, y1, x2, y2] = annotations.lines.slice(i, i + 4);
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      ctx.restore();
+    }
+
+    // ---------------------------------------------------------------------
+    // Fade Helpers (with cancelable animations)
+    // ---------------------------------------------------------------------
+    function renderFade(img, alpha) {
+      canvas.width = Math.floor(window.innerWidth * pixelRatio);
+      canvas.height = Math.floor(window.innerHeight * pixelRatio);
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+
+      const { topLeft, bottomRight } = view;
+      const zoomWidth = bottomRight[0] - topLeft[0];
+      const zoomHeight = bottomRight[1] - topLeft[1];
+      const scale = Math.min(
+        canvas.width / pixelRatio / zoomWidth,
+        canvas.height / pixelRatio / zoomHeight
+      );
+
+      ctx.translate(
+        canvas.width / pixelRatio / 2 -
+          (topLeft[0] + zoomWidth / 2) * scale,
+        canvas.height / pixelRatio / 2 -
+          (topLeft[1] + zoomHeight / 2) * scale
+      );
+      ctx.scale(scale, scale);
+
+      if (img && img.width && img.height) {
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(img, 0, 0);
+      }
+
+      ctx.restore();
+    }
+
+    function fadeOutImage(img, duration, onDone) {
+      // local token to detect cancellation
+      const localToken = animationCancelToken;
+
+      if (!img || !img.width || !img.height) {
+        if (onDone) onDone();
+        return;
+      }
+      const start = performance.now();
+      (function animateFadeOut(now) {
+        // check cancel
+        if (localToken !== animationCancelToken) {
+          return;
         }
 
-        function updateHash(url, view, annotations = {}) {
-            interactiveChange = true;
-            const defaultAnnotations = { boxes: [], lines: [], color: '#ff0000' };
-            annotations = { ...defaultAnnotations, ...annotations };
+        let elapsed = now - start;
+        if (elapsed > duration) elapsed = duration;
+        const progress = elapsed / duration; // 0..1
+        const alpha = 1 - progress; // 1..0
 
-            const viewParams = view
-                ? `${view.topLeft.map(Math.floor).join(',')},${view.bottomRight.map(Math.floor).join(',')}`
-                : '';
-            let color = annotations.color || 'ff0000';
-            if (color.startsWith('#')) color = color.slice(1); 
+        renderFade(img, alpha);
 
-            const boxParams = annotations.boxes.length > 0 ? annotations.boxes.join(',') : '';
-            const arrowParams = annotations.lines.length > 0 ? annotations.lines.join(',') : '';
+        if (elapsed < duration) {
+          requestAnimationFrame(animateFadeOut);
+        } else {
+          // clear completely
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          if (onDone) onDone();
+        }
+      })(start);
+    }
 
-            location.hash = `${viewParams}&${color}&${boxParams}&${arrowParams}&${url}`;
+    function fadeInImage(img, duration, onDone) {
+      // local token to detect cancellation
+      const localToken = animationCancelToken;
 
-            setTimeout(function(){ interactiveChange = false; }, 1);
+      if (!img || !img.width || !img.height) {
+        if (onDone) onDone();
+        return;
+      }
+      const start = performance.now();
+      (function animateFadeIn(now) {
+        // check cancel
+        if (localToken !== animationCancelToken) {
+          return;
         }
 
-        function fitViewToCanvas(image) {
-            const scaleX = canvas.width / image.width;
-            const scaleY = canvas.height / image.height;
-            const scale = Math.min(scaleX, scaleY);
+        let elapsed = now - start;
+        if (elapsed > duration) elapsed = duration;
+        const progress = elapsed / duration; // 0..1
+        const alpha = progress; // 0..1
 
-            const displayWidth = image.width * scale;
-            const displayHeight = image.height * scale;
+        renderFade(img, alpha);
 
-            const offsetX = (canvas.width - displayWidth) / 2;
-            const offsetY = (canvas.height - displayHeight) / 2;
-
-            view.topLeft = [-offsetX / scale, -offsetY / scale];
-            view.bottomRight = [(image.width + offsetX / scale), (image.height + offsetY / scale)];
+        if (elapsed < duration) {
+          requestAnimationFrame(animateFadeIn);
+        } else {
+          // final normal draw
+          if (onDone) onDone();
         }
+      })(start);
+    }
 
-        function render() {
-            // Set the canvas size for Retina displays
-            canvas.width = Math.floor(window.innerWidth * pixelRatio);
-            canvas.height = Math.floor(window.innerHeight * pixelRatio);
+    // ---------------------------------------------------------------------
+    // loadImage
+    // ---------------------------------------------------------------------
+    function loadImage(url) {
+      currentUrl = url;
+      image.onload = () => {
+        const parsed = parseHash();
+        if (parsed && parsed.view) {
+          updateView(parsed.view, false);
+        } else {
+          fitViewToCanvas(image);
+        }
+        render();
+      };
+      image.src = url;
+    }
 
-            // Ensure the canvas is displayed at the correct size
-            canvas.style.width = `${window.innerWidth}px`;
-            canvas.style.height = `${window.innerHeight}px`;
+    // ---------------------------------------------------------------------
+    // Interactions
+    // ---------------------------------------------------------------------
+    function setupInteractions() {
+      let currentTool = 'none';
+      let annotationStart = null;
 
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+      toolInputs.forEach((input) => {
+        input.addEventListener('change', () => {
+          currentTool = input.value;
+        });
+      });
 
-            // Scale the context for Retina displays
-            ctx.save();
-            ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      colorInput.addEventListener('change', () => {
+        const parsed = parseHash();
+        const annotations = parsed
+          ? parsed.annotations
+          : { boxes: [], lines: [], color: 'ff0000' };
+        annotations.color = colorInput.value.slice(1);
+        updateHash(currentUrl, view, annotations);
+        render();
+      });
 
-            const { topLeft, bottomRight } = view;
-            const zoomWidth = bottomRight[0] - topLeft[0];
-            const zoomHeight = bottomRight[1] - topLeft[1];
-            const scale = Math.min(
-                canvas.width / pixelRatio / zoomWidth,
-                canvas.height / pixelRatio / zoomHeight
+      canvas.addEventListener('mousedown', (e) => {
+        if (inFrame) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+        const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+        if (currentTool === 'none') {
+          // panning
+          isDragging = true;
+          canvas.style.cursor = 'grabbing';
+          startDrag = [x, y];
+        } else {
+          // annotation
+          annotationStart = [x, y];
+        }
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        if (currentTool === 'none' && isDragging) {
+          // panning
+          const rect = canvas.getBoundingClientRect();
+          const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+          const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+          const dx =
+            ((startDrag[0] - x) *
+              (view.bottomRight[0] - view.topLeft[0])) /
+            canvas.width;
+          const dy =
+            ((startDrag[1] - y) *
+              (view.bottomRight[1] - view.topLeft[1])) /
+            canvas.height;
+
+          view.topLeft[0] += dx;
+          view.topLeft[1] += dy;
+          view.bottomRight[0] += dx;
+          view.bottomRight[1] += dy;
+
+          startDrag = [x, y];
+          render();
+        } else if (annotationStart) {
+          // annotation preview
+          const rect = canvas.getBoundingClientRect();
+          const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+          const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+          render();
+          ctx.save();
+          ctx.strokeStyle = colorInput.value;
+          ctx.lineWidth = lineWidth;
+
+          if (currentTool === 'box') {
+            ctx.strokeRect(
+              annotationStart[0],
+              annotationStart[1],
+              x - annotationStart[0],
+              y - annotationStart[1]
             );
+          } else if (currentTool === 'arrow') {
+            ctx.beginPath();
+            ctx.moveTo(annotationStart[0], annotationStart[1]);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      });
 
-            ctx.translate(
-                canvas.width / pixelRatio / 2 - (topLeft[0] + zoomWidth / 2) * scale,
-                canvas.height / pixelRatio / 2 - (topLeft[1] + zoomHeight / 2) * scale
+      canvas.addEventListener('mouseup', (e) => {
+        const parsed = parseHash();
+        const annotations = parsed
+          ? parsed.annotations
+          : { boxes: [], lines: [], color: 'ff0000' };
+
+        if (currentTool === 'none' && isDragging) {
+          isDragging = false;
+          canvas.style.cursor = 'grab';
+          updateHash(currentUrl, view, annotations);
+        } else if (annotationStart) {
+          // finalize annotation
+          const rect = canvas.getBoundingClientRect();
+          const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+          const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+          const scaledStart = [
+            Math.round(
+              view.topLeft[0] +
+                (annotationStart[0] / canvas.width) *
+                  (view.bottomRight[0] - view.topLeft[0])
+            ),
+            Math.round(
+              view.topLeft[1] +
+                (annotationStart[1] / canvas.height) *
+                  (view.bottomRight[1] - view.topLeft[1])
+            ),
+          ];
+          const scaledEnd = [
+            Math.round(
+              view.topLeft[0] +
+                (x / canvas.width) *
+                  (view.bottomRight[0] - view.topLeft[0])
+            ),
+            Math.round(
+              view.topLeft[1] +
+                (y / canvas.height) *
+                  (view.bottomRight[1] - view.topLeft[1])
+            ),
+          ];
+
+          if (currentTool === 'box') {
+            annotations.boxes.push(
+              scaledStart[0],
+              scaledStart[1],
+              scaledEnd[0],
+              scaledEnd[1]
             );
-            ctx.scale(scale, scale);
+          } else if (currentTool === 'arrow') {
+            annotations.lines.push(
+              scaledStart[0],
+              scaledStart[1],
+              scaledEnd[0],
+              scaledEnd[1]
+            );
+          }
 
-            // Draw the image
-            ctx.drawImage(image, 0, 0);
-
-            // Retrieve annotations from the hash
-            const parsed = parseHash();
-            const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
-
-            // Draw all rectangles (boxes)
-            if (annotations.boxes) {
-                ctx.save();
-                ctx.strokeStyle = "#"+annotations.color;
-                ctx.lineWidth = lineWidth / scale; // Scale line width relative to the image scale
-
-                for (let i = 0; i < annotations.boxes.length; i += 4) {
-                    const [x1, y1, x2, y2] = annotations.boxes.slice(i, i + 4);
-                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-                }
-
-                ctx.restore();
-            }
-
-            // Draw all lines
-            if (annotations.lines) {
-                ctx.save();
-                ctx.strokeStyle = "#"+annotations.color;
-                ctx.lineWidth = lineWidth / scale; // Scale line width relative to the image scale
-
-                for (let i = 0; i < annotations.lines.length; i += 4) {
-                    const [x1, y1, x2, y2] = annotations.lines.slice(i, i + 4);
-                    ctx.beginPath();
-                    ctx.moveTo(x1, y1);
-                    ctx.lineTo(x2, y2);
-                    ctx.stroke();
-                }
-
-                ctx.restore();
-            }
-
-            ctx.restore();
+          annotationStart = null;
+          updateHash(currentUrl, view, annotations);
+          render();
         }
+      });
 
-        function animateView(targetView) {
-            const startView = { ...view };
-            const startTime = performance.now();
-
-            function animate(time) {
-                const progress = Math.min((time - startTime) / ANIMATION_DURATION, 1);
-                view.topLeft[0] = Math.floor(startView.topLeft[0] + progress * (targetView.topLeft[0] - startView.topLeft[0]));
-                view.topLeft[1] = Math.floor(startView.topLeft[1] + progress * (targetView.topLeft[1] - startView.topLeft[1]));
-                view.bottomRight[0] = Math.floor(startView.bottomRight[0] + progress * (targetView.bottomRight[0] - startView.bottomRight[0]));
-                view.bottomRight[1] = Math.floor(startView.bottomRight[1] + progress * (targetView.bottomRight[1] - startView.bottomRight[1]));
-
-                render();
-
-                if (progress < 1) {
-                    requestAnimationFrame(animate);
-                }
-            }
-
-            requestAnimationFrame(animate);
-        }
-
-        function updateView(coords, animate = false) {
-            if (coords) {
-                const targetView = {
-                    topLeft: coords.topLeft,
-                    bottomRight: coords.bottomRight
-                };
-
-                if (animate) {
-                    animateView(targetView);
-                } else {
-                    view = targetView;
-                    render();
-                }
-            } else {
-                fitViewToCanvas(image);
-                render();
-            }
-        }
-
-        function loadImage(url) {
-            // Preserve the original URL (including relative path) in currentUrl
-            currentUrl = url;
-
-            image.onload = () => {
-                const parsed = parseHash();
-                if (parsed && parsed.view) {
-                    updateView(parsed.view, false);
-                } else {
-                    fitViewToCanvas(image);
-                }
-                render(); // Ensure the image and view are rendered
-            };
-
-            // Setting image.src will resolve it, but we keep currentUrl unchanged
-            image.src = url;
-        }
-
-        function setupInteractions() {
-            let currentTool = 'none';
-            let annotationStart = null;
-
-            toolInputs.forEach((input) => {
-                input.addEventListener('change', () => {
-                    currentTool = input.value;
-                });
-            });
-
-            colorInput.addEventListener('change', () => {
-                const parsed = parseHash();
-                const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
-                annotations.color = colorInput.value.slice(1);
-                updateHash(currentUrl, view, annotations);
-                render(); 
-            });
-
-            canvas.addEventListener('mousedown', (e) => {
-                if (inFrame) return;
-
-                const rect = canvas.getBoundingClientRect();
-                const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-                const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-                if (currentTool === 'none') {
-                    // Panning mode
-                    isDragging = true;
-                    canvas.style.cursor = 'grabbing';
-                    startDrag = [x, y];
-                } else {
-                    // Annotation mode
-                    annotationStart = [x, y];
-                }
-            });
-
-            canvas.addEventListener('mousemove', (e) => {
-                if (currentTool === 'none' && isDragging) {
-                    // Handle panning
-                    const rect = canvas.getBoundingClientRect();
-                    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-                    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-                    const dx = ((startDrag[0] - x) * (view.bottomRight[0] - view.topLeft[0])) / canvas.width;
-                    const dy = ((startDrag[1] - y) * (view.bottomRight[1] - view.topLeft[1])) / canvas.height;
-
-                    view.topLeft[0] += dx;
-                    view.topLeft[1] += dy;
-                    view.bottomRight[0] += dx;
-                    view.bottomRight[1] += dy;
-
-                    startDrag = [x, y];
-                    render();
-                } else if (annotationStart) {
-                    // Handle drawing a preview of the annotation
-                    const rect = canvas.getBoundingClientRect();
-                    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-                    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-                    render(); // Re-render the image
-                    ctx.save();
-                    ctx.strokeStyle = colorInput.value;
-                    ctx.lineWidth = lineWidth;
-
-                    if (currentTool === 'box') {
-                        ctx.strokeRect(
-                            annotationStart[0],
-                            annotationStart[1],
-                            x - annotationStart[0],
-                            y - annotationStart[1]
-                        );
-                    } else if (currentTool === 'arrow') {
-                        ctx.beginPath();
-                        ctx.moveTo(annotationStart[0], annotationStart[1]);
-                        ctx.lineTo(x, y);
-                        ctx.stroke();
-                    }
-
-                    ctx.restore();
-                }
-            });
-
-            canvas.addEventListener('mouseup', (e) => {
-                const parsed = parseHash();
-                const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
-
-                if (currentTool === 'none' && isDragging) {
-                    // End panning
-                    isDragging = false;
-                    canvas.style.cursor = 'grab';
-                    updateHash(currentUrl, view, annotations);
-                } else if (annotationStart) {
-                    // Finalize the annotation
-                    const rect = canvas.getBoundingClientRect();
-                    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-                    const y = (e.clientY - rect.top) * (canvas.height / rect.height);                    
-
-                    const scaledStart = [
-                        Math.round(view.topLeft[0] + (annotationStart[0] / canvas.width) * (view.bottomRight[0] - view.topLeft[0])),
-                        Math.round(view.topLeft[1] + (annotationStart[1] / canvas.height) * (view.bottomRight[1] - view.topLeft[1])),
-                    ];
-                    const scaledEnd = [
-                        Math.round(view.topLeft[0] + (x / canvas.width) * (view.bottomRight[0] - view.topLeft[0])),
-                        Math.round(view.topLeft[1] + (y / canvas.height) * (view.bottomRight[1] - view.topLeft[1])),
-                    ];
-
-                    if (currentTool === 'box') {
-                        annotations.boxes.push(
-                            scaledStart[0],
-                            scaledStart[1],
-                            scaledEnd[0],
-                            scaledEnd[1]
-                        );
-                    } else if (currentTool === 'arrow') {
-                        annotations.lines.push(
-                            scaledStart[0],
-                            scaledStart[1],
-                            scaledEnd[0],
-                            scaledEnd[1]
-                        );
-                    }
-
-                    annotationStart = null;
-                    updateHash(currentUrl, view, annotations);
-                    render(); 
-                }
-            });
-
-            canvas.addEventListener('wheel', (e) => {
-                if (inFrame) return;
-                e.preventDefault();
-
-                const parsed = parseHash();
-                const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
-
-                const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
-
-                // Adjust pointer position to account for pixel ratio
-                const pointerX = (e.clientX * pixelRatio) / canvas.width;
-                const pointerY = (e.clientY * pixelRatio) / canvas.height;
-
-                const centerX = view.topLeft[0] + pointerX * (view.bottomRight[0] - view.topLeft[0]);
-                const centerY = view.topLeft[1] + pointerY * (view.bottomRight[1] - view.topLeft[1]);
-
-                const zoomWidth = (view.bottomRight[0] - view.topLeft[0]) * zoomFactor;
-                const zoomHeight = (view.bottomRight[1] - view.topLeft[1]) * zoomFactor;
-
-                view.topLeft = [
-                    Math.floor(centerX - zoomWidth * pointerX),
-                    Math.floor(centerY - zoomHeight * pointerY)
-                ];
-                view.bottomRight = [
-                    Math.floor(centerX + zoomWidth * (1 - pointerX)),
-                    Math.floor(centerY + zoomHeight * (1 - pointerY))
-                ];
-
-                render();
-                updateHash(currentUrl, view, annotations);
-            });
-        }
-
-        window.addEventListener('hashchange', () => {
-            if (interactiveChange) return;
-
-            const parsed = parseHash();
-            if (parsed) {
-                const { url, view, annotations } = parsed;
-                // If hash-changed URL differs from our currentUrl, load it
-                if (url && url !== currentUrl) {
-                    loadImage(url);
-                }
-                const animate = inFrame;
-                updateView(view, animate);
-            }
-        });
-
-        document.addEventListener('paste', (e) => {
-            const clipboardData = e.clipboardData || window.clipboardData;
-            const pastedText = clipboardData.getData('Text');
-
-            // Check if the pasted content is a valid image URL (http or https).
-            // You can modify this check if you allow relative paths to be pasted as well.
-            if (pastedText && (pastedText.startsWith('http://') || pastedText.startsWith('https://'))) {
-                const img = new Image();
-                img.onload = () => {
-                    // If the image loads successfully, reset and load the new image
-                    loadImage(pastedText);
-
-                    const annotations = {
-                        boxes: [],
-                        lines: [],
-                        color: '#ff0000', // Default color
-                    };
-                    fitViewToCanvas(img);
-                    updateHash(pastedText, view, annotations);
-                    render();
-                };
-                img.onerror = () => {
-                    alert('The pasted URL is not a valid image. Please try again.');
-                };
-                img.src = pastedText;
-            }
-        });
-
-        window.addEventListener('resize', () => {
-            fitViewToCanvas(image);
-            render();
-        });
+      canvas.addEventListener('wheel', (e) => {
+        if (inFrame) return;
+        e.preventDefault();
 
         const parsed = parseHash();
-        if (parsed) {
-            currentUrl = parsed.url; // store original URL from the hash
-            if (parsed.annotations && parsed.annotations.color) {
-                colorInput.value = "#"+parsed.annotations.color;
-            }
-            loadImage(currentUrl);
-        } else {
-            // Show a friendly message
-            ctx.fillStyle = '#fff';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.font = '20px Arial';
-            ctx.fillText('Paste URL or path to image', canvas.width / 2, canvas.height / 2);
-        }
+        const annotations = parsed
+          ? parsed.annotations
+          : { boxes: [], lines: [], color: 'ff0000' };
 
-        setupInteractions();
+        const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
 
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                // Clear annotations
-                const annotations = {
-                    boxes: [],
-                    lines: [],
-                    color: colorInput.value.slice(1),
-                };
+        const pointerX = (e.clientX * pixelRatio) / canvas.width;
+        const pointerY = (e.clientY * pixelRatio) / canvas.height;
 
-                // Fit the image to the canvas
-                fitViewToCanvas(image);
+        const centerX =
+          view.topLeft[0] +
+          pointerX * (view.bottomRight[0] - view.topLeft[0]);
+        const centerY =
+          view.topLeft[1] +
+          pointerY * (view.bottomRight[1] - view.topLeft[1]);
 
-                // Update the hash with no annotations and the default view
-                updateHash(currentUrl, view, annotations);
+        const zoomWidth =
+          (view.bottomRight[0] - view.topLeft[0]) * zoomFactor;
+        const zoomHeight =
+          (view.bottomRight[1] - view.topLeft[1]) * zoomFactor;
 
-                // Render the reset view
-                render();
-            }
-        });
-    </script>
+        view.topLeft = [
+          Math.floor(centerX - zoomWidth * pointerX),
+          Math.floor(centerY - zoomHeight * pointerY),
+        ];
+        view.bottomRight = [
+          Math.floor(centerX + zoomWidth * (1 - pointerX)),
+          Math.floor(centerY + zoomHeight * (1 - pointerY)),
+        ];
+
+        render();
+        updateHash(currentUrl, view, annotations);
+      });
+    }
+
+    // ---------------------------------------------------------------------
+    // Hashchange: fade-out → set new image & immediate pan/zoom → fade-in
+    // ---------------------------------------------------------------------
+    window.addEventListener('hashchange', () => {
+      if (interactiveChange) return;
+
+      // Increment token to cancel any old animations
+      animationCancelToken++;
+
+      const parsed = parseHash();
+      if (!parsed) return;
+      const { url, view: newView } = parsed;
+
+      if (url && url !== currentUrl) {
+        // Load new image and do two-phase fade
+        const newImg = new Image();
+        newImg.onload = () => {
+          fadeOutImage(image, FADE_OUT_DURATION, () => {
+            // Switch to new
+            image = newImg;
+            currentUrl = url;
+            setViewImmediately(newView);
+
+            fadeInImage(image, FADE_IN_DURATION, () => {
+              render();
+            });
+          });
+        };
+        newImg.src = url;
+      } else {
+        // Same URL => possibly animate pan/zoom
+        // If we are in an iframe, the code was originally set to animate = inFrame,
+        // but you can adjust as needed
+        const animate = inFrame;
+        updateView(newView, animate);
+      }
+    });
+
+    // ---------------------------------------------------------------------
+    // Resize
+    // ---------------------------------------------------------------------
+    window.addEventListener('resize', () => {
+      fitViewToCanvas(image);
+      render();
+    });
+
+    // ---------------------------------------------------------------------
+    // Clipboard: Pasting a new image
+    // ---------------------------------------------------------------------
+    document.addEventListener('paste', (e) => {
+      const clipboardData = e.clipboardData || window.clipboardData;
+      const pastedText = clipboardData.getData('Text');
+
+      if (
+        pastedText &&
+        (pastedText.startsWith('http://') ||
+          pastedText.startsWith('https://'))
+      ) {
+        const newImg = new Image();
+        newImg.onload = () => {
+          fadeOutImage(image, FADE_OUT_DURATION, () => {
+            image = newImg;
+            currentUrl = pastedText;
+            fitViewToCanvas(image);
+
+            const annotations = {
+              boxes: [],
+              lines: [],
+              color: '#ff0000',
+            };
+            updateHash(pastedText, view, annotations);
+
+            fadeInImage(image, FADE_IN_DURATION, () => {
+              render();
+            });
+          });
+        };
+        newImg.onerror = () => {
+          alert('The pasted URL is not a valid image. Please try again.');
+        };
+        newImg.src = pastedText;
+      }
+    });
+
+    // ---------------------------------------------------------------------
+    // Initial load from hash (or blank)
+    // ---------------------------------------------------------------------
+    const parsed = parseHash();
+    if (parsed) {
+      currentUrl = parsed.url;
+      if (parsed.annotations && parsed.annotations.color) {
+        colorInput.value = '#' + parsed.annotations.color;
+      }
+      if (currentUrl) {
+        image.onload = () => {
+          if (parsed.view) {
+            setViewImmediately(parsed.view);
+          } else {
+            fitViewToCanvas(image);
+          }
+          render();
+        };
+        image.src = currentUrl;
+      } else {
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '20px Arial';
+        ctx.fillText(
+          'Paste URL or path to image',
+          canvas.width / 2,
+          canvas.height / 2
+        );
+      }
+    } else {
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '20px Arial';
+      ctx.fillText(
+        'Paste URL or path to image',
+        canvas.width / 2,
+        canvas.height / 2
+      );
+    }
+
+    setupInteractions();
+
+    // ---------------------------------------------------------------------
+    // ESC to Clear Annotations
+    // ---------------------------------------------------------------------
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        // Clear annotations
+        const annotations = {
+          boxes: [],
+          lines: [],
+          color: colorInput.value.slice(1),
+        };
+        fitViewToCanvas(image);
+        updateHash(currentUrl, view, annotations);
+        render();
+      }
+    });
+  </script>
 </body>
 </html>
