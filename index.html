@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<head>
-    <link rel="icon" type="image/svg+xml" sizes="any" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📄</text></svg>"/>
-
+<html>
+<head>    
     <meta charset="UTF-8">
+    <link rel="icon" type="image/svg+xml" sizes="any" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📄</text></svg>"/>
     <title>!nflect</title>
     <script src="src/marked.min.js"></script>
     
@@ -39,13 +39,14 @@
             top: 0;
             left: 0;
             height: 100vh;
-            width: 60vw;
+            width: 65vw;
             position: fixed;
             background-color: #fff;
             border: 0;
-            padding: 0;
             margin: 0;
-            transition: opacity 0.1s;
+            padding: 0;
+            opacity: 0;
+            transition: opacity 0.1s ease-in;
         }
 
         h1 { font-size: 2em; font-weight: 100;}
@@ -53,9 +54,10 @@
         h3 { font-size: 1.11em; }
 
         main {
+            box-sizing: border-box;
             position: absolute;
             right: 0;
-            width: 30vw;
+            width: 35vw;
             padding: 5vh;
             margin: 0;
             background-color: #ddd;
@@ -93,42 +95,32 @@
 <main></main>
 
 <script>
-    // Track the last path (excluding hash) used in the iframe,
-    // so we can detect "path" changes (not just hash).
+    // Track last path (excluding hash)
     let lastIframePath = null;
+    const iframe = document.getElementById('if');
 
-    // Fade out & in the iframe if the path changes.
+    // Fade in new content 
     function setIframeIfPathChanged(newHref) {
-      const iframe = document.getElementById('if');
-
-      // Construct a URL to compare path without hash:
       const newURL = new URL(newHref, window.location.origin);
       newURL.hash = ''; // remove hash for path comparison
       const newPath = newURL.href;
 
-      // If path differs from last path, do fade transition.
+      // If path chnages, set iframe to 0 opacity
       if (newPath !== lastIframePath) {
-        fadeIframe(iframe, newHref);
+        iframe.style.opacity = '0';
+        iframe.src = newHref;
         lastIframePath = newPath;
-      } else {
-        // If path is the same, no fade needed—just update if needed.
+      } 
+      else {
+        // Otherwise just update src as needed (rare case)
         iframe.src = newHref;
       }
     }
 
-    function fadeIframe(iframe, href) {
-      // Fade out (100ms)
-      iframe.style.opacity = '0';
-      setTimeout(() => {
-        // Update src after fade-out
-        iframe.src = href;
-      }, 100);
-
-      // Fade in (another 100ms)
-      setTimeout(() => {
-        iframe.style.opacity = '1';
-      }, 200);
-    }
+    // Fade in once the iframe finishes loading
+    iframe.addEventListener('load', () => {
+      iframe.style.opacity = '1';
+    });
 
     // Function to fetch and render the markdown
     async function renderMarkdown() {
@@ -136,8 +128,9 @@
             const hash = window.location.hash.substring(1); // Remove '#' from hash
             const file = hash ? hash : 'README';
 
-            if (file=="README") document.title = "!nflect";
-            else document.title = "!nflect · " + file;
+            document.title = (file === "README") 
+                             ? "!nflect" 
+                             : `!nflect · ${file}`;
 
             const response = await fetch(file + ".md"); 
             let readme = await response.text();
@@ -154,6 +147,7 @@
                   : ` class="dontinflect"${attrs}`}>`
             );
 
+            // Render the markdown into HTML
             const html = marked.parse(readme); 
             document.querySelector('main').innerHTML = html;
 
@@ -206,7 +200,7 @@
         });
     }
 
-    // scroll up when pressing escape
+    // scroll up when pressing Escape
     document.addEventListener('keydown', function(event) {
         if (event.key === 'Escape') {
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -225,6 +219,5 @@
     // Load, parse, and display markdown on page load
     renderMarkdown();
 </script>
-
 </body>
 </html>
