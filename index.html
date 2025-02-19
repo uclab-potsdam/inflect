@@ -98,6 +98,10 @@
             margin: 0 -.1em;
         }
 
+        a.active:hover {
+            background: #fff;
+        }
+
     </style>
 </head>
 
@@ -206,8 +210,7 @@
             // ignore local links to markdown files
             if (!link.classList.contains("dontinflect")) {
                 // Add event listener to manually handle click
-                link.addEventListener('click', function(event) {
-                    event.preventDefault();
+                link.addEventListener('click', function(event) {                    
                     document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
                     link.classList.add('active');
                     setIframeIfPathChanged(link.href);
