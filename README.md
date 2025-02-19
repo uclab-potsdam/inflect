@@ -1,7 +1,11 @@
-# !nflect
-## Bridging Data Exploration and Scholarly Argumentation in Humanities Research
+# !nflect <sub>📊</sub><sup>💬</sup>
+## Modulating visualizations to tell stories with data
 
-This is a web-based template implementing inflections as a method to record and recount interpretative interactions with data visualizations. By parameterizing view changes and annotations in visualizations, scholars can document and share insights from their data analysis and research process. The intention is to bridge the gap between data exploration and scholarly argumentation, by interweaving [visualization](img/#10,8,1162,1455&ff0000&&&chart_overview.png) states with narrative segments.
+This is a web-based template implementing inflections as a method to bridge the gap between data exploration and storytelling, by interweaving [visualization](img/#10,8,1162,1455&ff0000&&&chart_overview.png) states with narrative segments. By linking to specific views and annotations in visualizations, authors can embed insights from their data analysis within the narrative flow. 
+
+- See the 📜<a href="https://uclab-potsdam.github.io/inflect/">scrollytelling</a> version in action, if you read this as a Readme
+- Fork this ⚙️<a href="https://github.com/uclab-potsdam/inflect">repository</a> to create your data story with inflected visualizations
+
 
 
 
