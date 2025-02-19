@@ -70,23 +70,32 @@
         }
         
         p {
-            font-size: 1em;                        
+            font-size: 1em;
+            line-height: 1.5em;
         }
 
         a {
             color: #000;
         }
 
+        ul, ol {
+            padding-left: 1.5em;
+        }
+
         li {
-            padding-bottom: 0.25em;
+            padding-bottom: 0.5em;
+            line-height: 1.25em;
         }
 
         a.dontinflect { color: #777;}
         a.dontinflect:hover { color: #000;}
 
         a.active {
-            background: white;
-            text-decoration: none;    
+            border-radius: .25em;
+            background: #eee;
+            text-decoration: none;
+            padding: 0 .1em;
+            margin: 0 -.1em;
         }
 
     </style>
@@ -111,7 +120,7 @@
       newURL.hash = ''; // remove hash for path comparison
       const newPath = newURL.href;
 
-      // If path chnages, set iframe to 0 opacity
+      // If path changes, set iframe to 0 opacity
       if (newPath !== lastIframePath) {
         iframe.style.opacity = '0';
         iframe.src = newHref;
@@ -215,13 +224,13 @@
     });
 
     // Show/hide orientation warning when window is taller than wide
-    function checkOrientation() {
+    function resize() {
         const warning = document.getElementById('orientationWarning');
         if (window.innerHeight > window.innerWidth) warning.style.display = 'block';
-        else warning.style.display = 'none';        
+        else warning.style.display = 'none';
     }
-    window.addEventListener('resize', checkOrientation);
-    checkOrientation();
+    window.addEventListener('resize', resize);
+    resize();
 
     // Load, parse, and display markdown on page load
     renderMarkdown();
