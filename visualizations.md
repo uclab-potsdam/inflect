@@ -29,7 +29,7 @@ Look at the spike in [2004](vis/#IEEEvis_overTime&col=%2300F05E&yax=0;179.6&line
 111 papers in the [VIS](vis/#IEEEvis_overTime&col=%2300F05E&yax=0;179.6&line=2003;0.8;2002;0.9;121.6;0;131.3;0&ann=2002%3B0.2%3B133.3%3B0%3B111&high=2004;111;Vis) conference alone.
 
 
-Looking only at the smaller conferences between [2006-2013](vis/#IEEEvis_smallerConf&col=%2300F05E&yax=0;70&xax=2006;2020&line=&ann=&high=), you can see they had varying importance over time.
+Looking only at the smaller conferences between [2006-2019](vis/#IEEEvis_smallerConf&col=%2300F05E&yax=0;70&xax=2006;2020&line=&ann=&high=), you can see they had varying importance over time.
 
 
 
