@@ -141,6 +141,13 @@
         button:active {
             background-color: #979595;
         }
+
+        #infl-col-input {
+            opacity: 0;
+            display: inline;
+            width: 0; height: 0; 
+            padding: 0; margin: 0;
+        }
     </style>
 
 
@@ -725,21 +732,12 @@
                 // #endregion
 
                 // #region Colour button UI
-                d3.select("#colour-div").append("input")
-                    .attr("id", "infl-col-input")
-                    .attr("type", "color")
-                    .style("display", "none")
-                    .attr("value", inflection.col)
-                    .on("change", function(d, event) {
-                        var new_col = d3.select(this).property("value")
-                        inflection.col = new_col
-                        that.col()
-                        that.updateHash()
-                    })
+
 
                 // Create the button element
                 d3.select("#colour-div").append("button")
                     .attr("id", "col-button")
+                    // .style("float", "left")
                     .on("click", function () {
                         document.getElementById("infl-col-input").click();
                     });
@@ -749,7 +747,18 @@
                     .append("span")
                     .attr("class", "button-text")
                     .text("🌈 Set Color")
-        
+
+                d3.select("#col-button").append("input")
+                    .attr("id", "infl-col-input")
+                    .attr("type", "color")
+                    // .style("clear", "both")
+                    .attr("value", inflection.col)
+                    .on("change", function(d, event) {
+                        var new_col = d3.select(this).property("value")
+                        inflection.col = new_col
+                        that.col()
+                        that.updateHash()
+                    })
 
                 // #endregion
 
