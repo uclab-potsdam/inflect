@@ -61,11 +61,9 @@
             position: absolute;
             right: 0;
             width: 35vw;
-            padding: 5vh;
+            padding: 0 3vh;
             margin: 0;            
         }
-
-   
 
         section {
             min-height: 100vh;
@@ -77,6 +75,10 @@
 
         a {
             color: #000;
+        }
+
+        li {
+            padding-bottom: 0.25em;
         }
 
         a.dontinflect { color: #777;}
@@ -170,11 +172,11 @@
     // with IntersectionObserver we can check what is visible    
     function initializeObservers() {
         const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    // Remove active class from all links
-                    document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
+            // Remove active class from all links
+            // document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
 
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {                    
                     // Add active class only to the visible link
                     const visibleLink = entry.target;
                     if (!visibleLink.classList.contains("dontinflect")) {
@@ -183,6 +185,7 @@
                         setIframeIfPathChanged(visibleLink.href);
                     }
                 }
+                else entry.target.classList.remove("active")
             });
         });
 
