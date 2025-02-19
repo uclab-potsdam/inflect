@@ -24,14 +24,15 @@
             font-family: sans-serif;
             font-size: 11px;
         }
+
         .inflect_ui {
             margin-left: 30px;
             margin-right: 30px;
-            padding: 10px;
+            padding: 5px 10px 0px 10px;
             background-color: #dedede;
             font-family: sans-serif !important;
             font-size: 16px;
-
+            width: 220px;
         }
 
 
@@ -42,8 +43,8 @@
             border-style: solid;
             -webkit-transition: .2s;
             transition: .2s;
-            width: 150px;
-            height: 40px;
+            width: 200px;
+            height: 35px;
             display: inline-block;
         }
 
@@ -79,8 +80,8 @@
 
         .infl-ui-div {
             display: block;
-            padding: 0px;
-            margin-bottom: 10px;
+            xpadding: 0px 5px;
+            xmargin: 0 10px 10px 0;
         }
 
         .infl-tooltip {
@@ -119,21 +120,28 @@
             vertical-align: middle;
         }
 
+        .button-text span {
+            display: inline-block;
+            width: 18px;
+        }
 
         button {
-            height: 25px;
+            height: 30px;
+            width: 100px;
+            white-space:  nowrap ;
+            text-align: left;
             background-color: #cccccc;
             border: none;
             border-radius: 1px;
             color: black;
-            padding-top: 0px;
-            padding-right: 10px;
-            padding-bottom: 0px;
-            padding-left: 10px;
+            padding-top: 0px 10px;            
             cursor: pointer;
             display: block;
+            border-bottom: 1px #999 solid;
+            border-right: 1px #999 solid;
+            margin-bottom: 8px;
         }
-
+        
         button:hover {
             background-color: #bcbbbb;
         }
@@ -148,6 +156,7 @@
             width: 0; height: 0; 
             padding: 0; margin: 0;
         }
+
     </style>
 
 
@@ -528,8 +537,7 @@
                 var icon_button_width = 18;
 
                 // #region UI Structure
-                d3.select("body").append("div").attr("class", "inflect_ui")
-                    .style("width", "250px");
+                d3.select("body").append("div").attr("class", "inflect_ui");
 
                 // d3.select(".inflect_ui")
                 //     .append("span")
@@ -538,7 +546,7 @@
                 //title
                 d3.select(".inflect_ui").append("div")
                     .style("margin-bottom", "5px")
-                    .style("padding", "0px 5px")
+                    /* .style("padding", "0px 5px") */
                     .append("h1").text("INFLECT THIS CHART")
 
                 //subtitles
@@ -547,7 +555,7 @@
                     .append("div")
                     .attr("class", "infl-ui-div")
                     .style("margin", "0px")
-                    .style("padding", "0px 5px")
+                    /* .style("padding", "0px 5px") */
                     .append("p").html("Zoom in and out via scrollwheel or respective gesture on trackpad.")
                     .style("font-size", "13px")
                 } else {
@@ -555,7 +563,7 @@
                         .append("div")
                         .attr("class", "infl-ui-div")
                         .style("margin", "0px")
-                        .style("padding", "0px 5px")
+                        /* .style("padding", "0px 5px") */
                         .append("p").html("Change the scale of a quantitative axis by dragging along its ticks.")
                         .style("font-size", "13px")
 
@@ -587,9 +595,9 @@
                     .append("div")
                     .attr("class", "infl-ui-div")
                     .style("margin", "0px")
-                    .style("padding", "0px 5px")
+                    /* .style("padding", "0px 5px") */
                     .style("font-size", "13px")
-                    .append("p").html("Double click on element to remove it")
+                    .append("p").html("Double-click element to remove it.")
 
 
 
@@ -661,7 +669,7 @@
                 d3.select("#line-button")
                     .append("span")
                     .attr("class", "button-text")
-                    .text("╱  Add Line")
+                    .html("<span> ⟋</span> Add Line")
 
                 
                 var dist = 5.5;
@@ -681,7 +689,7 @@
                 d3.select("#annotation-div").append("textarea")
                     .attr("id", "infl-text-input")
                     .attr("type", "text")
-                    .attr("placeholder", "Enter label text here")
+                    .attr("placeholder", "Enter Label Text Here")
                     .style("margin-bottom", "3px")
                     .style("border-color", inflection.col)
                     .on("focus", function() {
@@ -727,7 +735,7 @@
                 d3.select("#ann-button")
                     .append("span")
                     .attr("class", "button-text")
-                    .text("🏷️ Add Label")
+                    .html("<span>🏷️</span> Add Label")
                     
                 // #endregion
 
@@ -746,7 +754,7 @@
                 d3.select("#col-button")
                     .append("span")
                     .attr("class", "button-text")
-                    .text("🌈 Set Color")
+                    .html("<span>🌈</span> Set Color")
 
                 d3.select("#col-button").append("input")
                     .attr("id", "infl-col-input")
@@ -780,7 +788,7 @@
                 d3.select("#hash-button")
                     .append("span")
                     .attr("class", "button-text")
-                    .text("🔗 Copy Link")
+                    .html("<span>🔗</span> Copy Link")
                     
                 // #endregion
 
@@ -810,7 +818,7 @@
                     d3.select("#reset-button")
                         .append("span")
                         .attr("class", "button-text")
-                        .text("🧽 Reset")
+                        .html("<span>🧽</span> Reset")
             // #endregion
 
                 
