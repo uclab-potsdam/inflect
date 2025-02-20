@@ -45,7 +45,6 @@
         }
 
         iframe {
-            opacity: 0;
             transition: opacity 0.1s ease-in;
         }
 
@@ -113,6 +112,7 @@
 <script>
     // Track last path (excluding hash)
     let lastIframePath = null;
+    let firstFrame = true;
     const iframe = document.getElementById('if');
 
     // Fade in new content 
@@ -123,7 +123,8 @@
 
       // If path changes, set iframe to 0 opacity
       if (newPath !== lastIframePath) {
-        iframe.style.opacity = '0';
+        if (firstFrame) firstFrame = false;
+        else iframe.style.opacity = '0';
         iframe.src = newHref;
         lastIframePath = newPath;
       } 
@@ -196,8 +197,6 @@
     // with IntersectionObserver we can check what is visible    
     function initializeObservers() {
         const observer = new IntersectionObserver((entries) => {
-            // Remove active class from all links
-            // document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
 
             entries.forEach(entry => {
                 if (entry.isIntersecting) {                    
