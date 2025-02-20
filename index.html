@@ -11,8 +11,8 @@
         body {
             font-family: "HelveticaNeueLight", "HelveticaNeue-Light", "Helvetica Neue Light", 
                          "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Arial", sans-serif;
-            font-weight: 200;
-            font-size: calc(1vw + 1vh);
+            font-weight: 400;
+            font-size: calc(.9vw + .9vh);
             background-color: #ddd;
             margin: 0;
             padding: 0;
@@ -32,6 +32,8 @@
             z-index: 100;
         }
 
+        strong { font-weight: 600; }
+
         iframe, #frameBox {
             top: 0;
             left: 0;
@@ -48,9 +50,9 @@
             transition: opacity 0.1s ease-in;
         }
 
-        h1 { font-size: 2em; font-weight: 100;}
-        h2 { font-size: 1.33em; }
-        h3 { font-size: 1.11em; }
+        h1 { font-size: 2.25em; font-weight: 100;}
+        h2 { font-size: 1.5em; }
+        h3 { font-size: 1.1em; }
 
         main {
             box-sizing: border-box;
@@ -63,6 +65,7 @@
 
         section {
             min-height: 100vh;
+            margin-top: 10vh;
         }
         
         p {
@@ -81,6 +84,10 @@
         li {
             padding-bottom: 0.5em;
             line-height: 1.25em;
+        }
+
+        li li {
+            padding-bottom: 0;         
         }
 
         a.dontinflect { color: #555;}
