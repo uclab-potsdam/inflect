@@ -48,7 +48,7 @@ Doesn't appear so.
 
 
 
-The paper ["D³ Data-Driven Documents"](vis/#IEEEvis_citeAndCited&col=%2300F05E&yax=0;200&xax=0;2197.8&line=&ann=1558.39%3B0%3B58.2%3B0%3BD%C2%B3%20Data-Driven%0ADocuments&high=2061;41) by Michael Bostock et al. is the most cited of them all - 2061 times!
+The paper ["D³ Data-Driven Documents"](vis/#IEEEvis_citeAndCited&col=%2300F05E&yax=0;200&xax=0;2197.8&line=1854.19;0;2024.56;0;66.7;0;46.4;0&ann=1610.09%3B0%3B83.1%3B0%3BD%C2%B3%20Data-Driven%0ADocuments&high=2061;41) by Michael Bostock et al. is the most cited of them all - 2061 times!
 
 
 And it makes sense that the paper that references the most is a [review](vis/#IEEEvis_citeAndCited&col=%2300F05E&yax=0;200&xax=0;2197.8&line=&ann=&high=9;195): "A Structured Review of Data Management Technology for Interactive Visualization and Analysis" by Leilani Battle and Carlos Scheidegger.

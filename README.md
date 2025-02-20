@@ -1,7 +1,7 @@
 # !nflect <sub>📊</sub><sup>💬</sup>
 ## Modulating visualizations to tell stories with data
 
-This is a web-based template implementing inflections as a method to bridge the gap between data exploration and storytelling, by interweaving [visualization](img/#10,8,1162,1476&ff0000&&&chart_overview.png) states with narrative segments. By linking to specific views and annotations in visualizations, authors can embed insights from their data analysis within the narrative flow. 
+This is a web-based template implementing inflections as a method to bridge the gap between data exploration and storytelling, by interweaving [visualization](img/#-68,-35,1325,1741&ff0000&&&chart_overview.png) states with narrative segments. By linking to specific views and annotations in visualizations, authors can embed insights from their data analysis within the narrative flow. 
 
 - See the 📜<a href="https://uclab-potsdam.github.io/inflect/">Scrollytelling</a> in action, if you read this as a regular Readme
 - Fork this ⚙️<a href="https://github.com/uclab-potsdam/inflect">Repository</a> to create your data story with inflected visualizations
