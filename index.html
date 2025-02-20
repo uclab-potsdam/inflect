@@ -7,6 +7,7 @@
     <script src="src/marked.min.js"></script>
     
     <style>
+
         body {
             font-family: "HelveticaNeueLight", "HelveticaNeue-Light", "Helvetica Neue Light", 
                          "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Arial", sans-serif;
@@ -167,12 +168,9 @@
             document.querySelector('main').innerHTML = html;
 
             initializeObservers();
-            
-            // return to old position
-            setTimeout(function(){
-                window.scrollTo(0, sessionStorage.getItem("scrollPosition") || 0);
-            }, 100);
 
+            // return to old position
+            window.scrollTo(0, sessionStorage.getItem("scrollPosition") || 0);
         } catch (error) {
             console.error('Error fetching or rendering the markdown file:', error);
         }
