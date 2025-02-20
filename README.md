@@ -1,21 +1,20 @@
 # !nflect <sub>📊</sub><sup>💬</sup>
 ## Modulating visualizations to tell stories with data
 
-This is a web-based template implementing inflections as a method to bridge the gap between data exploration and storytelling, by interweaving [visualization](img/#-68,-35,1325,1741&ff0000&&&chart_overview.png) states with narrative segments. By linking to specific views and annotations in visualizations, authors can embed insights from their data analysis within the narrative flow. 
+This is a web-based framework implementing inflections as a method to bridge the gap between data exploration and storytelling, by interweaving visualization states with narrative segments. By linking to specific views and annotations in visualizations, e.g., [Vega-Lite charts](img/#-68,-35,1325,1741&ff0000&&&chart_overview.png), authors can embed insights from their data analysis within the narrative flow. 
 
-- See the 📜<a href="https://uclab-potsdam.github.io/inflect/">Scrollytelling</a> in action, if you read this as a regular Readme
-- Fork this ⚙️<a href="https://github.com/uclab-potsdam/inflect">Repository</a> to create your data story with inflected visualizations
+- See the 📜<a href="https://uclab-potsdam.github.io/inflect/">scrollytelling</a> in action, if you read this as a regular Readme
+- Fork this ⚙️<a href="https://github.com/uclab-potsdam/inflect">repository</a> to create your data story with inflected visualizations
+
+This version of **!nflect** supports the inclusion of
+<a href="#visualizations">visualizations</a>,
+<a href="#images">images</a>, and 
+<a href="#webpages">webpages</a>.
 
 
+## Overview
 
-
-This repository contains a template and example stories that illustrate the idea of interpretative interactions with data visualizations and other inflectable media.
-
-Example stories
-- <a href="#visualizations">visualizations</a>
-- <a href="#images">images</a>
-- <a href="#webpages">webpages</a>
-
+This repository contains all the files necessary to host the template on a web server, as well as sample stories that illustrate the idea of interpretative interactions with data visualizations and other inflectable media.
 
 The [folder structure](img/#0,0,417,711&ff0000&&&folder_structure.png) is quite straightforward and enables you to add inflected visualizations to your own story.
 
