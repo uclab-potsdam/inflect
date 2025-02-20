@@ -3,7 +3,7 @@
 
 !nflect is a web-based framework implementing inflections as a method to bridge the gap between data exploration and storytelling. By linking to specific views and annotations in visualizations, e.g., [Vega-Lite charts](img/#-68,-35,1325,1741&ff0000&&&chart_overview.png), authors can embed insights from their data analysis within the narrative flow. 
 
-- See the 📜<a href="https://uclab-potsdam.github.io/inflect/">scrollytelling</a> in action, if you read this as a regular Readme
+- See the 📜<a href="https://uclab-potsdam.github.io/inflect/">scrollytelling</a> in action, if you read this as a regular readme file
 - Fork this ⚙️<a href="https://github.com/uclab-potsdam/inflect">repository</a> to create your data story with inflected visualizations
 
 ### Inf... what?
