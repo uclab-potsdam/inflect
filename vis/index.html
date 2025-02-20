@@ -409,7 +409,10 @@
                     that.editable = false;
                     d3.select("svg").attr("width", null)
                     d3.select("svg").attr("height", null)
-                    d3.select("svg").style("max-height", "300px")
+                    
+                    d3.select("svg").style("max-height", "80vh")
+                    d3.select("svg").style("max-width", "80vw")
+                    
                     d3.select("svg").style("margin-left", "10px")
                     d3.select(".chart-wrapper").style("width", "95vw")
                     d3.select(".chart-wrapper").style("text-align", "center")

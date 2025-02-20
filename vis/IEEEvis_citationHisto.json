@@ -13,5 +13,6 @@
         },
         "y": {"aggregate": "count", "title": "Number of Papers"}
     },
-    "config": {}
+    "width": 300,
+    "height": 300
 }

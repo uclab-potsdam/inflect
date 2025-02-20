@@ -7,8 +7,8 @@
     "encoding": {
       "x": {"field": "CitationCount_CrossRef", "type": "quantitative",  "title": "Number of Papers referencing this paper"},
       "y": {"field": "PubsCited_CrossRef", "type": "quantitative",  "title": "Number of References"}
-    }
-
-    
+    },
+    "width": 300,
+    "height": 300
   }
   

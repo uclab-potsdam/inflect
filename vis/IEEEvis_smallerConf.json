@@ -17,5 +17,7 @@
         "y": {"aggregate":"count", "field": "title", "type": "quantitative",  "title": "Number of Papers"},
         "color": {"field": "Conference", "type": "nominal"}
     },
-    "config": {}
+    "config": {},
+    "width": 300,
+    "height": 300
 }

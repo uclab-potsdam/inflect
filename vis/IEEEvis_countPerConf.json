@@ -9,6 +9,7 @@
       "y": {"aggregate": "count", "field": "Title", "title": "Number of Papers"}
     },
     "config": {},
-    "width": 200
+    "width": 300,
+    "height": 300
 
   }
