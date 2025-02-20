@@ -7,10 +7,6 @@
     <script src="src/marked.min.js"></script>
     
     <style>
-        :root {
-            scroll-behavior: smooth;
-        }
-
         body {
             font-family: "HelveticaNeueLight", "HelveticaNeue-Light", "Helvetica Neue Light", 
                          "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Arial", sans-serif;
@@ -61,7 +57,7 @@
             position: absolute;
             right: 0;
             width: 50vw;
-            padding: 0 3vh;
+            padding: 0 5vh;
             margin: 0;            
         }
 
@@ -171,6 +167,12 @@
             document.querySelector('main').innerHTML = html;
 
             initializeObservers();
+            
+            // return to old position
+            setTimeout(function(){
+                window.scrollTo(0, sessionStorage.getItem("scrollPosition") || 0);
+            }, 100);
+
         } catch (error) {
             console.error('Error fetching or rendering the markdown file:', error);
         }
@@ -178,9 +180,20 @@
 
     // Update markdown when hash changes
     window.addEventListener('hashchange', function() {
+        event.preventDefault();
         window.scrollTo(0, 0);
+        sessionStorage.setItem("scrollPosition", 0);
         renderMarkdown();        
     });
+
+    document.addEventListener("scroll", (event) => {
+        sessionStorage.setItem("scrollPosition", window.scrollY);
+    });
+
+    window.addEventListener("beforeunload", function () {
+        sessionStorage.setItem("scrollPosition", window.scrollY);
+    });
+
 
     // with IntersectionObserver we can check what is visible    
     function initializeObservers() {
