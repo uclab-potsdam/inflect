@@ -18,9 +18,9 @@ Check out the sample stories:
 
 ## Overview
 
-This repository contains everything you need to host inflected data stories on a web server. By weaving together data stories and inflected visualizations, readers are guided along a data-based narrative.
+This repository contains everything you need to host data stories with inflected visualizations on a web server.
 
-An inflected data story requires two key components:
+The two key components are:
 
 - **Markdown** file containing the story's source text
 - **Vega-Lite** specifications for interactive charts
