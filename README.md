@@ -3,19 +3,23 @@
 
 !nflect is a web-based framework implementing inflections as a method to bridge the gap between data exploration and storytelling. By linking to specific views and annotations in visualizations, authors can embed insights from their data analysis within the narrative flow. 
 
+- See the 📜<a href="https://uclab-potsdam.github.io/inflect/">scrollytelling</a> in action, if you read this as a regular readme file
+- Check out the sample stories featuring 
+📊<a href="https://uclab-potsdam.github.io/inflect/#visualizations">visualizations</a>, 🖼️<a href="https://uclab-potsdam.github.io/inflect/#images">images</a> and 🌎<a href="https://uclab-potsdam.github.io/inflect/#webpages">webpages</a>.
+- Fork this ⚙️<a href="https://github.com/uclab-potsdam/inflect">repository</a> to create your data story with inflected visualizations
+
 ![img](img/#-68,-35,1325,1741&ff0000&&&chart_overview.png)
 
-- See the 📜<a href="https://uclab-potsdam.github.io/inflect/">scrollytelling</a> in action, if you read this as a regular readme file
-- Fork this ⚙️<a href="https://github.com/uclab-potsdam/inflect">repository</a> to create your data story with inflected visualizations
 
 ### Inf... what?
 
-An inflection is a subtle modulation of a visualization's graphical attributes—such as zoom levels, highlight, or annotations—that guide a reader's attention and anchor interpretative insights. 
+An inflection is a subtle modulation of a visualization's graphical attributes—such as zoom levels, highlights, or annotations—that guide a reader's attention and anchor interpretative insights. 
 
 Inflections can be referenced directly in a story, so that scrolling through the text triggers transitions of the visualization state accordingly—thereby strengthening the interplay between data analysis and narrative structure.
 
-Check out the sample stories:
-<a href="https://uclab-potsdam.github.io/inflect/#visualizations">visualizations</a>, <a href="https://uclab-potsdam.github.io/inflect/#images">images</a>, <a href="https://uclab-potsdam.github.io/inflect/#webpages">webpages</a>.
+As an exercise in inception, we highlighted the inflections visible in these Vega-Lite charts on the left.
+
+![img](img/#-68,-35,1325,1741&00f900&1209,872,984,1017,366,65,637,598,472,1167,623,1576&1156,364,1053,352,1084,330,1051,352,1068,385,1053,348,159,1150,334,1001,329,1001,247,1001,329,1001,337,1072&chart_overview.png)
 
 
 ## Overview
@@ -34,12 +38,11 @@ The two key components are:
 
 ![img](img/#-112,-43,380,315&00f900&27,8,115,132&&folder_structure.png)
 
-If you take a closer look at the repository's file structure, you'll see the following key folders:
+If you take a closer look, you see three key folders:
 
-- `/img`: Holds reference images and screenshots
-- `/src`: Contains essential third-party libraries and font files
-- `/vis`: The place for Vega-Lite specs (`.json`) for each chart
-- `/vis/data`: Houses any datasets used in the visualizations
+- `/img`: Reference images and screenshots
+- `/src`: Essential third-party libraries and font files
+- `/vis`: Vega-Lite specs and datasets for each chart
 
 
 ### Story files
@@ -47,13 +50,6 @@ If you take a closer look at the repository's file structure, you'll see the fol
 ![img](img/#-110,119,396,489&00f900&16,312,288,448,18,178,205,223&&folder_structure.png)
 
 The Markdown files are the sources for the stories. They are stored at the root level of the framework's file structure. You are currently reading the content of `README.md`, which is the default file loaded when no other story file is specified.
-
-The framework largely follows the <a href="https://daringfireball.net/projects/markdown/syntax">Markdown syntax</a>. There are a few special conventions, such as two empty lines creating some vertical separation between sections. 
-Native Markdown links, e.g.,
-
- `[My Chart](vis/#spec_file&hashstuff)`
- 
-are treated as inflection references, instructing the scrollytelling interface to update the embedded visualization states. Regular HTML links are simply displayed and linked without being loaded into the iframe. 
 
 You can open a story file by adding its filename without the extension `.md` behind the URL's hash. For example, the story file `visualizations.md` is displayed by the !inflect framework when this URL is opened:
 
@@ -94,10 +90,20 @@ The editor includes a reset button to remove all inflections. You can also use t
 ![img](img/#-41,47,1637,1204&00f900&931,171,1153,232&&scrollytelling.png) 
 
 - Create a Markdown file (e.g., `my_story.md`) and place it in the root directory  
-- Draft your narrative, embedding relevant URLs, e.g., `check out [this view](vis/#spec_file?hash)`
-- Save and open your story in the browser with: `/#my_story`
+- Draft your narrative and embed links to inflected visualizations: `check out [this view](vis/#spec_file?hash)`
+- Save and open your story in the browser with: `/#my_story` (without the extension `.md`)
 
-As you scroll, the !nflect framework automatically modulates the visualizations in sync with the paragraphs.
+As you scroll along the story text, the framework automatically modulates the visualizations in sync with the paragraphs.
+
+The syntax is <a href="https://daringfireball.net/projects/markdown/syntax">Markdown</a> with a three notable conventions: 
+
+1. Two consecutive **empty lines** create the vertical separation between sections
+2. Markdown **links** are treated as inflection references, instructing the framework to update the embedded visualization. 
+Regular HTML links bypass this mechanism and are rendered as simple text links, without the respective webpage being loaded into the iframe.
+3. Inflected **images** can be included with Markdown links or images. You can hide them from the story text, by using image tags with the `alt` attribute set to `img`: <br>
+`![img](img/#parameters...)`
+
+</small>
 
 
 ## At a glance
