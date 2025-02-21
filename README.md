@@ -5,7 +5,7 @@
 
 - See the 📜<a href="https://uclab-potsdam.github.io/inflect/">scrollytelling</a> in action, if you read this as a regular readme file
 - Check out the sample stories featuring 
-📊<a href="https://uclab-potsdam.github.io/inflect/#visualizations">visualizations</a>, 🖼️<a href="https://uclab-potsdam.github.io/inflect/#images">images</a> and 🌎<a href="https://uclab-potsdam.github.io/inflect/#webpages">webpages</a>.
+📊<a href="https://uclab-potsdam.github.io/inflect/#visualizations">visualizations</a>, 🖼️<a href="https://uclab-potsdam.github.io/inflect/#images">images</a> and 🌎<a href="https://uclab-potsdam.github.io/inflect/#webpages">webpages</a>
 - Fork this ⚙️<a href="https://github.com/uclab-potsdam/inflect">repository</a> to create your data story with inflected visualizations
 
 ![img](img/#-68,-35,1325,1741&ff0000&&&chart_overview.png)
@@ -24,12 +24,12 @@ As an exercise in inception, we highlighted the inflections visible in these Veg
 
 ## Overview
 
-This repository contains everything you need to host data stories with inflected visualizations on a web server.
+This repository contains everything you need to host data stories with inflected visualizations on a static web server.
 
 The two key components are:
 
-- **Markdown** file containing the story's source text
-- **Vega-Lite** specifications for interactive charts
+- **Markdown** files containing the stories
+- **Vega-Lite** specifications for visualizations
 
 ![img](img/#-329,-68,577,542&ff0000&&&folder_structure.png)
 
@@ -38,11 +38,13 @@ The two key components are:
 
 ![img](img/#-112,-43,380,315&00f900&27,8,115,132&&folder_structure.png)
 
-If you take a closer look, you see three key folders:
+If you take a closer look, you see three folders:
 
 - `/img`: Reference images and screenshots
-- `/src`: Essential third-party libraries and font files
+- `/src`: Libraries and font files — you can ignore this one
 - `/vis`: Vega-Lite specs and datasets for each chart
+
+`/img` and `/vis` contain the files to include in your data stories as well as the interfaces with which to inflect images and visualizations.
 
 
 ### Story files
@@ -51,7 +53,7 @@ If you take a closer look, you see three key folders:
 
 The Markdown files contain the source texts for the stories. They are stored at the root level of the framework's file structure. You are currently reading the content of `README.md`, which is the default file loaded when no other story file is specified.
 
-You can open a story file by adding its filename without the extension `.md` behind the URL's hash. For example, the story file `visualizations.md` is displayed by the !inflect framework when this URL is opened:
+You can open a specific story file by adding its filename without the extension `.md` into the URL's hash. For example, the story file `visualizations.md` is opened when this URL is opened:
 
 <a href="#visualizations">https://uclab-potsdam.github.io/inflect/#visualizations</a>
 
@@ -61,6 +63,8 @@ You can open a story file by adding its filename without the extension `.md` beh
 ![img](img/#-282,43,1333,1154&ff0000&&&steps.png)
 
 It takes three steps to create a data story with !nflect.
+
+Make sure that you have made a copy of this repository and can access it via webserver.
 
 
 ### 1. Create a visualization 📊 
@@ -98,8 +102,8 @@ As you scroll along the story text, the framework automatically modulates the vi
 The syntax is <a href="https://daringfireball.net/projects/markdown/syntax">Markdown</a> with three notable conventions: 
 
 1. Two consecutive **empty lines** create the vertical separation between sections
-2. Markdown **links** are treated as inflection references, instructing the framework to update the embedded visualization. 
-Regular HTML links bypass this mechanism and are rendered as simple text links, without the respective webpage being loaded into the iframe.
+2. Markdown **links** instruct the framework to update the embedded visualization. 
+Regular HTML links bypass this mechanism and are rendered as simple text links.
 3. Inflected **images** can be included with Markdown links or images. You can hide them from the story text, by using image tags with the `alt` attribute set to `img`: <br>
 `![img](img/#parameters...)`
 
@@ -108,7 +112,10 @@ Regular HTML links bypass this mechanism and are rendered as simple text links, 
 
 ![img](img/#0,0,3047,8610&ff0000&&&documentation_image.png)
 
-This documentation image shows the main components and mechanisms at a glance. It contains:
+This documentation image shows the main components and mechanisms at a glance.
+
+
+It contains:
 
 ![img](img/#0,0,3047,2375&ff0000&&&documentation_image.png) 
 - further detail on the file structure
@@ -128,7 +135,7 @@ This documentation image shows the main components and mechanisms at a glance. I
 
 ## Credits
 
-The !fnlect framework was developed by Theresa Eingartner and Marian Dörk in collaboration with Johanna Drucker.
+The !nflect framework was developed by Theresa Eingartner and Marian Dörk in collaboration with Johanna Drucker.
 
 The framework relies on the libraries <a href="https://d3js.org">D3.js</a>, <a href="https://vega.github.io">Vega & Vega-Lite</a>, and <a href="https://marked.js.org">Marked</a> for their visualization, interaction, and parsing powers.
 
