@@ -8,14 +8,40 @@
     
     <style>
 
+        @font-face {
+            font-family: "Atkinson";
+            src: url("src/fonts/AtkinsonHyperlegibleNextVF-Variable.woff2") format("woff2-variations");
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: "AtkinsonMono";
+            src: url("src/fonts/AtkinsonHyperlegibleMono-Medium.woff2") format("woff2-variations");
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: "AtkinsonMono";
+            src: url("src/fonts/AtkinsonHyperlegibleMono-Bold.woff2") format("woff2-variations");
+            font-style: normal;
+            font-weight: bold;
+        }
+
         body {
-            font-family: "HelveticaNeueLight", "HelveticaNeue-Light", "Helvetica Neue Light", 
-                         "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Arial", sans-serif;
-            font-weight: 400;
+            font-family: "Atkinson", sans-serif;
+            font-weight: 250;
             font-size: calc(.9vw + .9vh);
-            background-color: #ddd;
+            background-color: rgb(242, 242, 242);
             margin: 0;
             padding: 0;
+        }
+
+        code, pre, kbd, samp, tt, textarea {
+            font-family: "AtkinsonMono", monospace;
+        } 
+
+        a.img {
+            float: left; width: 0; height: 0;            
         }
 
         #orientationWarning {
@@ -32,7 +58,7 @@
             z-index: 100;
         }
 
-        strong { font-weight: 600; }
+        strong { font-weight: 500; }
 
         iframe, #frameBox {
             top: 0;
@@ -50,9 +76,9 @@
             transition: opacity 0.1s ease-in;
         }
 
-        h1 { font-size: 2.25em; font-weight: 100;}
-        h2 { font-size: 1.5em; }
-        h3 { font-size: 1.1em; }
+        h1 { font-size: 2.25em; font-weight: 200;}
+        h2 { font-size: 1.5em;  font-weight: 500;}
+        h3 { font-size: 1.25em;  font-weight: 500;}
 
         main {
             box-sizing: border-box;
@@ -64,8 +90,8 @@
         }
 
         section {
-            min-height: 100vh;
-            margin-top: 10vh;
+            xmin-height: 100vh;
+            margin-bottom: 100vh;
         }
         
         p {
@@ -95,14 +121,14 @@
 
         a.active {
             border-radius: .25em;
-            background: #eee;
+            background:  rgb(255, 255, 255);
             text-decoration: none;
             padding: 0 .1em;
             margin: 0 -.1em;
         }
 
         a.active:hover {
-            background: #fff;
+            background: #ddd;
         }
 
     </style>
@@ -175,6 +201,8 @@
             const html = marked.parse(readme); 
             document.querySelector('main').innerHTML = html;
 
+            transformInflectionImages();
+
             initializeObservers();
 
             // return to old position
@@ -200,6 +228,20 @@
         sessionStorage.setItem("scrollPosition", window.scrollY);
     });
 
+    // turn images with alt-tag img to inflection links
+    function transformInflectionImages() {
+        const images = document.querySelectorAll('img[alt="img"]');
+        images.forEach(img => {
+            const link = document.createElement('a');
+
+            link.href = img.getAttribute('src');
+            link.classList.add("img");
+
+            const p = img.closest('p');
+
+            p.replaceWith(link);
+        });
+    }
 
     // with IntersectionObserver we can check what is visible    
     function initializeObservers() {
@@ -209,9 +251,9 @@
                 if (entry.isIntersecting) {                    
                     // Add active class only to the visible link
                     const visibleLink = entry.target;
-                    if (!visibleLink.classList.contains("dontinflect")) {
+                    if (!visibleLink.classList.contains("dontinflect") && visibleLink.getAttribute("href") != "") {
                         visibleLink.classList.add('active');
-                        // Update iframe, ignoring just hash changes
+                        // Update iframe, ignoring just changes
                         setIframeIfPathChanged(visibleLink.href);
                     }
                 }
