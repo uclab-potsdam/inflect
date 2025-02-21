@@ -114,7 +114,7 @@ It contains:
 
 
 ![img](img/#0,1750,3047,4200&ff0000&&&documentation_image.png) 
-- the [software architecture]()...
+- the software architecture...
 
 
 ![img](img/#0,4150,3047,7200&ff0000&&&documentation_image.png) 
