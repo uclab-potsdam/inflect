@@ -62,9 +62,14 @@ You can open a specific story file by adding its filename without the extension 
 
 ![img](img/#-282,43,1333,1154&ff0000&&&steps.png)
 
-It takes three steps to create a data story with !nflect.
+It takes three steps to create a data story:
+1. Create visualization 📊 
+2. Add inflections 💬
+3. Write data story 📄
 
-To follow along, make sure that you have made a copy of this repository and can access it via webserver.
+Typically, one iterates between them to refine the story flow, data visualizations, and inflections. 🔃
+
+To follow along, make sure that you have made a copy of this <a href="https://github.com/uclab-potsdam/inflect">repository</a> and can access it via webserver.
 
 
 ### 1. Create visualization 📊 
@@ -75,7 +80,7 @@ To follow along, make sure that you have made a copy of this repository and can 
 - Export the JSON spec (`.json`) and place it in `/vis`
 - Copy your CSV/JSON dataset into `/vis/data` if needed
 
-The framework currently supports bar charts, scatterplots, line charts, and pie charts.
+The framework currently supports Vega-Lite bar charts, scatterplots, line charts, and pie charts.
 
 
 ### 2. Add inflections 💬
@@ -93,22 +98,21 @@ The editor includes a reset button to remove all inflections. You can also use t
 
 ![img](img/#-41,47,1637,1204&00f900&931,171,1153,232&&scrollytelling.png) 
 
-- Create Markdown file (e.g., `my_story.md`) in the root directory  
+- Create Markdown file (e.g., `my_story.md`) in root directory  
 - Draft narrative and embed links to inflected visualizations:<br>`see [this view](vis/#spec_file?hash)`
 - Save and open your story in the browser with: `/#my_story` (without the extension `.md`)
 
 As you scroll along the story text, the framework automatically modulates the visualizations in sync with the paragraphs.
 
-The syntax is <a href="https://daringfireball.net/projects/markdown/syntax">Markdown</a> with three notable conventions: 
+The syntax follows <a href="https://daringfireball.net/projects/markdown/syntax">Markdown</a> with three notable tweaks: 
 
-1. Two consecutive **empty lines** create the vertical separation between sections
-2. While Markdown **links** instruct the framework to update the embedded visualization, 
-regular HTML links bypass this mechanism and are rendered as simple text links
-3. Inflected **images** can be included with Markdown links or images. You can hide them from the story text, by using image tags with the `alt` attribute set to `img`: <br>
+1. Two blank lines start a new section
+2. Regular HTML links bypass the inflection mechanism and are rendered as simple text links
+3. Inflected images can be included as Markdown image elements with the `alt` attribute set to `img`: <br>
 `![img](img/#parameters...)`
 
 
-## At a glance
+## All at once
 
 ![img](img/#0,0,3047,8610&ff0000&&&documentation_image.png)
 
