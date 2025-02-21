@@ -3,10 +3,10 @@
 
 !nflect is a web-based framework implementing inflections as a method to bridge the gap between data exploration and storytelling. By linking to specific views and annotations in visualizations, authors can embed insights from their data analysis within the narrative flow. 
 
-- See the 📜<a href="https://uclab-potsdam.github.io/inflect/">scrollytelling</a> in action, if you read this as a regular readme file
-- Check out the sample stories featuring 
-📊<a href="https://uclab-potsdam.github.io/inflect/#visualizations">visualizations</a>, 🖼️<a href="https://uclab-potsdam.github.io/inflect/#images">images</a> and 🌎<a href="https://uclab-potsdam.github.io/inflect/#webpages">webpages</a>
-- Fork this ⚙️<a href="https://github.com/uclab-potsdam/inflect">repository</a> to create your data story with inflected visualizations
+- See <a href="https://uclab-potsdam.github.io/inflect/">scrollytelling</a> if you read this as a regular readme file
+- Check out sample stories: 
+<a href="https://uclab-potsdam.github.io/inflect/#visualizations">visualizations</a>, <a href="https://uclab-potsdam.github.io/inflect/#images">images</a>, <a href="https://uclab-potsdam.github.io/inflect/#webpages">webpages</a>
+- Fork this <a href="https://github.com/uclab-potsdam/inflect">repository</a> to create your own data story
 
 ![img](img/#-68,-35,1325,1741&ff0000&&&chart_overview.png)
 
@@ -44,7 +44,7 @@ If you take a closer look, you see three folders:
 - `/src`: Libraries and fonts — you can ignore this one
 - `/vis`: Vega-Lite specs and datasets for each chart
 
-`/img` and `/vis` contain the files to include in your data stories as well as the interfaces with which to inflect images and visualizations.
+`/img` and `/vis` house the images and visualizations for your data story as well as the interfaces with which to inflect them.
 
 
 ### Story files
@@ -53,7 +53,7 @@ If you take a closer look, you see three folders:
 
 The Markdown files contain the source texts for the stories. They are stored at the root level of the framework's file structure. You are currently reading the content of `README.md`, which is the default file loaded when no other story file is specified.
 
-You can open a specific story file by adding its filename without the extension `.md` into the URL's hash. For example, the story file `visualizations.md` is opened when this URL is opened:
+You can open a specific story file by adding its filename without the extension `.md` into the URL's hash. For example, the story file `visualizations.md` is opened with this URL:
 
 <a href="#visualizations">https://uclab-potsdam.github.io/inflect/#visualizations</a>
 
@@ -64,10 +64,10 @@ You can open a specific story file by adding its filename without the extension 
 
 It takes three steps to create a data story with !nflect.
 
-Make sure that you have made a copy of this repository and can access it via webserver.
+To follow along, make sure that you have made a copy of this repository and can access it via webserver.
 
 
-### 1. Create a visualization 📊 
+### 1. Create visualization 📊 
 
 ![img](img/#6,-54,2067,1336&ff0000&&&vega_editor.png)
 
