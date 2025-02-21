@@ -49,7 +49,7 @@ If you take a closer look, you see three key folders:
 
 ![img](img/#-110,119,396,489&00f900&16,312,288,448,18,178,205,223&&folder_structure.png)
 
-The Markdown files are the sources for the stories. They are stored at the root level of the framework's file structure. You are currently reading the content of `README.md`, which is the default file loaded when no other story file is specified.
+The Markdown files contain the source texts for the stories. They are stored at the root level of the framework's file structure. You are currently reading the content of `README.md`, which is the default file loaded when no other story file is specified.
 
 You can open a story file by adding its filename without the extension `.md` behind the URL's hash. For example, the story file `visualizations.md` is displayed by the !inflect framework when this URL is opened:
 
@@ -108,10 +108,7 @@ Regular HTML links bypass this mechanism and are rendered as simple text links, 
 
 ![img](img/#0,0,3047,8610&ff0000&&&documentation_image.png)
 
-Also have a look at this documentation image to see the main components and mechanisms at a glance.
-
-
-It contains:
+This documentation image shows the main components and mechanisms at a glance. It contains:
 
 ![img](img/#0,0,3047,2375&ff0000&&&documentation_image.png) 
 - further detail on the file structure
@@ -135,4 +132,4 @@ The !fnlect framework was developed by Theresa Eingartner and Marian Dörk in co
 
 The framework relies on the libraries <a href="https://d3js.org">D3.js</a>, <a href="https://vega.github.io">Vega & Vega-Lite</a>, and <a href="https://marked.js.org">Marked</a> for their visualization, interaction, and parsing powers.
 
-The story text is rendered in <a href="https://www.brailleinstitute.org/freefont/">Atkinson Hyperlegible Next and Mono</a>.
+The story text is rendered in <a href="https://www.brailleinstitute.org/freefont/">Atkinson Hyperlegible</a>.
