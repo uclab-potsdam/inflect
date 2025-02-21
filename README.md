@@ -41,7 +41,7 @@ The two key components are:
 If you take a closer look, you see three folders:
 
 - `/img`: Reference images and screenshots
-- `/src`: Libraries and font files — you can ignore this one
+- `/src`: Libraries and fonts — you can ignore this one
 - `/vis`: Vega-Lite specs and datasets for each chart
 
 `/img` and `/vis` contain the files to include in your data stories as well as the interfaces with which to inflect images and visualizations.
