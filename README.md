@@ -44,7 +44,7 @@ If you take a closer look, you see three folders:
 - `/src`: Libraries and fonts — you can ignore this one
 - `/vis`: Vega-Lite specs and datasets for each chart
 
-`/img` and `/vis` house the images and visualizations for your data story as well as the interfaces with which to inflect them.
+`/img` and `/vis` house the images and visualizations included in your data story, and the interfaces with which to inflect them.
 
 
 ### Story files
@@ -93,8 +93,8 @@ The editor includes a reset button to remove all inflections. You can also use t
 
 ![img](img/#-41,47,1637,1204&00f900&931,171,1153,232&&scrollytelling.png) 
 
-- Create a Markdown file (e.g., `my_story.md`) and place it in the root directory  
-- Draft your narrative and embed links to inflected visualizations: `check out [this view](vis/#spec_file?hash)`
+- Create Markdown file (e.g., `my_story.md`) in the root directory  
+- Draft narrative and embed links to inflected visualizations:<br>`see [this view](vis/#spec_file?hash)`
 - Save and open your story in the browser with: `/#my_story` (without the extension `.md`)
 
 As you scroll along the story text, the framework automatically modulates the visualizations in sync with the paragraphs.
@@ -102,8 +102,8 @@ As you scroll along the story text, the framework automatically modulates the vi
 The syntax is <a href="https://daringfireball.net/projects/markdown/syntax">Markdown</a> with three notable conventions: 
 
 1. Two consecutive **empty lines** create the vertical separation between sections
-2. Markdown **links** instruct the framework to update the embedded visualization. 
-Regular HTML links bypass this mechanism and are rendered as simple text links.
+2. While Markdown **links** instruct the framework to update the embedded visualization, 
+regular HTML links bypass this mechanism and are rendered as simple text links
 3. Inflected **images** can be included with Markdown links or images. You can hide them from the story text, by using image tags with the `alt` attribute set to `img`: <br>
 `![img](img/#parameters...)`
 
