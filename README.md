@@ -95,15 +95,13 @@ The editor includes a reset button to remove all inflections. You can also use t
 
 As you scroll along the story text, the framework automatically modulates the visualizations in sync with the paragraphs.
 
-The syntax is <a href="https://daringfireball.net/projects/markdown/syntax">Markdown</a> with a three notable conventions: 
+The syntax is <a href="https://daringfireball.net/projects/markdown/syntax">Markdown</a> with three notable conventions: 
 
 1. Two consecutive **empty lines** create the vertical separation between sections
 2. Markdown **links** are treated as inflection references, instructing the framework to update the embedded visualization. 
 Regular HTML links bypass this mechanism and are rendered as simple text links, without the respective webpage being loaded into the iframe.
 3. Inflected **images** can be included with Markdown links or images. You can hide them from the story text, by using image tags with the `alt` attribute set to `img`: <br>
 `![img](img/#parameters...)`
-
-</small>
 
 
 ## At a glance
