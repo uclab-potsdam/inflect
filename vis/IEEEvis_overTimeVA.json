@@ -1,0 +1,42 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "data": { "url": "data/vispubdata.csv" },
+  "transform": [
+    {
+      "calculate": "lower(datum.Title)",
+      "as": "titleLower"
+    },
+    {
+      "calculate": "lower(datum.AuthorKeywords)",
+      "as": "keywordsLower"
+    },
+    {
+      "filter": "indexof(datum.titleLower, 'visual analytics') > -1 || indexof(datum.keywordsLower, 'visual analytics') > -1"
+    },
+    {
+      "aggregate": [
+        { "op": "count", "as": "paperCount" }
+      ],
+      "groupby": ["Year"]
+    }
+  ],
+  "mark": {
+    "type": "line",
+    "color": "#FF00D3"
+  },
+  "encoding": {
+    "x": {
+      "field": "Year",
+      "type": "quantitative",
+      "title": "",
+      "axis": { "format": "d" }
+    },
+    "y": {
+      "field": "paperCount",
+      "type": "quantitative",
+      "title": "Papers"
+    }
+  },
+  "width": 350,
+  "height": 300
+}

@@ -1,14 +1,13 @@
 {
     "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
     "usermeta": {"embedOptions": {"renderer": "svg"}},
-    "title": "Cite and be cited",
-    "data": { "url": "data/IEEE VIS papers 1990-2023 - Main dataset.csv"},
-    "mark": "point",
+    "data": { "url": "data/vispubdata.csv"},
+    "mark": {"type": "point", "filled": true},
     "encoding": {
-      "x": {"field": "CitationCount_CrossRef", "type": "quantitative",  "title": "Number of Papers referencing this paper"},
-      "y": {"field": "PubsCited_CrossRef", "type": "quantitative",  "title": "Number of References"}
+      "y": {"field": "CitationCount_CrossRef", "type": "quantitative",  "title": "Citations"},
+      "x": {"field": "PubsCited_CrossRef", "type": "quantitative",  "title": "References"}
     },
-    "width": 300,
+    "width": 350,
     "height": 300
   }
   

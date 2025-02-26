@@ -1,15 +1,24 @@
 {
     "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
     "usermeta": {"embedOptions": {"renderer": "svg"}},
-    "title": "IEEE conferences over time",
-    "data": {"url": "data/IEEE VIS papers 1990-2023 - Main dataset.csv"},    
+    "data": {"url": "data/vispubdata.csv"},    
     "mark": "bar",
     "encoding": {
-        "x": {"field": "Year", "type":"nominal"},
-        "y": {"aggregate":"count", "field": "title", "type": "quantitative", "title": "Number of Papers"},
-        "color": {"field": "Conference", "type": "nominal"}
+        "x": {
+            "field": "Year",
+            "type": "nominal",
+            "title": ""
+          },
+        "y": {"aggregate":"count", "field": "title", "type": "quantitative", "title": "Papers"},
+        "color": {"field": "Conference", "type": "nominal", "title": "Conferences",
+        "scale": {
+            "domain": ["Vis", "InfoVis", "VAST", "SciVis"],
+            "range": ["#4D78A8", "#2596D0", "#0AADB2", "#0DD7DD"]
+          }}
     },
-    "config": {},
-    "width": 450,
+    "config": {
+        "legend": {"orient": "bottom", "layout": {"bottom": {"anchor": "middle"}}}
+    },
+    "width": 350,
     "height": 300
 }

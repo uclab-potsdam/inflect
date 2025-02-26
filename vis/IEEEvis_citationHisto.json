@@ -1,18 +1,16 @@
 {
     "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
     "usermeta": {"embedOptions": {"renderer": "svg"}},
-    "description": "A simple bar chart with embedded data.",
-    "title": "Number of papers by citation count",
-    "data": { "url": "data/IEEE VIS papers 1990-2023 - Main dataset.csv"},
+    "data": { "url": "data/vispubdata.csv"},
     "mark": "bar",
     "encoding": {
         "x": {
         "bin": {"step": 100},
         "field": "CitationCount_CrossRef",
-        "title": "Number of Citations by other papers"
+        "title": "Citations"
         },
-        "y": {"aggregate": "count", "title": "Number of Papers"}
+        "y": {"aggregate": "count", "title": "Papers"}
     },
-    "width": 300,
+    "width": 350,
     "height": 300
 }

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "data": {"url": "data/vispubs.csv"},
+  "transform": [
+    {"filter": "year(datum.Year) >= 1989"}
+  ],
+  "mark": "line",
+  "encoding": {
+    "x": {
+      "field": "Year", 
+      "type": "temporal", 
+      "title": " "
+    },
+    "y": {
+      "aggregate": "count",
+      "field": "*",
+      "type": "quantitative",
+      "title": " Papers"
+    }
+  },
+  "width": 350,
+  "height": 300,
+  "config": {
+    "legend": {
+      "orient": "bottom",
+      "layout": {"bottom": {"anchor": "middle"}}
+    }
+  }
+}

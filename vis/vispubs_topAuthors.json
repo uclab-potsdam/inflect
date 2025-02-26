@@ -1,0 +1,33 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "data": {"url": "data/vispubs.csv"},
+  "transform": [
+    {
+      "calculate": "split(datum['AuthorNames-Deduped'], ';')",
+      "as": "authorsArray"
+    },
+    {"flatten": ["authorsArray"]},
+    {
+      "aggregate": [{"op": "count", "as": "paperCount"}],
+      "groupby": ["authorsArray"]
+    },
+    {
+      "window": [{"op": "rank", "as": "rank"}],
+      "sort": [{"field": "paperCount", "order": "descending"}]
+    },
+    {"filter": "datum.rank <= 20"}
+  ],
+  "mark": "bar",
+  "encoding": {
+    "y": {
+      "field": "authorsArray",
+      "type": "nominal",
+      "title": " ",
+      "sort": "-x"
+    },
+    "x": {"field": "paperCount", "type": "quantitative", "title": " "}
+  },
+  "width": 300,
+  "height": {"step": 15},
+  "config": {}
+}

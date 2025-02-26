@@ -1,0 +1,13 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "usermeta": {"embedOptions": {"renderer": "svg"}},
+    "data": { "url": "data/vispubdata.csv"},
+    "mark": {"type": "point", "filled": true},
+    "encoding": {
+      "y": {"field": "CitationCount_CrossRef", "title": "Citations", "type": "quantitative"},
+      "x": {"field": "Downloads_Xplore", "title": "Downloads",  "type": "quantitative"}
+    },
+    "width": 350,
+    "height": 300
+  }
+  

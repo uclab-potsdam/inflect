@@ -1,8 +1,7 @@
 {
     "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
     "usermeta": {"embedOptions": {"renderer": "svg"}},
-    "title": "Smaller conferences 2006-2019",
-    "data": {"url": "data/IEEE VIS papers 1990-2023 - Main dataset.csv"},
+    "data": {"url": "data/vispubdata.csv"},
     "transform": [{"filter": {"and": [
         {"field": "Conference", "oneOf": ["InfoVis", "SciVis", "VAST"]},
         {"timeUnit": "year", "field": "Year", "range": [2006, 2019]}
@@ -13,11 +12,17 @@
         "point": true
     },
     "encoding": {
-        "x": {"timeUnit": "year", "field": "Year", "type":"temporal", "title": "Year"},
-        "y": {"aggregate":"count", "field": "title", "type": "quantitative",  "title": "Number of Papers"},
-        "color": {"field": "Conference", "type": "nominal"}
+        "x": {"timeUnit": "year", "field": "Year", "type":"temporal", "title": " "},
+        "y": {"aggregate":"count", "field": "title", "type": "quantitative",  "title": "Papers"},
+        "color": {"field": "Conference", "type": "nominal", "title": "Conferences",
+        "scale": {
+            "domain": ["InfoVis", "VAST", "SciVis"],
+            "range": ["#2596D0", "#0AADB2", "#0DD7DD"]
+          }}
     },
-    "config": {},
-    "width": 300,
+    "config": {
+        "legend": {"orient": "bottom", "layout": {"bottom": {"anchor": "middle"}}}
+    },
+    "width": 350,
     "height": 300
 }

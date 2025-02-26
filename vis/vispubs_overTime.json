@@ -1,0 +1,35 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "data": {"url": "data/vispubs.csv"},
+  "transform": [
+    {
+      "calculate": "datum.Conference === 'Vis' || datum.Conference === 'InfoVis' || datum.Conference === 'VAST' || datum.Conference === 'SciVis' ? 'VIS' : datum.Conference",
+      "as": "ConferenceGroup"
+    }
+  ],
+  "mark": "line",
+  "encoding": {
+    "x": {"field": "Year", "type": "temporal", "title": " "},
+    "y": {
+      "aggregate": "count",
+      "field": "Conference",
+      "type": "quantitative",
+      "title": "Papers"
+    },
+    "color": {
+      "field": "ConferenceGroup",
+      "type": "nominal",
+      "title": "Conferences",
+      "scale": {
+        "domain": ["VIS", "EuroVis", "CHI"],
+        "range": ["#4D78A8", "#4C8F79", "#6E6AD9"]
+      }
+    },
+    "detail": {"field": "ConferenceGroup"}
+  },
+  "width": 350,
+  "height": 300,
+  "config": {
+    "legend": {"orient": "bottom", "layout": {"bottom": {"anchor": "middle"}}}
+  }
+}

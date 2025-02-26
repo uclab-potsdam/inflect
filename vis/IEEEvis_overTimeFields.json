@@ -1,0 +1,54 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "Line chart showing yearly counts of papers categorized by matching keywords in Title or AuthorKeywords. Categories are Visual Analytics, Information Visualization, Scientific Visualization, and Multiple (for papers matching more than one).",
+  "data": { "url": "data/vispubdata.csv" },
+  "transform": [
+    {
+      "calculate": "((indexof(lower(datum.Title), 'visual analytics') > -1 || indexof(lower(datum.AuthorKeywords), 'visual analytics') > -1) ? 1 : 0) + ((indexof(lower(datum.Title), 'information visualization') > -1 || indexof(lower(datum.AuthorKeywords), 'information visualization') > -1) ? 1 : 0) + ((indexof(lower(datum.Title), 'scientific visualization') > -1 || indexof(lower(datum.AuthorKeywords), 'scientific visualization') > -1) ? 1 : 0)",
+      "as": "matchCount"
+    },
+    {
+      "calculate": "datum.matchCount == 1 ? ((indexof(lower(datum.Title), 'visual analytics') > -1 || indexof(lower(datum.AuthorKeywords), 'visual analytics') > -1) ? 'Visual Analytics' : ((indexof(lower(datum.Title), 'information visualization') > -1 || indexof(lower(datum.AuthorKeywords), 'information visualization') > -1) ? 'Information Visualization' : 'Scientific Visualization')) : (datum.matchCount > 1 ? 'Multiple' : null)",
+      "as": "topic"
+    },
+    {
+      "filter": "datum.topic != null"
+    },
+    {
+      "aggregate": [
+        { "op": "count", "as": "paperCount" }
+      ],
+      "groupby": ["Year", "topic"]
+    }
+  ],
+  "mark": {
+    "type": "line",
+    "interpolate": "monotone"
+  },  "encoding": {
+    "x": {
+      "field": "Year",
+      "type": "quantitative",
+      "title": " ",
+      "axis": { "format": "d" }
+    },
+    "y": {
+      "field": "paperCount",
+      "type": "quantitative",
+      "title": "Papers"
+    },
+    "color": {
+      "field": "topic",
+      "type": "nominal",
+      "title": "Fields",
+      "scale": {
+        "domain": ["Information Visualization", "Visual Analytics", "Scientific Visualization"],
+        "range": ["#2596D0", "#0AADB2", "#0DD7DD"]
+      }
+    }
+  },
+  "width": 300,
+  "height": 300,
+  "config": {
+    "legend": {"orient": "bottom", "layout": {"bottom": {"anchor": "middle"}}}
+  }
+}

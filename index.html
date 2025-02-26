@@ -5,10 +5,10 @@
     <link rel="icon" type="image/svg+xml" sizes="any" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Ctext%20y%3D%221em%22%20font-size%3D%2290%22%3E%F0%9F%93%84%3C%2Ftext%3E%3C%2Fsvg%3E">
 
     <title>!nflect · Modulating Visualizations to Tell Stories with Data</title>
-    <meta property="og:url" content="https://uclab-potsdam.github.io/inflect/">
+    <meta property="og:url" content="https://uclab.fh-potsdam.de/inflect/">
     <meta property="og:title" content="!nflect · Modulating Visualizations to Tell Stories with Data">
     <meta property="og:description" content="Web-based framework for inflections that bridge data exploration and storytelling">
-    <meta property="og:image" content="https://uclab-potsdam.github.io/inflect/img/cover.png">
+    <meta property="og:image" content="https://uclab.fh-potsdam.de/inflect//img/cover.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
@@ -101,12 +101,28 @@
             right: 0;
             width: 50vw;
             padding: 0 5vh;
-            margin: 0;            
+            margin: 0;
         }
 
         section {
-            margin-top: 10vh;
+            margin-top: 100vh;
             margin-bottom: 100vh;
+        }
+
+        section:first-of-type, section:last-of-type {
+            display: flex;
+            justify-content: center;
+            flex-direction: column;           
+        }
+
+        section:first-of-type { 
+            min-height: 100vh;
+            margin-top: 0;
+        }
+
+        section:last-of-type {
+            min-height: 95vh;
+            margin-bottom: 0;        
         }
         
         p {
@@ -144,6 +160,19 @@
         a.active:hover {
             background: #ddd;
         }
+
+        footer {
+            bottom: 0;
+            display: block;
+            width: 100%;
+            text-align: right;
+            margin: 0;
+            padding: 0;
+            opacity: 0.33;
+            height: 5vh;            
+        }
+
+        footer a.dontinflect { color: #333;}
 
     </style>
 </head>
@@ -197,22 +226,26 @@
                              : `!nflect · ${file}`;
 
             const response = await fetch(file + ".md"); 
-            let readme = await response.text();
+            let text = await response.text();
 
             // split sections by two empty lines
-            readme = readme.replace(/\s*\n\s*\n\s*\n\s*/g, '\n\n</section>\n\n<section>\n\n');
-            readme = "<section>\n\n" + readme + "\n\n</section>";
+            text = text.replace(/\s*\n\s*\n\s*\n\s*/g, '\n\n</section>\n\n<section>\n\n');
+            text = "<section>\n\n" + text + "\n\n</section>";
             
             // add class dontinflect to regular html links
-            readme = readme.replace(/<a\b([^>]*)>/gi, (m, attrs) => 
+            text = text.replace(/<a\b([^>]*)>/gi, (m, attrs) => 
               `<a${/class\s*=\s*["']([^"']*)["']/i.test(attrs) 
                   ? attrs.replace(/class\s*=\s*["']([^"']*)["']/i, 
                                   (m, c) => `class="${c} dontinflect"`) 
                   : ` class="dontinflect"${attrs}`}>`
             );
 
-            // Render the markdown into HTML
-            const html = marked.parse(readme); 
+            // render markdown into HTML           
+            let html = marked.parse(text);
+
+            // skip footer when on inflect page
+            if (document.URL!="https://uclab.fh-potsdam.de/inflect/") html = html + "\n<footer>a data story made with <strong><a class='dontinflect' href='https://uclab.fh-potsdam.de/inflect/'>!nflect</a></strong></footer>";
+
             document.querySelector('main').innerHTML = html;
 
             transformInflectionImages();
@@ -220,7 +253,7 @@
             initializeObservers();
 
             // return to old position
-            window.scrollTo(0, sessionStorage.getItem("scrollPosition") || 0);
+            if (location.hostname=="localhost") window.scrollTo(0, sessionStorage.getItem("scrollPosition") || 0);
         } catch (error) {
             console.error('Error fetching or rendering the markdown file:', error);
         }
@@ -230,16 +263,16 @@
     window.addEventListener('hashchange', function() {
         event.preventDefault();
         window.scrollTo(0, 0);
-        sessionStorage.setItem("scrollPosition", 0);
+        if (location.hostname=="localhost") sessionStorage.setItem("scrollPosition", 0);
         renderMarkdown();        
     });
 
     document.addEventListener("scroll", (event) => {
-        sessionStorage.setItem("scrollPosition", window.scrollY);
+        if (location.hostname=="localhost") sessionStorage.setItem("scrollPosition", window.scrollY);
     });
 
     window.addEventListener("beforeunload", function () {
-        sessionStorage.setItem("scrollPosition", window.scrollY);
+        if (location.hostname=="localhost") sessionStorage.setItem("scrollPosition", window.scrollY);
     });
 
     // turn images with alt-tag img to inflection links
