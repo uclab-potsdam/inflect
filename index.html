@@ -38,7 +38,7 @@
         body {
             font-family: "Atkinson", sans-serif;
             font-weight: 250;
-            font-size: calc(.9vw + .9vh);
+            font-size: calc(1vw + 1vh);
             background-color: rgb(242, 242, 242);
             margin: 0;
             padding: 0;
@@ -88,12 +88,11 @@
             transition: opacity 0.1s ease-in;
         }
 
-        h1 { font-size: 2.25em; font-weight: 200;}
-        h2 { font-size: 1.5em; }
-        h3 { font-size: 1.25em; }
-        h4 { font-size: 1em; }
+        h1 { font-size: 2.4em; font-weight: 200; margin-bottom: 0;}
+        h2 { font-size: 1.8em; }
+        h3 { font-size: 1.4em; }
+        h4 { font-size: 1.2em; }
         h2, h3, h4 { font-weight: 500; }
-
 
         main {
             box-sizing: border-box;
@@ -121,7 +120,7 @@
         }
 
         section:last-of-type {
-            min-height: 95vh;
+            min-height: 93vh;
             margin-bottom: 0;        
         }
         
@@ -169,7 +168,8 @@
             margin: 0;
             padding: 0;
             opacity: 0.33;
-            height: 5vh;            
+            height: 7vh;
+            font-size: .85em;
         }
 
         footer a.dontinflect { color: #333;}
@@ -244,7 +244,7 @@
             let html = marked.parse(text);
 
             // skip footer when on inflect page
-            if (document.URL!="https://uclab.fh-potsdam.de/inflect/") html = html + "\n<footer>a data story made with <strong><a class='dontinflect' href='https://uclab.fh-potsdam.de/inflect/'>!nflect</a></strong></footer>";
+            if (document.URL!="https://uclab.fh-potsdam.de/inflect/") html = html + "\n<footer>a story made with <strong><a class='dontinflect' href='https://uclab.fh-potsdam.de/inflect/'>!nflect</a></strong></footer>";
 
             document.querySelector('main').innerHTML = html;
 

@@ -4,8 +4,8 @@
 !nflect is a web-based framework implementing inflections as a method to bridge the gap between data exploration and storytelling. By linking to specific views and annotations in visualizations, authors can embed insights from their data analysis within the narrative flow. 
 
 - Open the <a href="https://uclab.fh-potsdam.de/inflect/">scrollytelling</a> version of this page
-- Check out a sample story on 
-<a href="https://uclab.fh-potsdam.de/inflect/#visualizations">visualization research</a>
+- Check out a
+<a href="https://uclab.fh-potsdam.de/inflect/#visualizations">sample story</a> on visualization research
 - Fork the <a href="https://github.com/uclab-potsdam/inflect">repository</a> to create your own data story
 
 ![img](img/#-430,-167,2663,2353&ff0000&&&chart_overview.png)
@@ -24,7 +24,7 @@ As an exercise in inception, we highlighted the inflections visible in these Veg
 
 ## Overview
 
-The !nflect repository contains everything you need to host data stories with inflected visualizations on a static web server.
+The <a href="http://github.com/uclab-potsdam/inflect">!nflect repository</a> contains everything you need to host data stories with inflected visualizations on a static web server.
 
 The two key components are:
 
@@ -69,7 +69,7 @@ It takes three steps to create a data story:
 
 Typically, one iterates between them to refine the story flow, data visualizations, and inflections. 🔃
 
-To follow along, make sure that you have made a copy of the !nflect <a href="https://github.com/uclab-potsdam/inflect">repository</a> and can access it via webserver.
+To follow along, make sure that you have made a copy of the <a href="https://github.com/uclab-potsdam/inflect">!nflect repository</a> and can access it via a webserver.
 
 
 ### 1. Create visualization 📊 
@@ -147,5 +147,4 @@ The framework relies on the libraries <a href="https://d3js.org">D3.js</a>, <a h
 
 The story text is rendered in <a href="https://www.brailleinstitute.org/freefont/">Atkinson Hyperlegible</a>.
 
-!nflect is <a href="http://github.com/uclab-potsdam/inflect">freely available</a> under an MIT license: provided 'as is', you can use it for whatever, and the creators assume no liability.
-
+!nflect is <a href="http://github.com/uclab-potsdam/inflect">freely available</a> under an MIT license: provided 'as is', you can use it for whatever, and the creators take no liability.

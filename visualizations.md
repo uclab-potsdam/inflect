@@ -1,6 +1,6 @@
-# Visualization research
+# Visualization Research
 
-## What are the main conferences for data visualization papers?
+## What Are the Main Conferences for Data Visualization Papers?
 
 To answer this question, we draw upon two closely related data projects that have been tracking visualization conferences over the years: **<a href="https://sites.google.com/site/vispubdata/home">Vispubdata</a>** by Petra Isenberg et al. and **<a href="https://vispubs.com/">Vispubs</a>** by Devin Lange. While Vispubdata focuses on IEEE visualization conferences and includes citation information, Vispubs has a broader scope, incorporating EuroVis papers and those CHI papers that explicitly mention visualization (or related terms) in their title or abstract.
 
