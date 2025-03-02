@@ -320,6 +320,9 @@
                     SVGwidth = +d3.selectAll("g.mark-group.role-axis").filter(function() {
                         return String(d3.select(this).attr("aria-label")).includes("X-axis")
                     }).select(".role-axis-domain").select("line").attr("x2")
+                } else {//piechart
+                    SVGheight = +d3.select("svg").attr("height")
+                    SVGwidth = +d3.select("svg").attr("width")
                 }
 
 
@@ -2283,8 +2286,13 @@
             }
 
             this.getXAxScale = function() {
-
-                if(this.xAxQuant) { //linear x axis
+                if(this.isPiechart) {
+                    var scale = d3.scaleLinear()
+                        .domain([0, SVGwidth])
+                        .range([0, SVGwidth]);
+                    return scale;
+                }
+                else if(this.xAxQuant) { //linear x axis
                     return this.getLinAxisScale("xax")
                 } else { // categorical x axis
                     return getCatAxisScale("xax")
@@ -2292,7 +2300,13 @@
             }
 
             this.getYAxScale = function() {
-                if(this.yAxQuant) { //linear y axis
+                if(this.isPiechart) {
+                    var scale = d3.scaleLinear()
+                        .domain([SVGheight, 0])
+                        .range([SVGheight, 0]);
+                    return scale;
+                }
+                else if(this.yAxQuant) { //linear y axis
                     return this.getLinAxisScale("yax")
                 } else { // categorical y axis
                     return getCatAxisScale("yax")
@@ -2300,7 +2314,7 @@
             }
 
             this.invertYScale = function(value) {
-                if(this.yAxQuant) { //linear x axis
+                if(this.yAxQuant || this.isPiechart) { //linear x axis
                     var scale = this.getYAxScale()
                     var inverse = scale.invert(value)
                     return [Math.round(10*inverse)/10, 0 ]
@@ -2310,7 +2324,7 @@
             }
 
             this.invertXScale = function(value) {
-                if(this.xAxQuant) { //linear x axis
+                if(this.xAxQuant || this.isPiechart) { //linear x axis
                     var scale = this.getXAxScale()
                     var inverse = scale.invert(value)
                     return [inverse, 0 ]
