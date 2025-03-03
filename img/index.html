@@ -158,6 +158,7 @@
         };
       }
       if (color) {
+        // document.getElementById("color").value = "#"+color;        
         result.annotations.color = color;
       }
       if (boxes) {
@@ -716,7 +717,7 @@
     // Resize
     // ---------------------------------------------------------------------
     window.addEventListener('resize', () => {
-      fitViewToCanvas(image);
+      if (!inFrame) fitViewToCanvas(image);      
       render();
     });
 

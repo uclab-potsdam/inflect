@@ -143,7 +143,7 @@ It contains:
 
 **!nflect** was developed by Theresa Eingartner and Marian Dörk in collaboration with Johanna Drucker at the <a href="https://uclab.fh-potsdam.de">UCLAB</a> of <a href="https://www.fh-potsdam.de/">FH Potsdam</a>.
 
-The framework relies on the libraries <a href="https://d3js.org">D3.js</a>, <a href="https://vega.github.io">Vega & Vega-Lite</a>, and <a href="https://marked.js.org">Marked</a> for their visualization, interaction, and parsing powers.
+The framework relies on <a href="https://d3js.org">D3.js</a>, <a href="https://vega.github.io">Vega & Vega-Lite</a>, and <a href="https://marked.js.org">Marked</a> for visualization, interaction, and parsing powers.
 
 The story text is rendered in <a href="https://www.brailleinstitute.org/freefont/">Atkinson Hyperlegible</a>.
 
