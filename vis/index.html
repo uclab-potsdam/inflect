@@ -382,15 +382,14 @@
                         .attr("height", SVGheight);
 
                     // also add highlight point
-                    d3.select(".highlight-group")
-                        .append("circle")
-                        .attr("class", "highlight-circle")
-                        .attr("r", 5)
-                        .style("visibility", "hidden")
+                    if (d3.select(".highlight-group").select(".highlight-circle").empty()) {
+                        d3.select(".highlight-group")
+                            .append("circle")
+                            .attr("class", "highlight-circle")
+                            .attr("r", 5)
+                            .style("visibility", "hidden");
+                    }
                 }
-
-            
-
 
                 if (window.top == window.self) {
                     // Top level window, edit mode of inflections
@@ -427,16 +426,15 @@
 
                 checkHash(that.hash)
 
-                setInterval(function () { //repeat every 500ms
-                    var newhash = window.location.hash.substring(1);
-
-                    if (that.hash != newhash) {
-                        that.hash = newhash;
-                        checkHash(that.hash);
-                        that.updateEditable()
-                    }
+                // Just listen for hash changes:
+                window.addEventListener("hashchange", () => {
+                const newHash = window.location.hash.substring(1);
+                if (newHash !== that.hash) {
+                    that.hash = newHash;
+                    checkHash(that.hash);
+                    that.updateEditable();
                 }
-                    , 500);
+                });
 
                 function checkHash(hash) {
                     var hash_elements = hash.split("&");
@@ -526,7 +524,7 @@
                         that.ann();
                     }
                     if (!cats_in_hash.includes("high")) {
-                        inflection.high = []
+                        inflection.high = [];                        
                         that.highlight();
                     }
 
@@ -1665,18 +1663,33 @@
                         .each(function (d) {
                             var g = d3.select(this);
 
-                                g.selectAll(".single-line")
-                                    .data([d])
-                                    .join("line")
-                                    .attr("class", "mark-line single-line")
-                                    .transition("move-line") 
-                                    .duration(200)
-                                    .ease(d3.easeLinear)
-                                        .attr("stroke", inflection.col)
-                                        .attr("x1", d => d.x1)
-                                        .attr("x2", d => d.x2)
-                                        .attr("y1", d => d.y1)
-                                        .attr("y2", d => d.y2)
+                            g.selectAll(".single-line")
+                            .data([d])
+                            .join(
+                                // "enter" selection – no transition here, so it does not animate the first time
+                                enter => enter
+                                .append("line")
+                                .attr("class", "mark-line single-line")
+                                .attr("stroke", inflection.col)
+                                .attr("x1", d => d.x1)
+                                .attr("x2", d => d.x2)
+                                .attr("y1", d => d.y1)
+                                .attr("y2", d => d.y2),
+
+                                // "update" selection – keep transition for subsequent updates if desired
+                                update => update
+                                .transition("move-line")
+                                .duration(200)
+                                .ease(d3.easeLinear)
+                                .attr("stroke", inflection.col)
+                                .attr("x1", d => d.x1)
+                                .attr("x2", d => d.x2)
+                                .attr("y1", d => d.y1)
+                                .attr("y2", d => d.y2),
+
+                                // "exit" selection if needed
+                                exit => exit.remove()
+                            );
 
                             // add handles
                             // Get the start and end points of the line
@@ -1811,6 +1824,8 @@
                 var that = this;
                 let highlight = inflection.high
 
+                console.log("highlight", inflection.high);
+
                 if (highlight.length == 0 || inflection.high[0] == "") {
                     d3.selectAll("path")
                         .filter(function() {
@@ -1849,7 +1864,7 @@
                     
                 }
                 else {
-
+                    console.log("highlight yes");
                     await Promise.all(promises);
                     promises = [];
 
@@ -1904,10 +1919,7 @@
                     var x_of_high = highlight[0]
                     var y_of_high = highlight[1]
                     d3.select(".highlight-group").select(".highlight-circle")
-                        .style("visibility", "visible")
-                        .transition("trans-high")
-                        .duration(200)
-                        .ease(d3.easeLinear)
+                        .style("visibility", "visible")                        
                         .attr("fill", inflection.col)
                         .attr("cx", that.getXAxScale()(+x_of_high))
                         .attr("cy", that.getYAxScale()(+y_of_high))
@@ -1940,9 +1952,6 @@
                             })
 
                     }
-                    
-                    
-                            
                     
                     // colour non-highlight mark back to normal
                     d3.selectAll("path")
