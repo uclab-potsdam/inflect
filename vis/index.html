@@ -1747,6 +1747,8 @@
                 var that = this;
 
                 let annlist = inflection.ann
+                await Promise.all(promises);
+
                 if (annlist.length == 0 || inflection.ann[0] == "") {
                     d3.selectAll(".infl-ann-text")
                         .transition()
@@ -1755,7 +1757,6 @@
                         .remove()
                 }
                 else {
-                    await Promise.all(promises);
                     promises = [];
 
                     var currXScale = that.getXAxScale()
@@ -1827,7 +1828,7 @@
                 var that = this;
                 let highlight = inflection.high
 
-                console.log("highlight", inflection.high);
+                await Promise.all(promises);
 
                 if (highlight.length == 0 || inflection.high[0] == "") {
                     d3.selectAll("path")
@@ -1867,8 +1868,6 @@
                     
                 }
                 else {
-                    console.log("highlight yes");
-                    await Promise.all(promises);
                     promises = [];
 
                     var path = d3.selectAll("path") //select data element to highlight
