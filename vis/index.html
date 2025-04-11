@@ -481,8 +481,8 @@
                                 }
                                 break;
                             case "ann":
-                                if (value != inflection.ann.join(",")) {
-                                    inflection.ann = value.split(",");
+                                if (value != inflection.ann.join("|||")) {
+                                    inflection.ann = value.split("|||");
                                     that.ann();
                                 }
                                 break;
@@ -1589,7 +1589,7 @@
                 }
                 this.hash +=
                     "line=" + inflection.line.join(",") + "&" +
-                    "ann=" + encodeURIComponent(inflection.ann.join(",")) + "&" +
+                    "ann=" + encodeURIComponent(inflection.ann.join("|||")) + "&" +
                     "high=" + inflection.high.join(";");
                 window.location.hash = "#" + this.hash
             }

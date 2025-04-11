@@ -46,7 +46,7 @@ In 2020, the number of visualization papers presented at CHI even [surpassed](vi
 What makes a visualization paper stand out from the crowd? [Most papers](vis/#IEEEvis_citationHisto&col=%23FF00D3&yax=0;4000&line=&ann=&high=0%20%E2%80%93%20100;3532) are referenced fewer than 100 times.
 
 
-[Only a small subset](vis/#IEEEvis_citationHisto&col=%23FF00D3&yax=0;209&line=0;0;2,0;0;2,0;0;2&ann=200%3B0.8%3B33.3%3B0%3B27%2C100%3B0.9%3B176%3B0%3B172&high=) has amassed significantly higher citation counts.
+[Only a small subset](vis/#IEEEvis_citationHisto&col=%23FF00D3&yax=0;209&line=0;0;2,0;0;2,0;0;2&ann=100%3B0.9%3B176.4%3B0%3B172%7C%7C%7C200%3B0.7%3B32%3B0%3B27&high=) has amassed significantly higher citation counts.
 
 
 Is there a [connection](vis/#IEEEvis_citeAndCited) between the number of references within a paper and the number of papers that cite it?
