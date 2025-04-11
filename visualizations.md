@@ -7,7 +7,7 @@ To answer this question, we draw upon two closely related data projects that hav
 Let's start with Vispubdata, which covers [four conferences](vis/#IEEEvis_countPerConf&col=%23FF00D3&yax=0;2000&line=&ann=&high=), with a total of 3754 papers published since 1990.
 
 
-With 1818 publications, [Vis](vis/#IEEEvis_countPerConf&col=%23FF00D3&yax=0;2000&line=InfoVis;0.7;Vis;0.8;1898.1;0;1841.1;0&ann=VAST%3B0%3B1873%3B0%3B1%2C818&) appears to be the most popular conference...
+With 1818 publications, [Vis](vis/#IEEEvis_countPerConf&col=%23FF00D3&yax=0;2000&line=InfoVis;0.7;Vis;0.8;1898.1;0;1841.1;0&ann=VAST%3B0%3B1866.6%3B0%3B1818&high=Vis;1818) appears to be the most popular conference...
 
 
 You can see this even more clearly in the accompanying pie chart. Among all Vispubdata papers, [nearly half](vis/#IEEEvis_countPerConf_pie&col=%23FF00D3&line=&ann=&high=) were published at Vis.

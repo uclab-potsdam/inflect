@@ -455,7 +455,7 @@
                     hash_elements.splice(1).forEach(element => {
                         let splitted = element.split("=")
                         let cat = splitted[0]
-                        let value = splitted[1]
+                        let value = decodeURIComponent(splitted[1])
                         switch (cat) {
                             // case "vis":
                             //     if (value != that.chartPath) { //new visualisation type and specs
@@ -482,7 +482,7 @@
                                 break;
                             case "ann":
                                 if (value != inflection.ann.join(",")) {
-                                    inflection.ann = value.split(",").map(decodeURIComponent);
+                                    inflection.ann = value.split(",");
                                     that.ann();
                                 }
                                 break;
@@ -494,7 +494,7 @@
                                 break;
                             case "col":
                                 if (value != inflection.col) {
-                                    inflection.col = decodeURIComponent(value);
+                                    inflection.col = value;
                                     that.col();
                                 }
                                 break;      
@@ -1589,7 +1589,7 @@
                 }
                 this.hash +=
                     "line=" + inflection.line.join(",") + "&" +
-                    "ann=" + inflection.ann.map(encodeURIComponent).join(",") + "&"                    
+                    "ann=" + encodeURIComponent(inflection.ann.join(",")) + "&" +
                     "high=" + inflection.high.join(";");
                 window.location.hash = "#" + this.hash
             }
@@ -1746,8 +1746,6 @@
                 // notation: x-y-text
                 var that = this;
 
-                await Promise.all(promises);
-
                 let annlist = inflection.ann
                 if (annlist.length == 0 || inflection.ann[0] == "") {
                     d3.selectAll(".infl-ann-text")
@@ -1757,6 +1755,7 @@
                         .remove()
                 }
                 else {
+                    await Promise.all(promises);
                     promises = [];
 
                     var currXScale = that.getXAxScale()
