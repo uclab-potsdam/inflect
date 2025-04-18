@@ -8,7 +8,7 @@
     <meta property="og:url" content="https://uclab.fh-potsdam.de/inflect/">
     <meta property="og:title" content="!nflect · Modulating Visualizations to Tell Stories with Data">
     <meta property="og:description" content="Web-based framework for inflections that bridge data exploration and storytelling">
-    <meta property="og:image" content="https://uclab.fh-potsdam.de/inflect//img/cover.png">
+    <meta property="og:image" content="https://uclab.fh-potsdam.de/inflect/img/cover.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
@@ -56,23 +56,9 @@
             max-width: 100%;
         }
 
-        #orientationWarning {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            background: black;
-            color: white;
-            font-weight: bold;
-            text-align: center;
-            padding: 1em;
-            z-index: 100;
-        }
-
         strong { font-weight: 500; }
 
-        iframe, #frameBox {
+        iframe {
             top: 0;
             left: 0;
             height: 100vh;
@@ -174,14 +160,47 @@
 
         footer a.dontinflect { color: #333;}
 
+        @media (max-width: 1000px) and (orientation: portrait) {
+
+            body {
+                font-size: calc(1.5vw + 1.5vh);
+            }
+
+            iframe {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 50vh;
+                z-index: 100;
+            }
+
+            main {
+                position: relative; 
+                width: 100vw;
+                right: auto;        
+                padding: 0 5vw;     
+                margin-top: 50vh;   
+                z-index: 1;
+            }
+
+            section {
+                margin: 50vh 0;                
+            }
+
+            section:first-of-type {
+                margin: 0;
+                justify-content: start;
+                min-height: 50vh;
+            }
+        }
+
     </style>
 </head>
 
 <body>
 
-<div id="orientationWarning">Please turn your device around or widen your browser window.</div>
-
-<div id="frameBox"><iframe id="if"></iframe></div>
+<div><iframe id="if"></iframe></div>
 
 <main></main>
 
@@ -331,15 +350,6 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     });
-
-    // Show/hide orientation warning when window is taller than wide
-    function resize() {
-        const warning = document.getElementById('orientationWarning');
-        if (window.innerHeight > window.innerWidth) warning.style.display = 'block';
-        else warning.style.display = 'none';
-    }
-    window.addEventListener('resize', resize);
-    resize();
 
     // Load, parse, and display markdown on page load
     renderMarkdown();

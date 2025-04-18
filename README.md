@@ -1,14 +1,14 @@
 # !nflect <sub>📊</sub><sup>💬</sup>
 ## Modulating Visualizations to Tell Stories with Data
 
+![img](img/#-430,-167,2663,2353&ff0000&&&chart_overview.png)
+
 !nflect is a web-based framework implementing inflections as a method to bridge the gap between data exploration and storytelling. By linking to specific views and annotations in visualizations, authors can embed insights from their data analysis within the narrative flow. 
 
 - Open the <a href="https://uclab.fh-potsdam.de/inflect/">scrollytelling</a> version of this page
 - Check out a
 <a href="https://uclab.fh-potsdam.de/inflect/#visualizations">sample story</a> on visualization research
 - Fork the <a href="https://github.com/uclab-potsdam/inflect">repository</a> to create your own data story
-
-![img](img/#-430,-167,2663,2353&ff0000&&&chart_overview.png)
 
 
 ### Inf... what?
@@ -19,7 +19,7 @@ An inflection is a subtle modulation of a visualization's graphical attributes�
 
 Inflections can be referenced directly in a story, so that scrolling through the text triggers transitions of the visualization state accordingly—thereby strengthening the interplay between data analysis and narrative structure.
 
-As an exercise in inception, we highlighted the inflections visible in these Vega-Lite charts on the left.
+As an exercise in inception, we highlighted the inflections visible in these Vega-Lite charts.
 
 
 ## Overview
