@@ -342,6 +342,13 @@
                 });
             }
         });
+
+        const firstLink = document.querySelector('main a:not(.dontinflect)');
+        if (firstLink) {
+            firstLink.classList.add('active');
+            setIframeIfPathChanged(firstLink.href);
+        }
+
     }
 
     // scroll up when pressing Escape
