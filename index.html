@@ -240,9 +240,10 @@
             const hash = window.location.hash.substring(1); // Remove '#' from hash
             const file = hash ? hash : 'README';
 
+            var title = document.title.split(" · ")[0];
             document.title = (file === "README") 
-                             ? "!nflect" 
-                             : `!nflect · ${file}`;
+                             ? title
+                             : `${title} · ${file}`;
 
             const response = await fetch(file + ".md"); 
             let text = await response.text();
