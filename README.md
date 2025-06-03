@@ -5,9 +5,10 @@
 
 !nflect is a web-based framework implementing inflections as a method to bridge the gap between data exploration and storytelling. By linking to specific views and annotations in visualizations, authors can embed insights from their data analysis within the narrative flow. 
 
-- Open the <a href="https://uclab.fh-potsdam.de/inflect/">scrollytelling</a> version of this page
+- **Open the <a href="https://uclab.fh-potsdam.de/inflect/">scrollytelling</a> version of this page**
 - Check out a
 <a href="https://uclab.fh-potsdam.de/inflect/#visualizations">sample story</a> on visualization research
+- Read the <a href="https://diglib.eg.org/handle/10.2312/evs20251088">short paper</a> presented at EuroVis 2025
 - Fork the <a href="https://github.com/uclab-potsdam/inflect">repository</a> to create your own data story
 
 
