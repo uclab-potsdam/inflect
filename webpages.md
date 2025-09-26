@@ -6,12 +6,6 @@ Is it [inflectible or inflectable](https://books.google.com/ngrams/graph?content
 With the rise of data stories, [scrollytelling](https://books.google.com/ngrams/graph?content=long-reads%2Cscrollytelling%2Cdata+stories&year_start=2000&year_end=2022&corpus=en&smoothing=3&case_insensitive=false) also really took off...
 
 
-[A tour of Gaza (Mapbox)](https://api.mapbox.com/styles/v1/mushon/cm8t6gytl00hx01qzeyjx8zkj.html?title=view&access_token=pk.eyJ1IjoibXVzaG9uIiwiYSI6ImNtOGVhMWFkZTJqOGkyanI3aHJzaG11N3oifQ.gU_FaxkjsMZqUbFQedDSJA&zoomwheel=true&fresh=true#13.06/31.51393/34.44059/37.6) - overview
-
-
-[Zooming map](https://api.mapbox.com/styles/v1/mushon/cm8t6gytl00hx01qzeyjx8zkj.html?title=view&access_token=pk.eyJ1IjoibXVzaG9uIiwiYSI6ImNtOGVhMWFkZTJqOGkyanI3aHJzaG11N3oifQ.gU_FaxkjsMZqUbFQedDSJA&zoomwheel=true&fresh=true#16.06/31.51393/34.44059/37.6) - overview
-
-
 [Vikus Viewer](https://cpietsch.github.io/vikus-viewer/) - overview
 
 

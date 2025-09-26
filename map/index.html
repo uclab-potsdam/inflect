@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Dynamic Mapbox Map with Hash Control</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html, body, #map {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+    }
+    #layer-controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.9);
+      padding: 10px;
+      border-radius: 4px;
+      z-index: 1;
+      font-family: sans-serif;
+    }
+  </style>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <!-- Removed any Python-in-the-browser scripts (e.g., Pyodide, Brython) to prevent py.parse errors -->
+</head>
+<body>
+<div id="map"></div>
+<div id="layer-controls"></div>
+<script>
+// Sample Mapbox access token (replace with your own for production)
+mapboxgl.accessToken = 'pk.eyJ1IjoibXVzaG9uIiwiYSI6ImNtOGVhMWFkZTJqOGkyanI3aHJzaG11N3oifQ.gU_FaxkjsMZqUbFQedDSJA';
+
+// Sample style
+const style = 'mapbox://styles/mushon/cmg0uv6tl00jn01qy6ruzhg29/draft';
+
+// Layers to toggle (layer ids must exist in the style)
+const toggleLayers = [
+  // { id: 'land', name: 'land' },
+  { id: 'admin', name: 'admin' },
+  { id: 'jabalya', name: 'jabalya' },
+  { id: 'overlay', name: 'overlay' }
+];
+
+// Default camera
+const defaultCamera = {
+  center: [34.3537, 31.4238], // Custom view
+  zoom: 10,
+  bearing: 37.6,
+  pitch: 0
+};
+
+// Parse hash: #lat,lng,zoom,bearing,pitch|layer1,layer2
+function parseHash() {
+  const hash = window.location.hash.replace('#', '');
+  if (!hash) return { camera: { ...defaultCamera }, layers: toggleLayers.map(l => l.id) };
+  const [cameraStr, layersStr] = hash.split('|');
+  const cameraParts = cameraStr ? cameraStr.split(',').map(Number) : [];
+  const layers = layersStr ? layersStr.split(',') : toggleLayers.map(l => l.id);
+  return {
+    camera: {
+      center: [cameraParts[1] || defaultCamera.center[0], cameraParts[0] || defaultCamera.center[1]],
+      zoom: cameraParts[2] || defaultCamera.zoom,
+      bearing: cameraParts[3] || defaultCamera.bearing,
+      pitch: cameraParts[4] || defaultCamera.pitch
+    },
+    layers
+  };
+}
+
+// Update hash from map state
+function updateHash(map, visibleLayers) {
+  const c = map.getCenter();
+  const z = map.getZoom().toFixed(2);
+  const b = map.getBearing().toFixed(1);
+  const p = map.getPitch().toFixed(1);
+  const hash = `${c.lat.toFixed(5)},${c.lng.toFixed(5)},${z},${b},${p}|${visibleLayers.join(',')}`;
+  window.location.hash = hash;
+}
+
+// Create layer controls
+function createLayerControls(map, visibleLayers) {
+  const container = document.getElementById('layer-controls');
+  container.innerHTML = '<strong>Layers</strong><br>';
+  let foundLayer = false;
+  toggleLayers.forEach(layer => {
+    if (map.getLayer(layer.id)) {
+      foundLayer = true;
+      const checked = visibleLayers.includes(layer.id) ? 'checked' : '';
+      container.innerHTML += `<label><input type="checkbox" data-layer="${layer.id}" ${checked}> ${layer.name}</label><br>`;
+    }
+  });
+  if (!foundLayer) {
+    container.innerHTML += '<em>No toggleable layers found in the current style.</em>';
+  }
+  container.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', function() {
+      const layerId = this.getAttribute('data-layer');
+      if (map.getLayer(layerId)) {
+        if (this.checked) {
+          map.setLayoutProperty(layerId, 'visibility', 'visible');
+        } else {
+          map.setLayoutProperty(layerId, 'visibility', 'none');
+        }
+        // Update hash
+        const newVisibleLayers = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.getAttribute('data-layer'));
+        updateHash(map, newVisibleLayers);
+      } else {
+        console.warn(`Layer '${layerId}' not found in style.`);
+      }
+    });
+  });
+}
+
+const { camera, layers } = parseHash();
+
+const map = new mapboxgl.Map({
+  container: 'map',
+  style,
+  center: camera.center,
+  zoom: camera.zoom,
+  bearing: camera.bearing,
+  pitch: camera.pitch
+});
+
+map.on('load', () => {
+  // Set initial layer visibility with existence check
+  toggleLayers.forEach(layer => {
+    if (map.getLayer(layer.id)) {
+      map.setLayoutProperty(layer.id, 'visibility', layers.includes(layer.id) ? 'visible' : 'none');
+    } else {
+      console.warn(`Layer '${layer.id}' not found in style.`);
+    }
+  });
+  createLayerControls(map, layers);
+});
+
+// Update hash on camera move
+map.on('moveend', () => {
+  const visibleLayers = toggleLayers.filter(l => {
+    if (map.getLayer(l.id)) {
+      return map.getLayoutProperty(l.id, 'visibility') === 'visible';
+    }
+    return false;
+  }).map(l => l.id);
+  updateHash(map, visibleLayers);
+});
+
+// Listen for hash changes (external navigation)
+window.addEventListener('hashchange', () => {
+  const { camera, layers } = parseHash();
+  map.flyTo({ center: camera.center, zoom: camera.zoom, bearing: camera.bearing, pitch: camera.pitch });
+  toggleLayers.forEach(layer => {
+    if (map.getLayer(layer.id)) {
+      map.setLayoutProperty(layer.id, 'visibility', layers.includes(layer.id) ? 'visible' : 'none');
+    } else {
+      console.warn(`Layer '${layer.id}' not found in style.`);
+    }
+  });
+  createLayerControls(map, layers);
+});
+</script>
+</body>
+</html>
