@@ -30,6 +30,13 @@
 <div id="map"></div>
 <div id="layer-controls"></div>
 <script>
+// Hide control panel if in an iframe
+if (window.self !== window.top) {
+  document.addEventListener('DOMContentLoaded', function() {
+    var controls = document.getElementById('layer-controls');
+    if (controls) controls.style.display = 'none';
+  });
+}
 // Sample Mapbox access token (replace with your own for production)
 mapboxgl.accessToken = 'pk.eyJ1IjoibXVzaG9uIiwiYSI6ImNtOGVhMWFkZTJqOGkyanI3aHJzaG11N3oifQ.gU_FaxkjsMZqUbFQedDSJA';
 
