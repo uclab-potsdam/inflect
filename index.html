@@ -14,6 +14,8 @@
 
     <script src="src/marked.min.js"></script>
     
+    <link href="https://fonts.googleapis.com/css2?family=David+Libre:wght@400;700&display=swap" rel="stylesheet">
+
     <style>
 
         @font-face {
@@ -35,11 +37,15 @@
             font-weight: bold;
         }
 
+        body, html {
+            font-family: 'David Libre', serif;
+            direction: rtl;
+        }
+
         body {
-            font-family: "Atkinson", sans-serif;
             font-weight: 250;
             font-size: calc(1vw + 1vh);
-            background-color: rgb(242, 242, 242);
+            background-color: #222;
             margin: 0;
             padding: 0;
         }
@@ -84,7 +90,7 @@
             box-sizing: border-box;
             position: absolute;
             right: 0;
-            width: 40vw;
+            width: 90vw;
             padding: 0 5vh;
             margin: 0;
         }
@@ -92,20 +98,61 @@
         section {
             margin-top: 100vh;
             margin-bottom: 100vh;
-            background: #222;
+            /* background: #222; */
             color: #fff;
             padding: 8px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            width: 100%;
+            box-sizing: border-box;
+            position: relative;
+            text-shadow: 0px 4px 3px rgba(0,0,0,0.4),
+                        0px 8px 13px rgba(0,0,0,0.1),
+                        0px 18px 23px rgba(0,0,0,0.1);
+        }
+
+        section p{
+            padding-right: 16px;
+            border-right: 8px solid #FA5F5F;
         }
 
         section:first-of-type, section:last-of-type {
             display: flex;
             justify-content: center;
-            flex-direction: column;           
+            flex-direction: column;  
+            text-align: center;         
+        }
+
+        section:first-of-type h1,
+        section:first-of-type h2 {
+            margin: 0;
+            font-weight: 700;
+        }
+
+        section:first-of-type h1 {
+            color: #FA5F5F;
+            margin-bottom: 70px;
+        }
+
+        section:first-of-type img{
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 100px;
+            height: auto;
+        }
+
+        section:first-of-type img:last-of-type{
+            top: auto;
+            bottom: 16px;
         }
 
         section:first-of-type { 
             min-height: 100vh;
             margin-top: 0;
+            justify-content: end;
         }
 
         section:last-of-type {
@@ -175,8 +222,7 @@
                 position: relative; 
                 width: 100vw;
                 right: auto;        
-                padding: 0 5vw;     
-                margin-top: 75vh;   
+                padding: 0 5vw; 
                 z-index: 1;
             }
 
@@ -186,7 +232,6 @@
 
             section:first-of-type {
                 margin: 0;
-                justify-content: start;
                 min-height: 100vh;
             }
         }

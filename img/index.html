@@ -26,7 +26,7 @@
       overflow: hidden;
       width: 100%;
       height: 100%;
-      background: #fff;
+      background: #222;
     }
     canvas {
       display: block;
@@ -140,6 +140,8 @@
           url: hash,
           view: null,
           annotations: { boxes: [], lines: [], color: '#ff0000' },
+          poster: false,
+          cover: false
         };
       }
 
@@ -148,9 +150,15 @@
         url,
         view: null,
         annotations: { boxes: [], lines: [], color: '#ff0000' },
+        poster: false,
+        cover: false
       };
 
-      if (viewPart) {
+      if (viewPart === 'poster') {
+        result.poster = true;
+      } else if (viewPart === 'cover') {
+        result.cover = true;
+      } else if (viewPart) {
         const coords = viewPart.split(',').map(Number);
         result.view = {
           topLeft: coords.slice(0, 2).map(Math.floor),
@@ -158,7 +166,6 @@
         };
       }
       if (color) {
-        // document.getElementById("color").value = "#"+color;        
         result.annotations.color = color;
       }
       if (boxes) {
@@ -222,6 +229,28 @@
       ];
     }
 
+    function fitViewToCoverCanvas(img) {
+      if (!img || !img.width || !img.height) return;
+      const canvasAspect = canvas.width / canvas.height;
+      const imgAspect = img.width / img.height;
+      let cropWidth, cropHeight, offsetX, offsetY;
+      if (canvasAspect > imgAspect) {
+        // Canvas is wider, crop top/bottom
+        cropWidth = img.width;
+        cropHeight = img.width / canvasAspect;
+        offsetX = 0;
+        offsetY = (img.height - cropHeight) / 2;
+      } else {
+        // Canvas is taller, crop sides
+        cropHeight = img.height;
+        cropWidth = img.height * canvasAspect;
+        offsetY = 0;
+        offsetX = (img.width - cropWidth) / 2;
+      }
+      view.topLeft = [offsetX, offsetY];
+      view.bottomRight = [offsetX + cropWidth, offsetY + cropHeight];
+    }
+
     function animateView(targetView) {
       // Grab a local token so we can detect if a new animation has started
       const localToken = animationCancelToken;
@@ -263,7 +292,17 @@
       requestAnimationFrame(animate);
     }
 
-    function updateView(coords, animate = false) {
+    function updateView(coords, animate = false, poster = false, cover = false) {
+      if (cover) {
+        fitViewToCoverCanvas(image);
+        render();
+        return;
+      }
+      if (poster) {
+        fitViewToCanvas(image);
+        render();
+        return;
+      }
       if (coords) {
         const targetView = {
           topLeft: coords.topLeft,
@@ -686,7 +725,7 @@
 
       const parsed = parseHash();
       if (!parsed) return;
-      const { url, view: newView } = parsed;
+      const { url, view: newView, poster, cover } = parsed;
 
       if (url && url !== currentUrl) {
         // Load new image and do two-phase fade
@@ -696,8 +735,13 @@
             // Switch to new
             image = newImg;
             currentUrl = url;
-            setViewImmediately(newView);
-
+            if (cover) {
+              fitViewToCoverCanvas(image);
+            } else if (poster) {
+              fitViewToCanvas(image);
+            } else {
+              setViewImmediately(newView);
+            }
             fadeInImage(image, FADE_IN_DURATION, () => {
               render();
             });
@@ -709,7 +753,7 @@
         // If we are in an iframe, the code was originally set to animate = inFrame,
         // but you can adjust as needed
         const animate = inFrame;
-        updateView(newView, animate);
+        updateView(newView, animate, poster, cover);
       }
     });
 
@@ -770,7 +814,11 @@
       }
       if (currentUrl) {
         image.onload = () => {
-          if (parsed.view) {
+          if (parsed.cover) {
+            fitViewToCoverCanvas(image);
+          } else if (parsed.poster) {
+            fitViewToCanvas(image);
+          } else if (parsed.view) {
             setViewImmediately(parsed.view);
           } else {
             fitViewToCanvas(image);
