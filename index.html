@@ -77,7 +77,7 @@
         }
 
         iframe {
-            transition: opacity 0.1s ease-in;
+            transition: opacity 0.4s cubic-bezier(.4,0,.2,1);
         }
 
         h1 { font-size: 2.4em; font-weight: 200; margin-bottom: 0;}
@@ -251,21 +251,30 @@
     let firstFrame = true;
     const iframe = document.getElementById('if');
 
-    // Fade in new content 
+    // Fade in new content only on path change
     function setIframeIfPathChanged(newHref) {
       const newURL = new URL(newHref, window.location.origin);
-      newURL.hash = ''; // remove hash for path comparison
+      newURL.hash = '';
       const newPath = newURL.href;
 
-      // If path changes, set iframe to 0 opacity
       if (newPath !== lastIframePath) {
-        if (firstFrame) firstFrame = false;
-        else iframe.style.opacity = '0';
-        iframe.src = newHref;
+        if (firstFrame) {
+          firstFrame = false;
+          iframe.style.opacity = '1';
+          iframe.src = newHref;
+        } else {
+          if (iframe.style.opacity !== '0') {
+            iframe.style.opacity = '0';
+            setTimeout(() => {
+              iframe.src = newHref;
+            }, 400); // match transition duration
+          } else {
+            iframe.src = newHref;
+          }
+        }
         lastIframePath = newPath;
-      } 
-      else {
-        // Otherwise just update src as needed (rare case)
+      } else {
+        // Only hash changed, do not fade
         iframe.src = newHref;
       }
     }
