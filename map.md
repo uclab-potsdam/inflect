@@ -1,5 +1,5 @@
 
-[A tour of Gaza (Mapbox)](map/#16.06/31.51393/34.44059/37.6|admin) - overview
+[A tour of Gaza (Mapbox)](map/#) - overview
 
 
-[Zooming map](map/#31.52348,34.43380,17.29,47.6,0.0|admin,jabalya) - overview
+[Zooming map](map/#31.52261,34.43650,15.03,37.6,0.0/+overlay) - Zoom and show the overlay 

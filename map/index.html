@@ -34,7 +34,7 @@
 mapboxgl.accessToken = 'pk.eyJ1IjoibXVzaG9uIiwiYSI6ImNtOGVhMWFkZTJqOGkyanI3aHJzaG11N3oifQ.gU_FaxkjsMZqUbFQedDSJA';
 
 // Sample style
-const style = 'mapbox://styles/mushon/cmg0uv6tl00jn01qy6ruzhg29/draft';
+const style = 'mapbox://styles/mushon/cmg0uv6tl00jn01qy6ruzhg29';
 
 // Layers to toggle (layer ids must exist in the style)
 // Will be populated with all layers from the style after map load
@@ -55,21 +55,28 @@ const defaultCamera = {
 function parseHash() {
   const hash = window.location.hash.replace('#', '');
   if (!hash) return { camera: { ...defaultCamera }, layers: allStyleLayers.map(l => l.id) };
-  const [cameraStr, layersStr] = hash.split('|');
+  const [cameraStr, layersStr] = hash.split('/');
   const cameraParts = cameraStr ? cameraStr.split(',').map(Number) : [];
   // Parse layers: +layername means on, -layername means off
   let layersOn = allStyleLayers.map(l => l.id);
   if (layersStr) {
     // Start with all off, then apply toggles in order
     layersOn = [];
+    // Process tokens in order, last toggle for each layer wins
+    const layerState = {};
     layersStr.split(',').forEach(token => {
-      if (token.startsWith('+')) {
-        const lname = token.slice(1);
-        if (!layersOn.includes(lname)) layersOn.push(lname);
-      } else if (token.startsWith('-')) {
-        const lname = token.slice(1);
-        layersOn = layersOn.filter(l => l !== lname);
+      const match = token.match(/^([+-])(.+)$/);
+      if (!match) return;
+      const [, sign, lname] = match;
+      layerState[lname] = sign;
+    });
+    // Start with all off, then apply toggles in order (last toggle for each layer wins)
+    layersOn = [];
+    Object.entries(layerState).forEach(([lname, sign]) => {
+      if (sign === '+') {
+        layersOn.push(lname);
       }
+      // '-' means keep it off (do not add)
     });
   }
   return {
@@ -91,12 +98,12 @@ function updateHash(map, visibleLayers) {
   const p = map.getPitch().toFixed(1);
   // Preserve existing layer part of hash if present
   const hash = window.location.hash.replace('#', '');
-  const [, layersStr] = hash.split('|');
+  const [, layersStr] = hash.split('/');
   const cameraStr = `${c.lat.toFixed(5)},${c.lng.toFixed(5)},${z},${b},${p}`;
   if (layersStr !== undefined) {
-    window.location.hash = `${cameraStr}|${layersStr}`;
+    window.location.replace(`#${cameraStr}/${layersStr}`);
   } else {
-    window.location.hash = `${cameraStr}`;
+    window.location.replace(`#${cameraStr}`);
   }
 }
 
@@ -106,15 +113,46 @@ function createLayerControls(map, visibleLayers) {
   container.innerHTML = '<strong>Layers</strong><br>';
   let foundLayer = false;
   // Always reflect the current style visibility for checkboxes
+  // Parse current hash for explicit toggles
+  const hash = window.location.hash.replace('#', '');
+  const [, layersStr] = hash.split('/');
+  const explicitState = {};
+  if (layersStr) {
+    layersStr.split(',').forEach(token => {
+      const match = token.match(/^([+-])(.+)$/);
+      if (!match) return;
+      const [, sign, lname] = match;
+      explicitState[lname] = sign;
+    });
+  }
   allStyleLayers.forEach(layer => {
     if (map.getLayer(layer.id)) {
       foundLayer = true;
       const vis = map.getLayoutProperty(layer.id, 'visibility');
-      // Mapbox default is visible if undefined
-      const checked = (vis === 'visible' || vis === undefined) ? 'checked' : '';
-  // Use layer.name if present, otherwise fallback to layer.id
-  const label = layer.name || layer.id;
-  container.innerHTML += `<label><input type="checkbox" data-layer="${layer.id}" ${checked}> ${label}</label><br>`;
+      const defaultVis = styleDefaultVisibility[layer.id] || 'visible';
+      let checked, bold, state, showReset = false;
+      if (explicitState[layer.id] === '+') {
+        checked = 'checked';
+        bold = true;
+        state = 'visible';
+        showReset = (defaultVis !== 'visible');
+      } else if (explicitState[layer.id] === '-') {
+        checked = '';
+        bold = true;
+        state = 'hidden';
+        showReset = (defaultVis !== 'none');
+      } else {
+        checked = (defaultVis === 'visible') ? 'checked' : '';
+        bold = false;
+        state = 'default';
+        showReset = false;
+      }
+      const label = layer.name || layer.id;
+      container.innerHTML += `<label style="${bold ? 'font-weight:bold;' : ''}"><input type="checkbox" data-layer="${layer.id}" ${checked}> ${label}</label>`;
+      if (explicitState[layer.id]) {
+        container.innerHTML += ` <button data-reset="${layer.id}" title="Reset to style default" style="font-size:1.1em;line-height:1;vertical-align:middle;padding:0 0.2em;">↻</button>`;
+      }
+      container.innerHTML += '<br>';
     }
   });
   if (!foundLayer) {
@@ -123,32 +161,68 @@ function createLayerControls(map, visibleLayers) {
   container.querySelectorAll('input[type=checkbox]').forEach(cb => {
     cb.addEventListener('change', function() {
       const layerId = this.getAttribute('data-layer');
-      if (map.getLayer(layerId)) {
-        if (this.checked) {
-          map.setLayoutProperty(layerId, 'visibility', 'visible');
-        } else {
-          map.setLayoutProperty(layerId, 'visibility', 'none');
-        }
-        // Update hash: only update the layer part, preserve camera
-        const hash = window.location.hash.replace('#', '');
-        const [cameraStr] = hash.split('|');
-        // Only mention layers whose current visibility differs from style default
-  const layerTokens = allStyleLayers.map(l => {
-          const vis = map.getLayer(l.id) ? map.getLayoutProperty(l.id, 'visibility') : undefined;
-          const defaultVis = styleDefaultVisibility[l.id] || 'visible';
-          if (vis !== defaultVis) {
-            if (vis === 'visible') return `+${l.id}`;
-            if (vis === 'none') return `-${l.id}`;
-          }
-          return null;
-        }).filter(Boolean);
-        if (layerTokens.length > 0) {
-          window.location.hash = `${cameraStr}|${layerTokens.join(',')}`;
-        } else {
-          window.location.hash = `${cameraStr}`;
-        }
-      } else {
+      if (!map.getLayer(layerId)) {
         console.warn(`Layer '${layerId}' not found in style.`);
+        return;
+      }
+      // Parse current hash for explicit toggles
+      const hash = window.location.hash.replace('#', '');
+  const [cameraStr, layersStr] = hash.split('/');
+      const explicitState = {};
+      if (layersStr) {
+        layersStr.split(',').forEach(token => {
+          const match = token.match(/^([+-])(.+)$/);
+          if (!match) return;
+          const [, sign, lname] = match;
+          explicitState[lname] = sign;
+        });
+      }
+      // Always toggle explicit + or -
+      if (this.checked) {
+        explicitState[layerId] = '+';
+        map.setLayoutProperty(layerId, 'visibility', 'visible');
+      } else {
+        explicitState[layerId] = '-';
+        map.setLayoutProperty(layerId, 'visibility', 'none');
+      }
+      // Build new hash
+      const tokens = Object.entries(explicitState).map(([lname, sign]) => `${sign}${lname}`);
+      if (tokens.length > 0) {
+        window.location.replace(`#${cameraStr}/${tokens.join(',')}`);
+      } else {
+        window.location.replace(`#${cameraStr}`);
+      }
+    });
+  });
+
+  // Add reset button listeners
+  container.querySelectorAll('button[data-reset]').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      const layerId = this.getAttribute('data-reset');
+      // Parse current hash for explicit toggles
+      const hash = window.location.hash.replace('#', '');
+  const [cameraStr, layersStr] = hash.split('/');
+      const explicitState = {};
+      if (layersStr) {
+        layersStr.split(',').forEach(token => {
+          const match = token.match(/^([+-])(.+)$/);
+          if (!match) return;
+          const [, sign, lname] = match;
+          explicitState[lname] = sign;
+        });
+      }
+      // Remove explicit toggle for this layer
+      delete explicitState[layerId];
+      // Restore style default
+      const defaultVis = styleDefaultVisibility[layerId] || 'visible';
+      map.setLayoutProperty(layerId, 'visibility', defaultVis);
+      // Build new hash
+      const tokens = Object.entries(explicitState).map(([lname, sign]) => `${sign}${lname}`);
+      if (tokens.length > 0) {
+        window.location.replace(`#${cameraStr}/${tokens.join(',')}`);
+      } else {
+        window.location.replace(`#${cameraStr}`);
       }
     });
   });
@@ -192,28 +266,61 @@ map.on('moveend', () => {
 // Listen for hash changes (external navigation)
 window.addEventListener('hashchange', () => {
   const hash = window.location.hash.replace('#', '');
-  const [cameraStr, layersStr] = hash.split('|');
+  const [cameraStr, layersStr] = hash.split('/');
   const cameraParts = cameraStr ? cameraStr.split(',').map(Number) : [];
-  map.flyTo({
-    center: [cameraParts[1] || defaultCamera.center[0], cameraParts[0] || defaultCamera.center[1]],
-    zoom: cameraParts[2] || defaultCamera.zoom,
-    bearing: cameraParts[3] || defaultCamera.bearing,
-    pitch: cameraParts[4] || defaultCamera.pitch
-  });
-  // Only set visibility for layers explicitly mentioned in the hash
-  if (layersStr) {
-    layersStr.split(',').forEach(token => {
-      if (token.startsWith('+')) {
-        const lname = token.slice(1);
-        if (map.getLayer(lname)) map.setLayoutProperty(lname, 'visibility', 'visible');
-      } else if (token.startsWith('-')) {
-        const lname = token.slice(1);
-        if (map.getLayer(lname)) map.setLayoutProperty(lname, 'visibility', 'none');
+  // If allStyleLayers is empty (e.g. on direct hash change before map load), repopulate it
+  if (!allStyleLayers.length) {
+    allStyleLayers = map.getStyle().layers.map(l => ({ id: l.id, name: l.name }));
+    allStyleLayers.forEach(layer => {
+      if (map.getLayer(layer.id)) {
+        const styleLayer = map.getStyle().layers.find(l => l.id === layer.id);
+        let vis = 'visible';
+        if (styleLayer && styleLayer.layout && typeof styleLayer.layout.visibility !== 'undefined') {
+          vis = styleLayer.layout.visibility;
+        }
+        styleDefaultVisibility[layer.id] = vis;
       }
     });
   }
-  // Always reflect the current style visibility in the toggle list
-  createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
+  // Animate camera, then apply layer changes halfway through
+  const flyOpts = {
+    center: [cameraParts[1] || defaultCamera.center[0], cameraParts[0] || defaultCamera.center[1]],
+    zoom: cameraParts[2] || defaultCamera.zoom,
+    bearing: cameraParts[3] || defaultCamera.bearing,
+    pitch: cameraParts[4] || defaultCamera.pitch,
+    duration: 1200 // ms, can adjust as needed
+  };
+  map.flyTo(flyOpts);
+  setTimeout(() => {
+    // Set visibility for layers explicitly mentioned in the hash, and restore style default for others
+    // Parse tokens, last toggle for each layer wins
+    const layerState = {};
+    if (layersStr) {
+      layersStr.split(',').forEach(token => {
+        const match = token.match(/^([+-])(.+)$/);
+        if (!match) return;
+        const [, sign, lname] = match;
+        layerState[lname] = sign;
+      });
+    }
+    allStyleLayers.forEach(layer => {
+      const id = layer.id;
+      const state = layerState[id];
+      if (state === '+') {
+        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'visible');
+      } else if (state === '-') {
+        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+      } else {
+        // Not mentioned in hash, restore style default
+        if (map.getLayer(id)) {
+          const defaultVis = styleDefaultVisibility[id] || 'visible';
+          map.setLayoutProperty(id, 'visibility', defaultVis);
+        }
+      }
+    });
+    // Always reflect the current style visibility in the toggle list
+    createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
+  }, flyOpts.duration / 2);
 });
 </script>
 </body>
