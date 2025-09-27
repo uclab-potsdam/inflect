@@ -79,6 +79,9 @@
       value="none"
       checked
     />
+    <br />
+    <label for="opacity">Image Opacity</label>
+    <input id="opacity" type="range" min="0" max="100" value="100" style="width: 6em; vertical-align: middle;">
   </nav>
 
   <script>
@@ -89,6 +92,39 @@
     const ctx = canvas.getContext('2d');
     const colorInput = document.getElementById('color');
     const toolInputs = document.querySelectorAll('input[name="tool"]');
+    const opacityInput = document.getElementById('opacity');
+    let imageOpacity = 1.0;
+    if (opacityInput) {
+      // On load, set slider and imageOpacity from hash
+      const parsed = parseHash();
+      let initialOpacity = 100;
+      if (parsed && typeof parsed.opacity === 'number') {
+        initialOpacity = parsed.opacity;
+      }
+      opacityInput.value = initialOpacity;
+      imageOpacity = initialOpacity / 100;
+      opacityInput.addEventListener('input', () => {
+        imageOpacity = parseInt(opacityInput.value, 10) / 100;
+        // Update only the opacity field in the hash, preserving all other fields
+        const hash = location.hash.slice(1);
+        const parts = hash.split('&');
+        // If hash is legacy (no &), don't try to update, just use updateHash
+        if (parts.length < 5) {
+          const parsed = parseHash();
+          updateHash(
+            parsed && parsed.url ? parsed.url : '',
+            parsed && parsed.view ? parsed.view : null,
+            parsed && parsed.annotations ? parsed.annotations : {},
+            parseInt(opacityInput.value, 10)
+          );
+        } else {
+          // parts: [view/cover/poster, opacity, boxes, lines, url]
+          parts[1] = opacityInput.value;
+          location.hash = parts.join('&');
+        }
+        render();
+      });
+    }
 
     const pixelRatio = window.devicePixelRatio || 1;
     const inFrame = window.self !== window.top; // Are we in an iframe?
@@ -141,17 +177,29 @@
           view: null,
           annotations: { boxes: [], lines: [], color: '#ff0000' },
           poster: false,
-          cover: false
+          cover: false,
+          opacity: 100
         };
       }
 
-      const [viewPart, color, boxes, lines, url] = hash.split('&');
+      const [viewPart, opacityStr, boxes, lines, url] = hash.split('&');
+      let color = 'ff0000';
+      let opacity = 100;
+      // If the second field is a color (legacy), detect and shift
+      if (opacityStr && (opacityStr.startsWith('#') || /^[0-9a-fA-F]{6}$/.test(opacityStr))) {
+        color = opacityStr;
+        opacity = 100;
+      } else if (opacityStr && !isNaN(parseInt(opacityStr))) {
+        opacity = parseInt(opacityStr, 10);
+      }
+
       const result = {
         url,
         view: null,
-        annotations: { boxes: [], lines: [], color: '#ff0000' },
+        annotations: { boxes: [], lines: [], color },
         poster: false,
-        cover: false
+        cover: false,
+        opacity
       };
 
       if (viewPart === 'poster') {
@@ -165,9 +213,6 @@
           bottomRight: coords.slice(2, 4).map(Math.floor),
         };
       }
-      if (color) {
-        result.annotations.color = color;
-      }
       if (boxes) {
         result.annotations.boxes = boxes.split(',').map(Number);
       }
@@ -177,7 +222,7 @@
       return result;
     }
 
-    function updateHash(url, theView, annotations = {}) {
+    function updateHash(url, theView, annotations = {}, opacity = 100) {
       interactiveChange = true;
       const defaultAnnotations = {
         boxes: [],
@@ -191,6 +236,7 @@
             .map(Math.floor)
             .join(',')}`
         : '';
+
       let color = annotations.color || 'ff0000';
       if (color.startsWith('#')) color = color.slice(1);
 
@@ -199,7 +245,8 @@
       const arrowParams =
         annotations.lines.length > 0 ? annotations.lines.join(',') : '';
 
-      location.hash = `${viewParams}&${color}&${boxParams}&${arrowParams}&${url}`;
+      // Opacity is always the second field
+      location.hash = `${viewParams}&${opacity}&${boxParams}&${arrowParams}&${url}`;
 
       setTimeout(() => {
         interactiveChange = false;
@@ -359,9 +406,12 @@
       );
       ctx.scale(scale, scale);
 
-      // Draw the image
+      // Draw the image with opacity
       if (image && image.width && image.height) {
+        ctx.save();
+        ctx.globalAlpha = imageOpacity;
         ctx.drawImage(image, 0, 0);
+        ctx.restore();
       }
 
       // Draw annotations from the hash
@@ -542,6 +592,15 @@
         updateHash(currentUrl, view, annotations);
         render();
       });
+
+      if (opacityInput) {
+        opacityInput.value = '100'; // ensure default is 100
+        imageOpacity = 1.0;
+        opacityInput.addEventListener('input', () => {
+          imageOpacity = parseInt(opacityInput.value, 10) / 100;
+          render();
+        });
+      }
 
       canvas.addEventListener('mousedown', (e) => {
         if (inFrame) return;
@@ -725,7 +784,30 @@
 
       const parsed = parseHash();
       if (!parsed) return;
-      const { url, view: newView, poster, cover } = parsed;
+      const { url, view: newView, poster, cover, opacity } = parsed;
+
+      // Animate opacity slider and image opacity from hash
+      if (typeof opacity === 'number' && opacityInput) {
+        const targetOpacity = opacity / 100;
+        opacityInput.value = opacity;
+        // Animate imageOpacity to targetOpacity
+        const startOpacity = imageOpacity;
+        const duration = 200; // ms
+        const startTime = performance.now();
+        function animateOpacity(now) {
+          const elapsed = now - startTime;
+          const t = Math.min(elapsed / duration, 1);
+          imageOpacity = startOpacity + (targetOpacity - startOpacity) * t;
+          render();
+          if (t < 1) {
+            requestAnimationFrame(animateOpacity);
+          } else {
+            imageOpacity = targetOpacity;
+            render();
+          }
+        }
+        requestAnimationFrame(animateOpacity);
+      }
 
       if (url && url !== currentUrl) {
         // Load new image and do two-phase fade
@@ -754,6 +836,7 @@
         // but you can adjust as needed
         const animate = inFrame;
         updateView(newView, animate, poster, cover);
+        render();
       }
     });
 
@@ -806,6 +889,7 @@
     // ---------------------------------------------------------------------
     // Initial load from hash (or blank)
     // ---------------------------------------------------------------------
+
     const parsed = parseHash();
     if (parsed) {
       currentUrl = parsed.url;
@@ -814,6 +898,12 @@
       }
       if (currentUrl) {
         image.onload = () => {
+          // Set opacity from hash after image loads (works in iframe and top-level)
+          if (typeof parsed.opacity === 'number' && opacityInput) {
+            const targetOpacity = parsed.opacity / 100;
+            opacityInput.value = parsed.opacity;
+            imageOpacity = targetOpacity;
+          }
           if (parsed.cover) {
             fitViewToCoverCanvas(image);
           } else if (parsed.poster) {
