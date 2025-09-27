@@ -37,12 +37,11 @@ mapboxgl.accessToken = 'pk.eyJ1IjoibXVzaG9uIiwiYSI6ImNtOGVhMWFkZTJqOGkyanI3aHJza
 const style = 'mapbox://styles/mushon/cmg0uv6tl00jn01qy6ruzhg29/draft';
 
 // Layers to toggle (layer ids must exist in the style)
-const toggleLayers = [
-  // { id: 'land', name: 'land' },
-  { id: 'admin', name: 'admin' },
-  { id: 'jabalya', name: 'jabalya' },
-  { id: 'overlay', name: 'overlay' }
-];
+// Will be populated with all layers from the style after map load
+let allStyleLayers = [];
+
+// Will hold the style default visibility for each layer
+const styleDefaultVisibility = {};
 
 // Default camera
 const defaultCamera = {
@@ -55,10 +54,24 @@ const defaultCamera = {
 // Parse hash: #lat,lng,zoom,bearing,pitch|layer1,layer2
 function parseHash() {
   const hash = window.location.hash.replace('#', '');
-  if (!hash) return { camera: { ...defaultCamera }, layers: toggleLayers.map(l => l.id) };
+  if (!hash) return { camera: { ...defaultCamera }, layers: allStyleLayers.map(l => l.id) };
   const [cameraStr, layersStr] = hash.split('|');
   const cameraParts = cameraStr ? cameraStr.split(',').map(Number) : [];
-  const layers = layersStr ? layersStr.split(',') : toggleLayers.map(l => l.id);
+  // Parse layers: +layername means on, -layername means off
+  let layersOn = allStyleLayers.map(l => l.id);
+  if (layersStr) {
+    // Start with all off, then apply toggles in order
+    layersOn = [];
+    layersStr.split(',').forEach(token => {
+      if (token.startsWith('+')) {
+        const lname = token.slice(1);
+        if (!layersOn.includes(lname)) layersOn.push(lname);
+      } else if (token.startsWith('-')) {
+        const lname = token.slice(1);
+        layersOn = layersOn.filter(l => l !== lname);
+      }
+    });
+  }
   return {
     camera: {
       center: [cameraParts[1] || defaultCamera.center[0], cameraParts[0] || defaultCamera.center[1]],
@@ -66,7 +79,7 @@ function parseHash() {
       bearing: cameraParts[3] || defaultCamera.bearing,
       pitch: cameraParts[4] || defaultCamera.pitch
     },
-    layers
+    layers: layersOn
   };
 }
 
@@ -76,8 +89,15 @@ function updateHash(map, visibleLayers) {
   const z = map.getZoom().toFixed(2);
   const b = map.getBearing().toFixed(1);
   const p = map.getPitch().toFixed(1);
-  const hash = `${c.lat.toFixed(5)},${c.lng.toFixed(5)},${z},${b},${p}|${visibleLayers.join(',')}`;
-  window.location.hash = hash;
+  // Preserve existing layer part of hash if present
+  const hash = window.location.hash.replace('#', '');
+  const [, layersStr] = hash.split('|');
+  const cameraStr = `${c.lat.toFixed(5)},${c.lng.toFixed(5)},${z},${b},${p}`;
+  if (layersStr !== undefined) {
+    window.location.hash = `${cameraStr}|${layersStr}`;
+  } else {
+    window.location.hash = `${cameraStr}`;
+  }
 }
 
 // Create layer controls
@@ -85,11 +105,16 @@ function createLayerControls(map, visibleLayers) {
   const container = document.getElementById('layer-controls');
   container.innerHTML = '<strong>Layers</strong><br>';
   let foundLayer = false;
-  toggleLayers.forEach(layer => {
+  // Always reflect the current style visibility for checkboxes
+  allStyleLayers.forEach(layer => {
     if (map.getLayer(layer.id)) {
       foundLayer = true;
-      const checked = visibleLayers.includes(layer.id) ? 'checked' : '';
-      container.innerHTML += `<label><input type="checkbox" data-layer="${layer.id}" ${checked}> ${layer.name}</label><br>`;
+      const vis = map.getLayoutProperty(layer.id, 'visibility');
+      // Mapbox default is visible if undefined
+      const checked = (vis === 'visible' || vis === undefined) ? 'checked' : '';
+  // Use layer.name if present, otherwise fallback to layer.id
+  const label = layer.name || layer.id;
+  container.innerHTML += `<label><input type="checkbox" data-layer="${layer.id}" ${checked}> ${label}</label><br>`;
     }
   });
   if (!foundLayer) {
@@ -104,9 +129,24 @@ function createLayerControls(map, visibleLayers) {
         } else {
           map.setLayoutProperty(layerId, 'visibility', 'none');
         }
-        // Update hash
-        const newVisibleLayers = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.getAttribute('data-layer'));
-        updateHash(map, newVisibleLayers);
+        // Update hash: only update the layer part, preserve camera
+        const hash = window.location.hash.replace('#', '');
+        const [cameraStr] = hash.split('|');
+        // Only mention layers whose current visibility differs from style default
+  const layerTokens = allStyleLayers.map(l => {
+          const vis = map.getLayer(l.id) ? map.getLayoutProperty(l.id, 'visibility') : undefined;
+          const defaultVis = styleDefaultVisibility[l.id] || 'visible';
+          if (vis !== defaultVis) {
+            if (vis === 'visible') return `+${l.id}`;
+            if (vis === 'none') return `-${l.id}`;
+          }
+          return null;
+        }).filter(Boolean);
+        if (layerTokens.length > 0) {
+          window.location.hash = `${cameraStr}|${layerTokens.join(',')}`;
+        } else {
+          window.location.hash = `${cameraStr}`;
+        }
       } else {
         console.warn(`Layer '${layerId}' not found in style.`);
       }
@@ -126,40 +166,54 @@ const map = new mapboxgl.Map({
 });
 
 map.on('load', () => {
-  // Set initial layer visibility with existence check
-  toggleLayers.forEach(layer => {
+  // Get all layers from the style
+  allStyleLayers = map.getStyle().layers.map(l => ({ id: l.id }));
+  // Store the style default visibility for each layer
+  allStyleLayers.forEach(layer => {
     if (map.getLayer(layer.id)) {
-      map.setLayoutProperty(layer.id, 'visibility', layers.includes(layer.id) ? 'visible' : 'none');
-    } else {
-      console.warn(`Layer '${layer.id}' not found in style.`);
+      const styleLayer = map.getStyle().layers.find(l => l.id === layer.id);
+      let vis = 'visible';
+      if (styleLayer && styleLayer.layout && typeof styleLayer.layout.visibility !== 'undefined') {
+        vis = styleLayer.layout.visibility;
+      }
+      styleDefaultVisibility[layer.id] = vis;
     }
   });
-  createLayerControls(map, layers);
+  // Only update the toggle list to reflect the current style visibility (do not use hash for initial state)
+  createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
 });
 
 // Update hash on camera move
 map.on('moveend', () => {
-  const visibleLayers = toggleLayers.filter(l => {
-    if (map.getLayer(l.id)) {
-      return map.getLayoutProperty(l.id, 'visibility') === 'visible';
-    }
-    return false;
-  }).map(l => l.id);
-  updateHash(map, visibleLayers);
+  // Only update camera part of hash, preserve layer toggles
+  updateHash(map, []);
 });
 
 // Listen for hash changes (external navigation)
 window.addEventListener('hashchange', () => {
-  const { camera, layers } = parseHash();
-  map.flyTo({ center: camera.center, zoom: camera.zoom, bearing: camera.bearing, pitch: camera.pitch });
-  toggleLayers.forEach(layer => {
-    if (map.getLayer(layer.id)) {
-      map.setLayoutProperty(layer.id, 'visibility', layers.includes(layer.id) ? 'visible' : 'none');
-    } else {
-      console.warn(`Layer '${layer.id}' not found in style.`);
-    }
+  const hash = window.location.hash.replace('#', '');
+  const [cameraStr, layersStr] = hash.split('|');
+  const cameraParts = cameraStr ? cameraStr.split(',').map(Number) : [];
+  map.flyTo({
+    center: [cameraParts[1] || defaultCamera.center[0], cameraParts[0] || defaultCamera.center[1]],
+    zoom: cameraParts[2] || defaultCamera.zoom,
+    bearing: cameraParts[3] || defaultCamera.bearing,
+    pitch: cameraParts[4] || defaultCamera.pitch
   });
-  createLayerControls(map, layers);
+  // Only set visibility for layers explicitly mentioned in the hash
+  if (layersStr) {
+    layersStr.split(',').forEach(token => {
+      if (token.startsWith('+')) {
+        const lname = token.slice(1);
+        if (map.getLayer(lname)) map.setLayoutProperty(lname, 'visibility', 'visible');
+      } else if (token.startsWith('-')) {
+        const lname = token.slice(1);
+        if (map.getLayer(lname)) map.setLayoutProperty(lname, 'visibility', 'none');
+      }
+    });
+  }
+  // Always reflect the current style visibility in the toggle list
+  createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
 });
 </script>
 </body>
