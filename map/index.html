@@ -25,6 +25,9 @@
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
   <!-- Removed any Python-in-the-browser scripts (e.g., Pyodide, Brython) to prevent py.parse errors -->
+  <!-- Add JSZip and togeojson for KMZ/KML support -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://unpkg.com/togeojson@0.16.0/dist/togeojson.js"></script>
 </head>
 <body>
 <div id="map"></div>
@@ -58,11 +61,25 @@ const defaultCamera = {
   pitch: 0
 };
 
-// Parse hash: #lat,lng,zoom,bearing,pitch|layer1,layer2
+// Parse hash: #lat,lng,zoom,bearing,pitch/+layer1,-layer2/load:filename.geojson/to:layer-id
 function parseHash() {
   const hash = window.location.hash.replace('#', '');
-  if (!hash) return { camera: { ...defaultCamera }, layers: allStyleLayers.map(l => l.id) };
-  const [cameraStr, layersStr] = hash.split('/');
+  if (!hash) return { camera: { ...defaultCamera }, layers: allStyleLayers.map(l => l.id), loadFile: null, toLayer: null };
+  // Allow load: anywhere, even as the only part of the hash
+  let cameraStr = '', layersStr = '', loadFile = null;
+  const parts = hash.split('/');
+  // Find load: anywhere, remove it from parts
+  const restParts = [];
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i].startsWith('load:')) {
+      loadFile = parts[i].slice(5).trim();
+    } else if (parts[i].length > 0) {
+      restParts.push(parts[i]);
+    }
+  }
+  // If there are no restParts, still return valid defaults
+  cameraStr = restParts[0] || '';
+  layersStr = restParts[1] || '';
   const cameraParts = cameraStr ? cameraStr.split(',').map(Number) : [];
   // Parse layers: +layername means on, -layername means off
   let layersOn = allStyleLayers.map(l => l.id);
@@ -77,8 +94,6 @@ function parseHash() {
       const [, sign, lname] = match;
       layerState[lname] = sign;
     });
-    // Start with all off, then apply toggles in order (last toggle for each layer wins)
-    layersOn = [];
     Object.entries(layerState).forEach(([lname, sign]) => {
       if (sign === '+') {
         layersOn.push(lname);
@@ -93,8 +108,69 @@ function parseHash() {
       bearing: cameraParts[3] || defaultCamera.bearing,
       pitch: cameraParts[4] || defaultCamera.pitch
     },
-    layers: layersOn
+    layers: layersOn,
+    loadFile
   };
+}
+
+// Helper: load and add GeoJSON as top layer or replace source of a layer
+async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
+  try {
+    const response = await fetch(geojsonFile);
+    if (!response.ok) throw new Error('Failed to fetch GeoJSON');
+    const geojson = await response.json();
+    // Use the filename (without path) as the id for source and layer
+    const fileId = geojsonFile.split('/').pop().replace(/[^a-zA-Z0-9_-]/g, '_');
+    const sourceId = fileId;
+    const layerId = fileId;
+    if (map.getLayer(layerId)) map.removeLayer(layerId);
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+    map.addSource(sourceId, { type: 'geojson', data: geojson });
+    // Determine geometry type for default style
+    let type = 'line';
+    if (geojson.features && geojson.features.length) {
+      const geomType = geojson.features[0].geometry && geojson.features[0].geometry.type;
+      if (geomType === 'Polygon' || geomType === 'MultiPolygon') type = 'fill';
+      else if (geomType === 'Point' || geomType === 'MultiPoint') type = 'circle';
+    }
+    const layerDef = {
+      id: layerId,
+      type,
+      source: sourceId,
+      layout: { visibility: 'visible' },
+      paint: type === 'line' ? { 'line-color': '#f00', 'line-width': 3 } :
+             type === 'fill' ? { 'fill-color': '#f00', 'fill-opacity': 0.5 } :
+             { 'circle-radius': 6, 'circle-color': '#f00' }
+    };
+    map.addLayer(layerDef);
+    // Add to allStyleLayers if not present
+    if (!allStyleLayers.some(l => l.id === layerId)) {
+      allStyleLayers.push({ id: layerId });
+      styleDefaultVisibility[layerId] = 'visible';
+    }
+    // Always update layer controls to include the new layer, even if it's the only one
+    createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
+    // Optionally fit bounds
+    if (geojson.features && geojson.features.length) {
+      const coords = geojson.features.flatMap(f => {
+        if (!f.geometry) return [];
+        if (f.geometry.type === 'LineString') return f.geometry.coordinates;
+        if (f.geometry.type === 'Polygon') return f.geometry.coordinates.flat();
+        if (f.geometry.type === 'MultiPolygon') return f.geometry.coordinates.flat(2);
+        if (f.geometry.type === 'Point') return [f.geometry.coordinates];
+        if (f.geometry.type === 'MultiPoint') return f.geometry.coordinates;
+        return [];
+      });
+      if (coords.length) {
+        const bounds = coords.reduce((b, c) => b.extend(c), new mapboxgl.LngLatBounds(coords[0], coords[0]));
+        map.fitBounds(bounds, { padding: 40, maxZoom: 16 });
+      }
+    }
+    console.log('Loaded GeoJSON and added as default red layer:', geojsonFile);
+  } catch (err) {
+    alert('Error loading GeoJSON: ' + err.message);
+    console.error(err);
+  }
 }
 
 // Update hash from map state
@@ -132,7 +208,14 @@ function createLayerControls(map, visibleLayers) {
       explicitState[lname] = sign;
     });
   }
-  allStyleLayers.forEach(layer => {
+  // Include all style layers and any geojson-above-* layers
+  const allLayers = [
+    ...allStyleLayers,
+    ...map.getStyle().layers
+      .filter(l => l.id.startsWith('geojson-above-') && !allStyleLayers.some(s => s.id === l.id))
+      .map(l => ({ id: l.id }))
+  ];
+  allLayers.forEach(layer => {
     if (map.getLayer(layer.id)) {
       foundLayer = true;
       const vis = map.getLayoutProperty(layer.id, 'visibility');
@@ -262,6 +345,11 @@ map.on('load', () => {
   });
   // Only update the toggle list to reflect the current style visibility (do not use hash for initial state)
   createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
+  // Load GeoJSON if loadFile is present in the hash (as load:filename)
+  const { loadFile } = parseHash();
+  if (loadFile) {
+    loadAndAddOrReplaceGeoJSON(loadFile + '.geojson');
+  }
 });
 
 // Update hash on camera move
@@ -272,9 +360,8 @@ map.on('moveend', () => {
 
 // Listen for hash changes (external navigation)
 window.addEventListener('hashchange', () => {
-  const hash = window.location.hash.replace('#', '');
-  const [cameraStr, layersStr] = hash.split('/');
-  const cameraParts = cameraStr ? cameraStr.split(',').map(Number) : [];
+  // Use parseHash to get camera, layers, and loadFile
+  const { camera, layers, loadFile } = parseHash();
   // If allStyleLayers is empty (e.g. on direct hash change before map load), repopulate it
   if (!allStyleLayers.length) {
     allStyleLayers = map.getStyle().layers.map(l => ({ id: l.id, name: l.name }));
@@ -291,23 +378,19 @@ window.addEventListener('hashchange', () => {
   }
   // Animate camera, then apply layer changes halfway through
   const flyOpts = {
-    center: [cameraParts[1] || defaultCamera.center[0], cameraParts[0] || defaultCamera.center[1]],
-    zoom: cameraParts[2] || defaultCamera.zoom,
-    bearing: cameraParts[3] || defaultCamera.bearing,
-    pitch: cameraParts[4] || defaultCamera.pitch,
+    center: [camera.center[0], camera.center[1]],
+    zoom: camera.zoom,
+    bearing: camera.bearing,
+    pitch: camera.pitch,
     duration: 1200 // ms, can adjust as needed
   };
   map.flyTo(flyOpts);
   setTimeout(() => {
     // Set visibility for layers explicitly mentioned in the hash, and restore style default for others
-    // Parse tokens, last toggle for each layer wins
     const layerState = {};
-    if (layersStr) {
-      layersStr.split(',').forEach(token => {
-        const match = token.match(/^([+-])(.+)$/);
-        if (!match) return;
-        const [, sign, lname] = match;
-        layerState[lname] = sign;
+    if (layers) {
+      layers.forEach(id => {
+        layerState[id] = '+';
       });
     }
     allStyleLayers.forEach(layer => {
@@ -318,16 +401,19 @@ window.addEventListener('hashchange', () => {
       } else if (state === '-') {
         if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
       } else {
-        // Not mentioned in hash, restore style default
         if (map.getLayer(id)) {
           const defaultVis = styleDefaultVisibility[id] || 'visible';
           map.setLayoutProperty(id, 'visibility', defaultVis);
         }
       }
     });
-    // Always reflect the current style visibility in the toggle list
     createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
-  }, flyOpts.duration / 2);
+    // Load GeoJSON if loadFile is present in the hash (as load:filename)
+    if (loadFile) {
+      loadAndAddOrReplaceGeoJSON(loadFile + '.geojson');
+    }
+  // Do not reload the hardcoded GeoJSON file on hashchange to avoid infinite loop
+  }, 600); // Halfway through the flyTo duration
 });
 </script>
 </body>
