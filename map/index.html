@@ -64,15 +64,17 @@ const defaultCamera = {
 // Parse hash: #lat,lng,zoom,bearing,pitch/+layer1,-layer2/load:filename.geojson/to:layer-id
 function parseHash() {
   const hash = window.location.hash.replace('#', '');
-  if (!hash) return { camera: { ...defaultCamera }, layers: allStyleLayers.map(l => l.id), loadFile: null, toLayer: null };
-  // Allow load: anywhere, even as the only part of the hash
-  let cameraStr = '', layersStr = '', loadFile = null;
+  if (!hash) return { camera: { ...defaultCamera }, layers: allStyleLayers.map(l => l.id), loadFile: null, toLayer: null, follow: [] };
+  // Allow load: and follow: anywhere, even as the only part of the hash
+  let cameraStr = '', layersStr = '', loadFile = null, followArr = [];
   const parts = hash.split('/');
-  // Find load: anywhere, remove it from parts
+  // Find load: and follow: anywhere, remove them from parts
   const restParts = [];
   for (let i = 0; i < parts.length; i++) {
     if (parts[i].startsWith('load:')) {
       loadFile = parts[i].slice(5).trim();
+    } else if (parts[i].startsWith('follow:')) {
+      followArr = parts[i].slice(7).split(',').map(s => s.trim()).filter(Boolean);
     } else if (parts[i].length > 0) {
       restParts.push(parts[i]);
     }
@@ -93,10 +95,10 @@ function parseHash() {
       const match = token.match(/^([+~])(.+)$/);
       if (!match) return;
       const [, sign, lname] = match;
-      layerState[lname] = sign;
+      layerState[lname] = { sign };
     });
-    Object.entries(layerState).forEach(([lname, sign]) => {
-      if (sign === '+') {
+    Object.entries(layerState).forEach(([lname, obj]) => {
+      if (obj.sign === '+') {
         // If this is not a style layer, mark for geojson loading
         if (!allStyleLayers.some(l => l.id === lname)) {
           dynamicGeojsonToLoad.push(lname);
@@ -114,12 +116,13 @@ function parseHash() {
       pitch: cameraParts[4] || defaultCamera.pitch
     },
     layers: layersOn,
-    dynamicGeojsonToLoad
+    dynamicGeojsonToLoad,
+    follow: followArr
   };
 }
 
 // Helper: load and add GeoJSON as top layer or replace source of a layer
-async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
+async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer, followPath) {
   try {
     const response = await fetch(geojsonFile);
     if (!response.ok) throw new Error('Failed to fetch GeoJSON');
@@ -160,22 +163,19 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
     }
     // Always update layer controls to include the new layer, even if it's the only one
     createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
-    // Optionally fit bounds
-    if (geojson.features && geojson.features.length) {
-      const coords = geojson.features.flatMap(f => {
-        if (!f.geometry) return [];
-        if (f.geometry.type === 'LineString') return f.geometry.coordinates;
-        if (f.geometry.type === 'Polygon') return f.geometry.coordinates.flat();
-        if (f.geometry.type === 'MultiPolygon') return f.geometry.coordinates.flat(2);
-        if (f.geometry.type === 'Point') return [f.geometry.coordinates];
-        if (f.geometry.type === 'MultiPoint') return f.geometry.coordinates;
-        return [];
+    // If followPath is true, animate the camera along the path
+    if (followPath && geojson.features && geojson.features.length) {
+      let coords = [];
+      geojson.features.forEach(f => {
+        if (!f.geometry) return;
+        if (f.geometry.type === 'LineString') coords = coords.concat(f.geometry.coordinates);
+        if (f.geometry.type === 'Polygon') coords = coords.concat(f.geometry.coordinates[0]);
+        if (f.geometry.type === 'MultiLineString') coords = coords.concat(...f.geometry.coordinates);
+        if (f.geometry.type === 'MultiPolygon') coords = coords.concat(...f.geometry.coordinates.map(ring => ring[0]));
       });
-      if (coords.length) {
-        const bounds = coords.reduce((b, c) => b.extend(c), new mapboxgl.LngLatBounds(coords[0], coords[0]));
-        map.fitBounds(bounds, { padding: 40, maxZoom: 16 });
-      }
+      if (coords.length > 1) followPathWithFreeCamera(map, coords);
     }
+    // Do not move the camera when loading a GeoJSON unless :follow is used
     console.log('Loaded GeoJSON and added as default red layer:', geojsonFile);
   } catch (err) {
     alert('Error loading GeoJSON: ' + err.message);
@@ -247,12 +247,16 @@ function createLayerControls(map, visibleLayers) {
         state = 'default';
         showReset = false;
       }
-  let label = layer.name || layer.id;
-      container.innerHTML += `<label style="${bold ? 'font-weight:bold;' : ''}"><input type="checkbox" data-layer="${layer.id}" ${checked}> ${label}</label>`;
-      if (explicitState[layer.id]) {
+      let label = layer.name || layer.id;
+      // Wrap the checkbox, label, and button in a span for easy removal
+      container.innerHTML += `<span class="layer-list-item" data-layer-item="${layer.id}"><label style="${bold ? 'font-weight:bold;' : ''}"><input type="checkbox" data-layer="${layer.id}" ${checked}> ${label}</label>`;
+      // For dynamic layers, show delete 'X' button instead of reset
+      if (explicitState[layer.id] && !map.getStyle().layers.some(l => l.id === layer.id)) {
+        container.innerHTML += ` <button data-delete="${layer.id}" title="Delete layer" style="font-size:1.1em;line-height:1;color:#c00;font-weight:bold;vertical-align:middle;padding:0 0.2em;">x</button>`;
+      } else if (explicitState[layer.id]) {
         container.innerHTML += ` <button data-reset="${layer.id}" title="Reset to style default" style="font-size:1.1em;line-height:1;vertical-align:middle;padding:0 0.2em;">↻</button>`;
       }
-      container.innerHTML += '<br>';
+      container.innerHTML += '</span><br>';
     }
   });
   if (!foundLayer) {
@@ -295,7 +299,7 @@ function createLayerControls(map, visibleLayers) {
     });
   });
 
-  // Add reset button listeners
+  // Add reset button listeners for style layers
   container.querySelectorAll('button[data-reset]').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.preventDefault();
@@ -314,20 +318,47 @@ function createLayerControls(map, visibleLayers) {
       }
       // Remove explicit toggle for this layer
       delete explicitState[layerId];
-      // If style layer: restore style default. If dynamic: remove from map and state.
-      if (map.getStyle().layers.some(l => l.id === layerId)) {
-        // Style layer: restore style default
-        const defaultVis = styleDefaultVisibility[layerId] || 'visible';
-        map.setLayoutProperty(layerId, 'visibility', defaultVis);
-      } else {
-        // Dynamic layer: remove from map and state
-        if (map.getLayer(layerId)) map.removeLayer(layerId);
-        if (map.getSource(layerId)) map.removeSource(layerId);
-        const idx = allStyleLayers.findIndex(l => l.id === layerId);
-        if (idx !== -1) allStyleLayers.splice(idx, 1);
-        delete styleDefaultVisibility[layerId];
-      }
+      // Style layer: restore style default
+      const defaultVis = styleDefaultVisibility[layerId] || 'visible';
+      map.setLayoutProperty(layerId, 'visibility', defaultVis);
       // Build new hash
+      const tokens = Object.entries(explicitState).map(([lname, sign]) => `${sign}${lname}`);
+      if (tokens.length > 0) {
+        window.location.replace(`#${cameraStr}/${tokens.join(',')}`);
+      } else {
+        window.location.replace(`#${cameraStr}`);
+      }
+    });
+  });
+
+  // Add delete button listeners for dynamic layers
+  container.querySelectorAll('button[data-delete]').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      const layerId = this.getAttribute('data-delete');
+      // Parse current hash for explicit toggles
+      const hash = window.location.hash.replace('#', '');
+      const [cameraStr, layersStr] = hash.split('/');
+      const explicitState = {};
+      if (layersStr) {
+        layersStr.split(',').forEach(token => {
+          const match = token.match(/^([+~])(.+)$/);
+          if (!match) return;
+          const [, sign, lname] = match;
+          explicitState[lname] = sign;
+        });
+      }
+      // Remove explicit toggle for this layer
+      delete explicitState[layerId];
+      // Remove from map and state
+      if (map.getLayer(layerId)) map.removeLayer(layerId);
+      if (map.getSource(layerId)) map.removeSource(layerId);
+      const idx = allStyleLayers.findIndex(l => l.id === layerId);
+      if (idx !== -1) allStyleLayers.splice(idx, 1);
+      delete styleDefaultVisibility[layerId];
+      // Refresh the UI after deletion to ensure the list is in sync
+      createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
+      // Remove from hash and update URL
       const tokens = Object.entries(explicitState).map(([lname, sign]) => `${sign}${lname}`);
       if (tokens.length > 0) {
         window.location.replace(`#${cameraStr}/${tokens.join(',')}`);
@@ -381,7 +412,60 @@ map.on('moveend', () => {
 });
 
 // Listen for hash changes (external navigation)
+// Animate camera along a path using FreeCamera API
+// FreeCamera animation state
+let freeCameraAnimation = {
+  running: false,
+  stop: false,
+  timeoutId: null,
+};
+
+function followPathWithFreeCamera(map, coords, followId) {
+  freeCameraAnimation.running = true;
+  freeCameraAnimation.stop = false;
+  let i = 0;
+  function animate() {
+    if (freeCameraAnimation.stop) {
+      freeCameraAnimation.running = false;
+      freeCameraAnimation.stop = false;
+      return;
+    }
+    if (i >= coords.length) {
+      freeCameraAnimation.running = false;
+      // Remove /follow:... from hash when animation ends
+      const hash = window.location.hash.replace('#', '');
+      const parts = hash.split('/');
+      const newParts = parts.filter(p => !p.startsWith('follow:'));
+      window.location.replace('#' + newParts.join('/'));
+      return;
+    }
+    const lngLat = coords[i];
+    // Set camera position
+    const camera = map.getFreeCameraOptions();
+    camera.position = mapboxgl.MercatorCoordinate.fromLngLat({lng: lngLat[0], lat: lngLat[1]}, 5000);
+    map.setFreeCameraOptions(camera);
+    i++;
+    if (i < coords.length) {
+      freeCameraAnimation.timeoutId = setTimeout(animate, 50);
+    } else {
+      freeCameraAnimation.running = false;
+      // Remove /follow:... from hash when animation ends
+      const hash = window.location.hash.replace('#', '');
+      const parts = hash.split('/');
+      const newParts = parts.filter(p => !p.startsWith('follow:'));
+      window.location.replace('#' + newParts.join('/'));
+    }
+  }
+  animate();
+}
+
 window.addEventListener('hashchange', () => {
+  // If a FreeCamera animation is running and /follow: is no longer in the hash, stop the animation
+  const hash = window.location.hash.replace('#', '');
+  if (freeCameraAnimation.running && !hash.split('/').some(p => p.startsWith('follow:'))) {
+    freeCameraAnimation.stop = true;
+    if (freeCameraAnimation.timeoutId) clearTimeout(freeCameraAnimation.timeoutId);
+  }
   // Use parseHash to get camera, layers, and loadFile
   // Track previous hash state to avoid repeated transitions and insertions
   if (!window._lastHashState) window._lastHashState = '';
@@ -389,7 +473,7 @@ window.addEventListener('hashchange', () => {
   if (window._lastHashState === currentHash) return;
   window._lastHashState = currentHash;
 
-  const { camera, layers, dynamicGeojsonToLoad } = parseHash();
+  const { camera, layers, dynamicGeojsonToLoad, follow } = parseHash();
   // If allStyleLayers is empty (e.g. on direct hash change before map load), repopulate it
   if (!allStyleLayers.length) {
     allStyleLayers = map.getStyle().layers.map(l => ({ id: l.id, name: l.name }));
@@ -428,12 +512,12 @@ window.addEventListener('hashchange', () => {
     });
   }
 
-  // Remove dynamic layers not in the hash IMMEDIATELY, before any UI or visibility update
+  // Remove dynamic layers not present as +id in the hash (i.e., not explicitState[id] === '+')
   let removedIds = [];
   allStyleLayers.slice().forEach(layer => {
     const id = layer.id;
-    // If this is a dynamic layer (not in style) and not in the hash, remove it
-    if (!map.getStyle().layers.some(l => l.id === id) && !explicitState[id]) {
+    // If this is a dynamic layer (not in style) and not present as +id in the hash, remove it
+    if (!map.getStyle().layers.some(l => l.id === id) && explicitState[id] !== '+') {
       if (map.getLayer(id)) map.removeLayer(id);
       if (map.getSource(id)) map.removeSource(id);
       removedIds.push(id);
@@ -465,8 +549,29 @@ window.addEventListener('hashchange', () => {
       if (!allStyleLayers.some(l => l.id === name)) {
         allStyleLayers.push({ id: name, name });
         styleDefaultVisibility[name] = 'visible';
+        loadAndAddOrReplaceGeoJSON(name + '.geojson');
       }
-      loadAndAddOrReplaceGeoJSON(name + '.geojson');
+    });
+  }
+  // Animate camera along any /follow:id layers if present
+  if (follow && follow.length) {
+    follow.forEach(name => {
+      // Try to get the source data and animate if possible
+      const source = map.getSource(name);
+      if (source && source._data && source._data.features) {
+        let coords = [];
+        source._data.features.forEach(f => {
+          if (!f.geometry) return;
+          if (f.geometry.type === 'LineString') coords = coords.concat(f.geometry.coordinates);
+          if (f.geometry.type === 'Polygon') coords = coords.concat(f.geometry.coordinates[0]);
+          if (f.geometry.type === 'MultiLineString') coords = coords.concat(...f.geometry.coordinates);
+          if (f.geometry.type === 'MultiPolygon') coords = coords.concat(...f.geometry.coordinates.map(ring => ring[0]));
+        });
+        if (coords.length > 1) followPathWithFreeCamera(map, coords, name);
+      } else {
+        // If not available, reload and animate
+        loadAndAddOrReplaceGeoJSON(name + '.geojson', undefined, true);
+      }
     });
   }
   createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
