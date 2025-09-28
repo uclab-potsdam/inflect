@@ -387,28 +387,84 @@ let isFreeCameraAnimating = false;
 let pendingHashUpdate = null;
 function followPathWithFreeCamera(map, coords, onComplete, layerId) {
   isFreeCameraAnimating = true;
-  let i = 1;
-  // Store the original data so we can restore it after animation
+  // Calculate total distance for constant speed
+  function getDistance(a, b) {
+    const R = 6371000;
+    const toRad = Math.PI / 180;
+    const dLat = (b[1] - a[1]) * toRad;
+    const dLng = (b[0] - a[0]) * toRad;
+    const lat1 = a[1] * toRad;
+    const lat2 = b[1] * toRad;
+    const aVal = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1-aVal));
+    return R * c;
+  }
+  let totalDist = 0;
+  for (let j = 1; j < coords.length; j++) totalDist += getDistance(coords[j-1], coords[j]);
+  const duration = Math.max(2000, totalDist * 2); // ms, 2ms per meter, min 2s
+  let startTime = null;
   let originalData = null;
   if (layerId) {
     const src = map.getSource(layerId);
     if (src && src._data) originalData = JSON.parse(JSON.stringify(src._data));
   }
-  function animate() {
-    if (i > coords.length) {
-      // Restore the full line after animation
-      if (layerId && originalData) {
-        const src = map.getSource(layerId);
-        if (src) src.setData(originalData);
+  function getBearing(from, to) {
+    // Calculate bearing in radians from point 'from' to point 'to'
+    const rad = Math.PI / 180;
+    const lat1 = from[1] * rad;
+    const lat2 = to[1] * rad;
+    const dLon = (to[0] - from[0]) * rad;
+    const y = Math.sin(dLon) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+    let brng = Math.atan2(y, x);
+    return brng;
+  }
+
+  function interpolateLine(coords, t) {
+    // t in [0,1], returns the point at t along the line
+    let dist = 0, segStart = coords[0], segEnd = coords[1], segIdx = 1;
+    let total = 0;
+    for (let j = 1; j < coords.length; j++) total += getDistance(coords[j-1], coords[j]);
+    let target = t * total;
+    for (let j = 1; j < coords.length; j++) {
+      let segLen = getDistance(coords[j-1], coords[j]);
+      if (dist + segLen >= target) {
+        segStart = coords[j-1];
+        segEnd = coords[j];
+        segIdx = j;
+        break;
       }
-      isFreeCameraAnimating = false;
-      if (typeof onComplete === 'function') onComplete();
-      return;
+      dist += segLen;
     }
-    // Animate the line up to the current point
+    let segT = (target - dist) / getDistance(segStart, segEnd);
+    return [
+      segStart[0] + (segEnd[0] - segStart[0]) * segT,
+      segStart[1] + (segEnd[1] - segStart[1]) * segT
+    ];
+  }
+
+  function animate(ts) {
+    if (!startTime) startTime = ts;
+    let elapsed = ts - startTime;
+    let t = Math.min(1, elapsed / duration);
+    // Draw partial line up to tip
+    let tip = interpolateLine(coords, t);
     if (layerId) {
       const src = map.getSource(layerId);
       if (src) {
+        // Find the last full point before tip
+        let dist = 0, lastIdx = 0, total = 0;
+        for (let j = 1; j < coords.length; j++) total += getDistance(coords[j-1], coords[j]);
+        let target = t * total;
+        for (let j = 1; j < coords.length; j++) {
+          let segLen = getDistance(coords[j-1], coords[j]);
+          if (dist + segLen >= target) {
+            lastIdx = j-1;
+            break;
+          }
+          dist += segLen;
+        }
+        const partialCoords = coords.slice(0, lastIdx+1).concat([tip]);
         const partialLine = {
           type: 'FeatureCollection',
           features: [
@@ -416,7 +472,7 @@ function followPathWithFreeCamera(map, coords, onComplete, layerId) {
               type: 'Feature',
               geometry: {
                 type: 'LineString',
-                coordinates: coords.slice(0, i)
+                coordinates: partialCoords
               },
               properties: {}
             }
@@ -425,18 +481,19 @@ function followPathWithFreeCamera(map, coords, onComplete, layerId) {
         src.setData(partialLine);
       }
     }
-    // Camera position and look direction
-    const from = coords[i - 1];
-    const to = coords[Math.min(i, coords.length - 1)];
+    // Camera position moves from start to end at constant speed
+    const start = coords[0];
+    const end = coords[coords.length - 1];
+    const camLng = start[0] + (end[0] - start[0]) * t;
+    const camLat = start[1] + (end[1] - start[1]) * t;
+    const camAlt = 6000;
     const camera = map.getFreeCameraOptions();
-    camera.position = mapboxgl.MercatorCoordinate.fromLngLat({lng: from[0], lat: from[1]}, 5000);
-    camera.lookAtPoint = { lng: to[0], lat: to[1], altitude: 0 };
+    camera.position = mapboxgl.MercatorCoordinate.fromLngLat({lng: camLng, lat: camLat}, camAlt);
+    camera.lookAtPoint = { lng: tip[0], lat: tip[1], altitude: 0 };
     map.setFreeCameraOptions(camera);
-    i++;
-    if (i <= coords.length) {
-      setTimeout(animate, 50);
+    if (t < 1) {
+      requestAnimationFrame(animate);
     } else {
-      // Restore the full line after animation
       if (layerId && originalData) {
         const src = map.getSource(layerId);
         if (src) src.setData(originalData);
@@ -445,7 +502,8 @@ function followPathWithFreeCamera(map, coords, onComplete, layerId) {
       if (typeof onComplete === 'function') onComplete();
     }
   }
-  animate();
+  requestAnimationFrame(animate);
+  // (no animate() call here, requestAnimationFrame is used)
 }
 
 window.addEventListener('hashchange', () => {
