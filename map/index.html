@@ -81,24 +81,29 @@ function parseHash() {
   cameraStr = restParts[0] || '';
   layersStr = restParts[1] || '';
   const cameraParts = cameraStr ? cameraStr.split(',').map(Number) : [];
-  // Parse layers: +layername means on, -layername means off
+  // Parse layers: +layername means on, ~layername means off
   let layersOn = allStyleLayers.map(l => l.id);
+  let dynamicGeojsonToLoad = [];
   if (layersStr) {
     // Start with all off, then apply toggles in order
     layersOn = [];
     // Process tokens in order, last toggle for each layer wins
     const layerState = {};
     layersStr.split(',').forEach(token => {
-      const match = token.match(/^([+-])(.+)$/);
+      const match = token.match(/^([+~])(.+)$/);
       if (!match) return;
       const [, sign, lname] = match;
       layerState[lname] = sign;
     });
     Object.entries(layerState).forEach(([lname, sign]) => {
       if (sign === '+') {
+        // If this is not a style layer, mark for geojson loading
+        if (!allStyleLayers.some(l => l.id === lname)) {
+          dynamicGeojsonToLoad.push(lname);
+        }
         layersOn.push(lname);
       }
-      // '-' means keep it off (do not add)
+      // '~' means keep it off (do not add)
     });
   }
   return {
@@ -109,7 +114,7 @@ function parseHash() {
       pitch: cameraParts[4] || defaultCamera.pitch
     },
     layers: layersOn,
-    loadFile
+    dynamicGeojsonToLoad
   };
 }
 
@@ -119,10 +124,14 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
     const response = await fetch(geojsonFile);
     if (!response.ok) throw new Error('Failed to fetch GeoJSON');
     const geojson = await response.json();
-    // Use the filename (without path) as the id for source and layer
-    const fileId = geojsonFile.split('/').pop().replace(/[^a-zA-Z0-9_-]/g, '_');
-    const sourceId = fileId;
-    const layerId = fileId;
+  // Use the filename (without path and without .geojson) as the id for source and layer
+    // Always use the string from the hash (without .geojson or _geojson) as id and name
+    let fileId = geojsonFile.split('/').pop();
+    let cleanId = fileId.replace(/(_geojson|\.geojson)$/i, '');
+    cleanId = cleanId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const sourceId = cleanId;
+    const layerId = cleanId;
+    const originalName = cleanId;
     if (map.getLayer(layerId)) map.removeLayer(layerId);
     if (map.getSource(sourceId)) map.removeSource(sourceId);
     map.addSource(sourceId, { type: 'geojson', data: geojson });
@@ -144,8 +153,9 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
     };
     map.addLayer(layerDef);
     // Add to allStyleLayers if not present
+    // Always add to allStyleLayers if not present, so it appears in the list
     if (!allStyleLayers.some(l => l.id === layerId)) {
-      allStyleLayers.push({ id: layerId });
+      allStyleLayers.push({ id: layerId, name: originalName });
       styleDefaultVisibility[layerId] = 'visible';
     }
     // Always update layer controls to include the new layer, even if it's the only one
@@ -202,7 +212,7 @@ function createLayerControls(map, visibleLayers) {
   const explicitState = {};
   if (layersStr) {
     layersStr.split(',').forEach(token => {
-      const match = token.match(/^([+-])(.+)$/);
+      const match = token.match(/^([+~])(.+)$/);
       if (!match) return;
       const [, sign, lname] = match;
       explicitState[lname] = sign;
@@ -226,7 +236,7 @@ function createLayerControls(map, visibleLayers) {
         bold = true;
         state = 'visible';
         showReset = (defaultVis !== 'visible');
-      } else if (explicitState[layer.id] === '-') {
+      } else if (explicitState[layer.id] === '~') {
         checked = '';
         bold = true;
         state = 'hidden';
@@ -237,7 +247,7 @@ function createLayerControls(map, visibleLayers) {
         state = 'default';
         showReset = false;
       }
-      const label = layer.name || layer.id;
+  let label = layer.name || layer.id;
       container.innerHTML += `<label style="${bold ? 'font-weight:bold;' : ''}"><input type="checkbox" data-layer="${layer.id}" ${checked}> ${label}</label>`;
       if (explicitState[layer.id]) {
         container.innerHTML += ` <button data-reset="${layer.id}" title="Reset to style default" style="font-size:1.1em;line-height:1;vertical-align:middle;padding:0 0.2em;">↻</button>`;
@@ -272,7 +282,7 @@ function createLayerControls(map, visibleLayers) {
         explicitState[layerId] = '+';
         map.setLayoutProperty(layerId, 'visibility', 'visible');
       } else {
-        explicitState[layerId] = '-';
+        explicitState[layerId] = '~';
         map.setLayoutProperty(layerId, 'visibility', 'none');
       }
       // Build new hash
@@ -345,10 +355,12 @@ map.on('load', () => {
   });
   // Only update the toggle list to reflect the current style visibility (do not use hash for initial state)
   createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
-  // Load GeoJSON if loadFile is present in the hash (as load:filename)
-  const { loadFile } = parseHash();
-  if (loadFile) {
-    loadAndAddOrReplaceGeoJSON(loadFile + '.geojson');
+  // Load any dynamic geojsons requested in the hash
+  const { dynamicGeojsonToLoad } = parseHash();
+  if (dynamicGeojsonToLoad && dynamicGeojsonToLoad.length) {
+    dynamicGeojsonToLoad.forEach(name => {
+      loadAndAddOrReplaceGeoJSON(name + '.geojson');
+    });
   }
 });
 
@@ -361,7 +373,13 @@ map.on('moveend', () => {
 // Listen for hash changes (external navigation)
 window.addEventListener('hashchange', () => {
   // Use parseHash to get camera, layers, and loadFile
-  const { camera, layers, loadFile } = parseHash();
+  // Track previous hash state to avoid repeated transitions and insertions
+  if (!window._lastHashState) window._lastHashState = '';
+  const currentHash = window.location.hash;
+  if (window._lastHashState === currentHash) return;
+  window._lastHashState = currentHash;
+
+  const { camera, layers, dynamicGeojsonToLoad } = parseHash();
   // If allStyleLayers is empty (e.g. on direct hash change before map load), repopulate it
   if (!allStyleLayers.length) {
     allStyleLayers = map.getStyle().layers.map(l => ({ id: l.id, name: l.name }));
@@ -398,7 +416,7 @@ window.addEventListener('hashchange', () => {
       const state = layerState[id];
       if (state === '+') {
         if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'visible');
-      } else if (state === '-') {
+      } else if (state === '~') {
         if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
       } else {
         if (map.getLayer(id)) {
@@ -407,12 +425,18 @@ window.addEventListener('hashchange', () => {
         }
       }
     });
-    createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
-    // Load GeoJSON if loadFile is present in the hash (as load:filename)
-    if (loadFile) {
-      loadAndAddOrReplaceGeoJSON(loadFile + '.geojson');
+    // Load any dynamic geojsons requested in the hash
+    if (dynamicGeojsonToLoad && dynamicGeojsonToLoad.length) {
+      dynamicGeojsonToLoad.forEach(name => {
+        // Always add to allStyleLayers if not present, so it appears in the list
+        if (!allStyleLayers.some(l => l.id === name)) {
+          allStyleLayers.push({ id: name, name });
+          styleDefaultVisibility[name] = 'visible';
+        }
+        loadAndAddOrReplaceGeoJSON(name + '.geojson');
+      });
     }
-  // Do not reload the hardcoded GeoJSON file on hashchange to avoid infinite loop
+    createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
   }, 600); // Halfway through the flyTo duration
 });
 </script>
