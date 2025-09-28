@@ -138,7 +138,7 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
       type,
       source: sourceId,
       layout: { visibility: 'visible' },
-      paint: type === 'line' ? { 'line-color': '#f00', 'line-width': 3 } :
+      paint: type === 'line' ? { 'line-color': '#fff', 'line-width': 3 } :
              type === 'fill' ? { 'fill-color': '#f00', 'fill-opacity': 0.5 } :
              { 'circle-radius': 6, 'circle-color': '#f00' }
     };
@@ -385,23 +385,62 @@ map.on('moveend', () => {
 // Listen for hash changes (external navigation)
 let isFreeCameraAnimating = false;
 let pendingHashUpdate = null;
-function followPathWithFreeCamera(map, coords, onComplete) {
+function followPathWithFreeCamera(map, coords, onComplete, layerId) {
   isFreeCameraAnimating = true;
-  let i = 0;
+  let i = 1;
+  // Store the original data so we can restore it after animation
+  let originalData = null;
+  if (layerId) {
+    const src = map.getSource(layerId);
+    if (src && src._data) originalData = JSON.parse(JSON.stringify(src._data));
+  }
   function animate() {
-    if (i >= coords.length) {
+    if (i > coords.length) {
+      // Restore the full line after animation
+      if (layerId && originalData) {
+        const src = map.getSource(layerId);
+        if (src) src.setData(originalData);
+      }
       isFreeCameraAnimating = false;
       if (typeof onComplete === 'function') onComplete();
       return;
     }
-    const lngLat = coords[i];
+    // Animate the line up to the current point
+    if (layerId) {
+      const src = map.getSource(layerId);
+      if (src) {
+        const partialLine = {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              geometry: {
+                type: 'LineString',
+                coordinates: coords.slice(0, i)
+              },
+              properties: {}
+            }
+          ]
+        };
+        src.setData(partialLine);
+      }
+    }
+    // Camera position and look direction
+    const from = coords[i - 1];
+    const to = coords[Math.min(i, coords.length - 1)];
     const camera = map.getFreeCameraOptions();
-    camera.position = mapboxgl.MercatorCoordinate.fromLngLat({lng: lngLat[0], lat: lngLat[1]}, 5000);
+    camera.position = mapboxgl.MercatorCoordinate.fromLngLat({lng: from[0], lat: from[1]}, 5000);
+    camera.lookAtPoint = { lng: to[0], lat: to[1], altitude: 0 };
     map.setFreeCameraOptions(camera);
     i++;
-    if (i < coords.length) {
+    if (i <= coords.length) {
       setTimeout(animate, 50);
     } else {
+      // Restore the full line after animation
+      if (layerId && originalData) {
+        const src = map.getSource(layerId);
+        if (src) src.setData(originalData);
+      }
       isFreeCameraAnimating = false;
       if (typeof onComplete === 'function') onComplete();
     }
@@ -435,13 +474,11 @@ window.addEventListener('hashchange', () => {
       // Block all hash/camera updates until animation is done
       pendingHashUpdate = { camera, layers, dynamicGeojsonToLoad };
       followPathWithFreeCamera(map, coords, () => {
-        // After animation, update the hash/camera
         pendingHashUpdate = null;
-        // Remove /follow: from hash
         let hash = window.location.hash.replace('#', '');
         hash = hash.split('/').filter(p => !p.startsWith('follow:')).join('/');
         window.location.replace('#' + hash);
-      });
+      }, followId);
       return;
     }
   }
