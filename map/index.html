@@ -475,6 +475,23 @@ function followPathWithFreeCamera(map, coords, onComplete, layerId) {
   }
 
   function animate(ts) {
+    // Check if :follow is still present in the hash for this layer
+    const hash = window.location.hash.replace('#', '');
+    const [, layersStr] = hash.split('/');
+    let stillFollowing = false;
+    if (layersStr) {
+      const tokens = layersStr.split(',');
+      stillFollowing = tokens.some(token => token.match(new RegExp(`^[+~]${layerId}:follow$`)));
+    }
+    if (!stillFollowing) {
+      isFreeCameraAnimating = false;
+      if (layerId && originalData) {
+        const src = map.getSource(layerId);
+        if (src) src.setData(originalData);
+      }
+      if (typeof onComplete === 'function') onComplete();
+      return;
+    }
     if (!startTime) startTime = ts;
     let elapsed = ts - startTime;
     let t = Math.min(1, elapsed / duration);
@@ -555,6 +572,13 @@ window.addEventListener('hashchange', () => {
   const { camera, layers, dynamicGeojsonToLoad, followId } = parseHash();
 
   // If a followId is present (from +id:follow or ~id:follow), animate and block hash/camera updates until done
+  // If followId is present, handle follow logic. If not, and animation is running, stop it and resume normal hash handling.
+  if (!followId && isFreeCameraAnimating) {
+    // Stop the animation and reset state
+    isFreeCameraAnimating = false;
+    // Optionally, reset camera or UI here if needed
+    // Resume normal hash handling (fall through)
+  }
   if (followId && !isFreeCameraAnimating) {
     // Helper to extract coordinates from a source
     function getCoordsFromSource(source) {
