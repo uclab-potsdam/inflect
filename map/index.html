@@ -61,33 +61,27 @@ const defaultCamera = {
   pitch: 0
 };
 
-// Parse hash: #lat,lng,zoom,bearing,pitch/+layer1,-layer2/load:filename.geojson/to:layer-id
+// Parse hash: #lat,lng,zoom,bearing,pitch/+layer1,-layer2/load:filename
 function parseHash() {
   const hash = window.location.hash.replace('#', '');
-  if (!hash) return { camera: { ...defaultCamera }, layers: allStyleLayers.map(l => l.id), loadFile: null, toLayer: null };
-  // Allow load: anywhere, even as the only part of the hash
-  let cameraStr = '', layersStr = '', loadFile = null;
+  if (!hash) return { camera: { ...defaultCamera }, layers: allStyleLayers.map(l => l.id), dynamicGeojsonToLoad: [] };
+  let cameraStr = '', layersStr = '';
   const parts = hash.split('/');
-  // Find load: anywhere, remove it from parts
   const restParts = [];
   for (let i = 0; i < parts.length; i++) {
     if (parts[i].startsWith('load:')) {
-      loadFile = parts[i].slice(5).trim();
+      continue;
     } else if (parts[i].length > 0) {
       restParts.push(parts[i]);
     }
   }
-  // If there are no restParts, still return valid defaults
   cameraStr = restParts[0] || '';
   layersStr = restParts[1] || '';
   const cameraParts = cameraStr ? cameraStr.split(',').map(Number) : [];
-  // Parse layers: +layername means on, ~layername means off
   let layersOn = allStyleLayers.map(l => l.id);
   let dynamicGeojsonToLoad = [];
   if (layersStr) {
-    // Start with all off, then apply toggles in order
     layersOn = [];
-    // Process tokens in order, last toggle for each layer wins
     const layerState = {};
     layersStr.split(',').forEach(token => {
       const match = token.match(/^([+~])(.+)$/);
@@ -97,13 +91,11 @@ function parseHash() {
     });
     Object.entries(layerState).forEach(([lname, sign]) => {
       if (sign === '+') {
-        // If this is not a style layer, mark for geojson loading
         if (!allStyleLayers.some(l => l.id === lname)) {
           dynamicGeojsonToLoad.push(lname);
         }
         layersOn.push(lname);
       }
-      // '~' means keep it off (do not add)
     });
   }
   return {
@@ -124,18 +116,14 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
     const response = await fetch(geojsonFile);
     if (!response.ok) throw new Error('Failed to fetch GeoJSON');
     const geojson = await response.json();
-  // Use the filename (without path and without .geojson) as the id for source and layer
-    // Always use the string from the hash (without .geojson or _geojson) as id and name
     let fileId = geojsonFile.split('/').pop();
     let cleanId = fileId.replace(/(_geojson|\.geojson)$/i, '');
     cleanId = cleanId.replace(/[^a-zA-Z0-9_-]/g, '_');
     const sourceId = cleanId;
     const layerId = cleanId;
-    const originalName = cleanId;
     if (map.getLayer(layerId)) map.removeLayer(layerId);
     if (map.getSource(sourceId)) map.removeSource(sourceId);
     map.addSource(sourceId, { type: 'geojson', data: geojson });
-    // Determine geometry type for default style
     let type = 'line';
     if (geojson.features && geojson.features.length) {
       const geomType = geojson.features[0].geometry && geojson.features[0].geometry.type;
@@ -152,16 +140,11 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
              { 'circle-radius': 6, 'circle-color': '#f00' }
     };
     map.addLayer(layerDef);
-    // Add to allStyleLayers if not present
-    // Always add to allStyleLayers if not present, so it appears in the list
     if (!allStyleLayers.some(l => l.id === layerId)) {
-      allStyleLayers.push({ id: layerId, name: originalName });
+      allStyleLayers.push({ id: layerId, name: cleanId });
       styleDefaultVisibility[layerId] = 'visible';
     }
-    // Always update layer controls to include the new layer, even if it's the only one
     createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
-    // Do not zoom or fit bounds after loading GeoJSON
-    console.log('Loaded GeoJSON and added as default red layer:', geojsonFile);
   } catch (err) {
     alert('Error loading GeoJSON: ' + err.message);
     console.error(err);
