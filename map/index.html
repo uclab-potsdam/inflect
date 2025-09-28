@@ -64,17 +64,15 @@ const defaultCamera = {
 // Parse hash: #lat,lng,zoom,bearing,pitch/+layer1,-layer2/load:filename.geojson/to:layer-id
 function parseHash() {
   const hash = window.location.hash.replace('#', '');
-  if (!hash) return { camera: { ...defaultCamera }, layers: allStyleLayers.map(l => l.id), loadFile: null, toLayer: null, follow: [] };
-  // Allow load: and follow: anywhere, even as the only part of the hash
-  let cameraStr = '', layersStr = '', loadFile = null, followArr = [];
+  if (!hash) return { camera: { ...defaultCamera }, layers: allStyleLayers.map(l => l.id), loadFile: null, toLayer: null };
+  // Allow load: anywhere, even as the only part of the hash
+  let cameraStr = '', layersStr = '', loadFile = null;
   const parts = hash.split('/');
-  // Find load: and follow: anywhere, remove them from parts
+  // Find load: anywhere, remove it from parts
   const restParts = [];
   for (let i = 0; i < parts.length; i++) {
     if (parts[i].startsWith('load:')) {
       loadFile = parts[i].slice(5).trim();
-    } else if (parts[i].startsWith('follow:')) {
-      followArr = parts[i].slice(7).split(',').map(s => s.trim()).filter(Boolean);
     } else if (parts[i].length > 0) {
       restParts.push(parts[i]);
     }
@@ -95,10 +93,10 @@ function parseHash() {
       const match = token.match(/^([+~])(.+)$/);
       if (!match) return;
       const [, sign, lname] = match;
-      layerState[lname] = { sign };
+      layerState[lname] = sign;
     });
-    Object.entries(layerState).forEach(([lname, obj]) => {
-      if (obj.sign === '+') {
+    Object.entries(layerState).forEach(([lname, sign]) => {
+      if (sign === '+') {
         // If this is not a style layer, mark for geojson loading
         if (!allStyleLayers.some(l => l.id === lname)) {
           dynamicGeojsonToLoad.push(lname);
@@ -116,13 +114,12 @@ function parseHash() {
       pitch: cameraParts[4] || defaultCamera.pitch
     },
     layers: layersOn,
-    dynamicGeojsonToLoad,
-    follow: followArr
+    dynamicGeojsonToLoad
   };
 }
 
 // Helper: load and add GeoJSON as top layer or replace source of a layer
-async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer, followPath) {
+async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
   try {
     const response = await fetch(geojsonFile);
     if (!response.ok) throw new Error('Failed to fetch GeoJSON');
@@ -163,19 +160,7 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer, followPath) {
     }
     // Always update layer controls to include the new layer, even if it's the only one
     createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
-    // If followPath is true, animate the camera along the path
-    if (followPath && geojson.features && geojson.features.length) {
-      let coords = [];
-      geojson.features.forEach(f => {
-        if (!f.geometry) return;
-        if (f.geometry.type === 'LineString') coords = coords.concat(f.geometry.coordinates);
-        if (f.geometry.type === 'Polygon') coords = coords.concat(f.geometry.coordinates[0]);
-        if (f.geometry.type === 'MultiLineString') coords = coords.concat(...f.geometry.coordinates);
-        if (f.geometry.type === 'MultiPolygon') coords = coords.concat(...f.geometry.coordinates.map(ring => ring[0]));
-      });
-      if (coords.length > 1) followPathWithFreeCamera(map, coords);
-    }
-    // Do not move the camera when loading a GeoJSON unless :follow is used
+    // Do not zoom or fit bounds after loading GeoJSON
     console.log('Loaded GeoJSON and added as default red layer:', geojsonFile);
   } catch (err) {
     alert('Error loading GeoJSON: ' + err.message);
@@ -412,60 +397,7 @@ map.on('moveend', () => {
 });
 
 // Listen for hash changes (external navigation)
-// Animate camera along a path using FreeCamera API
-// FreeCamera animation state
-let freeCameraAnimation = {
-  running: false,
-  stop: false,
-  timeoutId: null,
-};
-
-function followPathWithFreeCamera(map, coords, followId) {
-  freeCameraAnimation.running = true;
-  freeCameraAnimation.stop = false;
-  let i = 0;
-  function animate() {
-    if (freeCameraAnimation.stop) {
-      freeCameraAnimation.running = false;
-      freeCameraAnimation.stop = false;
-      return;
-    }
-    if (i >= coords.length) {
-      freeCameraAnimation.running = false;
-      // Remove /follow:... from hash when animation ends
-      const hash = window.location.hash.replace('#', '');
-      const parts = hash.split('/');
-      const newParts = parts.filter(p => !p.startsWith('follow:'));
-      window.location.replace('#' + newParts.join('/'));
-      return;
-    }
-    const lngLat = coords[i];
-    // Set camera position
-    const camera = map.getFreeCameraOptions();
-    camera.position = mapboxgl.MercatorCoordinate.fromLngLat({lng: lngLat[0], lat: lngLat[1]}, 5000);
-    map.setFreeCameraOptions(camera);
-    i++;
-    if (i < coords.length) {
-      freeCameraAnimation.timeoutId = setTimeout(animate, 50);
-    } else {
-      freeCameraAnimation.running = false;
-      // Remove /follow:... from hash when animation ends
-      const hash = window.location.hash.replace('#', '');
-      const parts = hash.split('/');
-      const newParts = parts.filter(p => !p.startsWith('follow:'));
-      window.location.replace('#' + newParts.join('/'));
-    }
-  }
-  animate();
-}
-
 window.addEventListener('hashchange', () => {
-  // If a FreeCamera animation is running and /follow: is no longer in the hash, stop the animation
-  const hash = window.location.hash.replace('#', '');
-  if (freeCameraAnimation.running && !hash.split('/').some(p => p.startsWith('follow:'))) {
-    freeCameraAnimation.stop = true;
-    if (freeCameraAnimation.timeoutId) clearTimeout(freeCameraAnimation.timeoutId);
-  }
   // Use parseHash to get camera, layers, and loadFile
   // Track previous hash state to avoid repeated transitions and insertions
   if (!window._lastHashState) window._lastHashState = '';
@@ -473,7 +405,7 @@ window.addEventListener('hashchange', () => {
   if (window._lastHashState === currentHash) return;
   window._lastHashState = currentHash;
 
-  const { camera, layers, dynamicGeojsonToLoad, follow } = parseHash();
+  const { camera, layers, dynamicGeojsonToLoad } = parseHash();
   // If allStyleLayers is empty (e.g. on direct hash change before map load), repopulate it
   if (!allStyleLayers.length) {
     allStyleLayers = map.getStyle().layers.map(l => ({ id: l.id, name: l.name }));
@@ -500,8 +432,8 @@ window.addEventListener('hashchange', () => {
 
   // Only update visibility for layers explicitly in the hash as +id or ~id
   // Parse the hash for explicit +id and ~id tokens
-  const hash = window.location.hash.replace('#', '');
-  const [, layersStr] = hash.split('/');
+  const hashStr = window.location.hash.replace('#', '');
+  const [, layersStr] = hashStr.split('/');
   const explicitState = {};
   if (layersStr) {
     layersStr.split(',').forEach(token => {
@@ -549,31 +481,11 @@ window.addEventListener('hashchange', () => {
       if (!allStyleLayers.some(l => l.id === name)) {
         allStyleLayers.push({ id: name, name });
         styleDefaultVisibility[name] = 'visible';
-        loadAndAddOrReplaceGeoJSON(name + '.geojson');
       }
+      loadAndAddOrReplaceGeoJSON(name + '.geojson');
     });
   }
-  // Animate camera along any /follow:id layers if present
-  if (follow && follow.length) {
-    follow.forEach(name => {
-      // Try to get the source data and animate if possible
-      const source = map.getSource(name);
-      if (source && source._data && source._data.features) {
-        let coords = [];
-        source._data.features.forEach(f => {
-          if (!f.geometry) return;
-          if (f.geometry.type === 'LineString') coords = coords.concat(f.geometry.coordinates);
-          if (f.geometry.type === 'Polygon') coords = coords.concat(f.geometry.coordinates[0]);
-          if (f.geometry.type === 'MultiLineString') coords = coords.concat(...f.geometry.coordinates);
-          if (f.geometry.type === 'MultiPolygon') coords = coords.concat(...f.geometry.coordinates.map(ring => ring[0]));
-        });
-        if (coords.length > 1) followPathWithFreeCamera(map, coords, name);
-      } else {
-        // If not available, reload and animate
-        loadAndAddOrReplaceGeoJSON(name + '.geojson', undefined, true);
-      }
-    });
-  }
+  // Do NOT trigger animation after geojson load (even if source is now present)
   createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
 });
 </script>
