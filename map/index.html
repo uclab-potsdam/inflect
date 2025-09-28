@@ -693,7 +693,7 @@ window.addEventListener('hashchange', () => {
       return;
     }
     // If already loaded, proceed as before
-    // 1. Fly to new location
+    // 1. Fly to new location using the hash camera location (with animation)
     const flyOpts = {
       center: [camera.center[0], camera.center[1]],
       zoom: camera.zoom,
@@ -701,8 +701,8 @@ window.addEventListener('hashchange', () => {
       pitch: camera.pitch,
       duration: 1200
     };
-    console.log('[FOLLOW] 1. Flying to new location:', flyOpts.center, 'zoom:', flyOpts.zoom);
     map.flyTo(flyOpts);
+    console.log('[FOLLOW] 1. Flying to new location:', flyOpts.center, 'zoom:', flyOpts.zoom);
 
     // 2. Change visibility of existing layers
     const hashStr = window.location.hash.replace('#', '');
