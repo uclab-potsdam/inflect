@@ -157,17 +157,101 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
     };
     map.addLayer(layerDef);
     console.log(`Layer loaded: ${layerId}`);
-    // After loading, check if the hash has :follow for this layer
-    const hash = window.location.hash.replace('#', '');
-    const [, layersStr] = hash.split('/');
-    if (layersStr) {
-      const tokens = layersStr.split(',');
-      const match = tokens.find(token => token.match(new RegExp(`^[+~]${layerId}:follow$`)));
-      if (match) {
-        // Trigger a hashchange to ensure follow logic runs
-        setTimeout(() => window.dispatchEvent(new HashChangeEvent('hashchange')), 0);
+    // After loading, always check if the hash has :follow for this layer and trigger follow logic if needed
+    setTimeout(() => {
+      const hash = window.location.hash.replace('#', '');
+      const [, layersStr] = hash.split('/');
+      if (layersStr) {
+        const tokens = layersStr.split(',');
+        const match = tokens.find(token => token.match(new RegExp(`^[+~]${layerId}:follow$`)));
+        if (match && !(window._isFreeCameraAnimating)) {
+          // Directly invoke the follow logic as in the hashchange handler
+          const { camera, layers, dynamicGeojsonToLoad, followId } = parseHash();
+          if (followId === layerId) {
+            // 1. Fly to new location
+            const flyOpts = {
+              center: [camera.center[0], camera.center[1]],
+              zoom: camera.zoom,
+              bearing: camera.bearing,
+              pitch: camera.pitch,
+              duration: 1200
+            };
+            console.log('[FOLLOW] 1. Flying to new location:', flyOpts.center, 'zoom:', flyOpts.zoom);
+            map.flyTo(flyOpts);
+
+            // 2. Change visibility of existing layers
+            const explicitState = {};
+            layersStr.split(',').forEach(token => {
+              const match = token.match(/^([+~])([^:]+)(:follow)?$/);
+              if (!match) return;
+              const [, sign, lname] = match;
+              explicitState[lname] = sign;
+            });
+            let removedIds = [];
+            allStyleLayers.slice().forEach(layer => {
+              const id = layer.id;
+              if (!map.getStyle().layers.some(l => l.id === id) && explicitState[id] !== '+') {
+                if (map.getLayer(id)) map.removeLayer(id);
+                if (map.getSource(id)) map.removeSource(id);
+                removedIds.push(id);
+                delete styleDefaultVisibility[id];
+              }
+            });
+            allStyleLayers = allStyleLayers.filter(l => !removedIds.includes(l.id));
+            Object.entries(explicitState).forEach(([id, sign]) => {
+              if (map.getLayer(id)) {
+                if (sign === '+') {
+                  if (map.getLayoutProperty(id, 'visibility') !== 'visible') {
+                    map.setLayoutProperty(id, 'visibility', 'visible');
+                  }
+                } else if (sign === '~') {
+                  if (map.getLayoutProperty(id, 'visibility') !== 'none') {
+                    map.setLayoutProperty(id, 'visibility', 'none');
+                  }
+                }
+              }
+            });
+            console.log('[FOLLOW] 2. Changed visibility of existing layers');
+
+            // 3. Layer is now loaded (this function)
+            console.log(`[FOLLOW] 3. Layer loaded: ${layerId}`);
+
+            // 4. Start following the line
+            // Helper to extract coordinates from a source
+            function getCoordsFromSource(source) {
+              let coords = [];
+              if (source && source._data && source._data.features) {
+                source._data.features.forEach(f => {
+                  if (!f.geometry) return;
+                  if (f.geometry.type === 'LineString') coords = coords.concat(f.geometry.coordinates);
+                  if (f.geometry.type === 'Polygon') coords = coords.concat(f.geometry.coordinates[0]);
+                  if (f.geometry.type === 'MultiLineString') coords = coords.concat(...f.geometry.coordinates);
+                  if (f.geometry.type === 'MultiPolygon') coords = coords.concat(...f.geometry.coordinates.map(ring => ring[0]));
+                });
+              }
+              return coords;
+            }
+            const source = map.getSource(layerId);
+            const coords = getCoordsFromSource(source);
+            if (coords.length > 1) {
+              console.log(`[FOLLOW] 4. Follow initiated for layer: ${layerId}`);
+              window._isFreeCameraAnimating = true;
+              pendingHashUpdate = { camera, layers, dynamicGeojsonToLoad };
+              followPathWithFreeCamera(map, coords, () => {
+                pendingHashUpdate = null;
+                // Remove :follow from the hash for this layer
+                let hash = window.location.hash.replace('#', '');
+                const parts = hash.split('/');
+                if (parts[1]) {
+                  parts[1] = parts[1].replace(new RegExp(`([+~]${layerId}):follow`), '$1');
+                }
+                window.location.replace('#' + parts.join('/'));
+              }, layerId);
+            }
+          }
+        }
       }
-    }
+    }, 0);
     // If requested as invisible, ensure visibility is set to none after adding
     if (visibility === 'none') {
       map.setLayoutProperty(layerId, 'visibility', 'none');
@@ -574,35 +658,113 @@ window.addEventListener('hashchange', () => {
   // If a followId is present (from +id:follow or ~id:follow), animate and block hash/camera updates until done
   // If followId is present, handle follow logic. If not, and animation is running, stop it and resume normal hash handling.
   if (!followId && isFreeCameraAnimating) {
-    // Stop the animation and reset state
     isFreeCameraAnimating = false;
-    // Optionally, reset camera or UI here if needed
-    // Resume normal hash handling (fall through)
   }
   if (followId && !isFreeCameraAnimating) {
-    // Helper to extract coordinates from a source
-    function getCoordsFromSource(source) {
-      let coords = [];
-      if (source && source._data && source._data.features) {
-        source._data.features.forEach(f => {
-          if (!f.geometry) return;
-          if (f.geometry.type === 'LineString') coords = coords.concat(f.geometry.coordinates);
-          if (f.geometry.type === 'Polygon') coords = coords.concat(f.geometry.coordinates[0]);
-          if (f.geometry.type === 'MultiLineString') coords = coords.concat(...f.geometry.coordinates);
-          if (f.geometry.type === 'MultiPolygon') coords = coords.concat(...f.geometry.coordinates.map(ring => ring[0]));
-        });
-      }
-      return coords;
+    // 1. Check if the layer is loaded
+    const source = map.getSource(followId);
+    let layerLoaded = false;
+    if (source && source._data && source._data.features) {
+      layerLoaded = true;
     }
+    if (!layerLoaded) {
+      // Remove :follow from the hash
+      const hash = window.location.hash.replace('#', '');
+      const parts = hash.split('/');
+      if (parts[1]) {
+        parts[1] = parts[1].replace(new RegExp(`([+~]${followId}):follow`), '$1');
+        window.location.replace('#' + parts.join('/'));
+      }
+      // Wait for the source to be fully loaded, then add :follow back
+      const onSourceData = (e) => {
+        if (e.sourceId === followId) {
+          map.off('sourcedata', onSourceData);
+          // Add :follow back to the hash
+          const hash2 = window.location.hash.replace('#', '');
+          const parts2 = hash2.split('/');
+          if (parts2[1]) {
+            // Find the token for this layer and add :follow
+            parts2[1] = parts2[1].replace(new RegExp(`([+~]${followId})(?!:follow)`), `$1:follow`);
+            window.location.replace('#' + parts2.join('/'));
+          }
+        }
+      };
+      map.on('sourcedata', onSourceData);
+      return;
+    }
+    // If already loaded, proceed as before
+    // 1. Fly to new location
+    const flyOpts = {
+      center: [camera.center[0], camera.center[1]],
+      zoom: camera.zoom,
+      bearing: camera.bearing,
+      pitch: camera.pitch,
+      duration: 1200
+    };
+    console.log('[FOLLOW] 1. Flying to new location:', flyOpts.center, 'zoom:', flyOpts.zoom);
+    map.flyTo(flyOpts);
 
-    // Wait for the source to be fully loaded using map.on('sourcedata')
-    const tryStartFollow = () => {
+    // 2. Change visibility of existing layers
+    const hashStr = window.location.hash.replace('#', '');
+    const [, layersStr] = hashStr.split('/');
+    const explicitState = {};
+    if (layersStr) {
+      layersStr.split(',').forEach(token => {
+        const match = token.match(/^([+~])([^:]+)(:follow)?$/);
+        if (!match) return;
+        const [, sign, lname] = match;
+        explicitState[lname] = sign;
+      });
+    }
+    let removedIds = [];
+    allStyleLayers.slice().forEach(layer => {
+      const id = layer.id;
+      if (!map.getStyle().layers.some(l => l.id === id) && explicitState[id] !== '+') {
+        if (map.getLayer(id)) map.removeLayer(id);
+        if (map.getSource(id)) map.removeSource(id);
+        removedIds.push(id);
+        delete styleDefaultVisibility[id];
+      }
+    });
+    allStyleLayers = allStyleLayers.filter(l => !removedIds.includes(l.id));
+    Object.entries(explicitState).forEach(([id, sign]) => {
+      if (map.getLayer(id)) {
+        if (sign === '+') {
+          if (map.getLayoutProperty(id, 'visibility') !== 'visible') {
+            map.setLayoutProperty(id, 'visibility', 'visible');
+          }
+        } else if (sign === '~') {
+          if (map.getLayoutProperty(id, 'visibility') !== 'none') {
+            map.setLayoutProperty(id, 'visibility', 'none');
+          }
+        }
+      }
+    });
+    console.log('[FOLLOW] 2. Changed visibility of existing layers');
+
+    // 3. Layer is now loaded (this function)
+    console.log(`[FOLLOW] 3. Layer loaded: ${followId}`);
+
+    // 4. Start following the line (after layer is loaded)
+    function startFollow() {
+      // Helper to extract coordinates from a source
+      function getCoordsFromSource(source) {
+        let coords = [];
+        if (source && source._data && source._data.features) {
+          source._data.features.forEach(f => {
+            if (!f.geometry) return;
+            if (f.geometry.type === 'LineString') coords = coords.concat(f.geometry.coordinates);
+            if (f.geometry.type === 'Polygon') coords = coords.concat(f.geometry.coordinates[0]);
+            if (f.geometry.type === 'MultiLineString') coords = coords.concat(...f.geometry.coordinates);
+            if (f.geometry.type === 'MultiPolygon') coords = coords.concat(...f.geometry.coordinates.map(ring => ring[0]));
+          });
+        }
+        return coords;
+      }
       const source = map.getSource(followId);
       const coords = getCoordsFromSource(source);
       if (coords.length > 1) {
-        map.off('sourcedata', onSourceData);
-        console.log(`Follow initiated for layer: ${followId}`);
-        // Block all hash/camera updates until animation is done
+        console.log(`[FOLLOW] 4. Follow initiated for layer: ${followId}`);
         pendingHashUpdate = { camera, layers, dynamicGeojsonToLoad };
         followPathWithFreeCamera(map, coords, () => {
           pendingHashUpdate = null;
@@ -614,21 +776,9 @@ window.addEventListener('hashchange', () => {
           }
           window.location.replace('#' + parts.join('/'));
         }, followId);
-        return true;
       }
-      return false;
-    };
-
-    const onSourceData = (e) => {
-      if (e.sourceId === followId) {
-        tryStartFollow();
-      }
-    };
-
-    // Try immediately, otherwise wait for source to load
-    if (!tryStartFollow()) {
-      map.on('sourcedata', onSourceData);
     }
+    startFollow();
     return;
   }
 
