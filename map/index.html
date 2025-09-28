@@ -196,6 +196,8 @@ function createLayerControls(map, visibleLayers) {
       .filter(l => l.id.startsWith('geojson-above-') && !allStyleLayers.some(s => s.id === l.id))
       .map(l => ({ id: l.id }))
   ];
+  // Order from highest (topmost) to lowest (bottommost)
+  allLayers.reverse();
   allLayers.forEach(layer => {
     if (map.getLayer(layer.id)) {
       foundLayer = true;
@@ -487,9 +489,18 @@ function followPathWithFreeCamera(map, coords, onComplete, layerId) {
     const camLng = start[0] + (end[0] - start[0]) * t;
     const camLat = start[1] + (end[1] - start[1]) * t;
     const camAlt = 6000;
+    // Calculate bearing and pitch to always center on the tip
+    const camPos = [camLng, camLat];
+    const bearing = getBearing(camPos, tip) * 180 / Math.PI;
+    // Calculate pitch: higher when closer, lower when farther (optional, here fixed)
+    const pitch = 60; // degrees, adjust for more/less tilt
     const camera = map.getFreeCameraOptions();
     camera.position = mapboxgl.MercatorCoordinate.fromLngLat({lng: camLng, lat: camLat}, camAlt);
     camera.lookAtPoint = { lng: tip[0], lat: tip[1], altitude: 0 };
+    camera.orientation = {
+      bearing: bearing,
+      pitch: pitch
+    };
     map.setFreeCameraOptions(camera);
     if (t < 1) {
       requestAnimationFrame(animate);
