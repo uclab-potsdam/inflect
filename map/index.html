@@ -65,12 +65,14 @@ const defaultCamera = {
 function parseHash() {
   const hash = window.location.hash.replace('#', '');
   if (!hash) return { camera: { ...defaultCamera }, layers: allStyleLayers.map(l => l.id), dynamicGeojsonToLoad: [] };
-  let cameraStr = '', layersStr = '';
+  let cameraStr = '', layersStr = '', followId = null;
   const parts = hash.split('/');
   const restParts = [];
   for (let i = 0; i < parts.length; i++) {
     if (parts[i].startsWith('load:')) {
       continue;
+    } else if (parts[i].startsWith('follow:')) {
+      followId = parts[i].slice(7);
     } else if (parts[i].length > 0) {
       restParts.push(parts[i]);
     }
@@ -106,7 +108,8 @@ function parseHash() {
       pitch: cameraParts[4] || defaultCamera.pitch
     },
     layers: layersOn,
-    dynamicGeojsonToLoad
+    dynamicGeojsonToLoad,
+    followId
   };
 }
 
@@ -380,15 +383,73 @@ map.on('moveend', () => {
 });
 
 // Listen for hash changes (external navigation)
+let isFreeCameraAnimating = false;
+let pendingHashUpdate = null;
+function followPathWithFreeCamera(map, coords, onComplete) {
+  isFreeCameraAnimating = true;
+  let i = 0;
+  function animate() {
+    if (i >= coords.length) {
+      isFreeCameraAnimating = false;
+      if (typeof onComplete === 'function') onComplete();
+      return;
+    }
+    const lngLat = coords[i];
+    const camera = map.getFreeCameraOptions();
+    camera.position = mapboxgl.MercatorCoordinate.fromLngLat({lng: lngLat[0], lat: lngLat[1]}, 5000);
+    map.setFreeCameraOptions(camera);
+    i++;
+    if (i < coords.length) {
+      setTimeout(animate, 50);
+    } else {
+      isFreeCameraAnimating = false;
+      if (typeof onComplete === 'function') onComplete();
+    }
+  }
+  animate();
+}
+
 window.addEventListener('hashchange', () => {
-  // Use parseHash to get camera, layers, and loadFile
-  // Track previous hash state to avoid repeated transitions and insertions
   if (!window._lastHashState) window._lastHashState = '';
   const currentHash = window.location.hash;
   if (window._lastHashState === currentHash) return;
   window._lastHashState = currentHash;
 
-  const { camera, layers, dynamicGeojsonToLoad } = parseHash();
+  const { camera, layers, dynamicGeojsonToLoad, followId } = parseHash();
+
+  // If a followId is present, animate and block hash/camera updates until done
+  if (followId && !isFreeCameraAnimating) {
+    // Try to get the source data and animate if possible
+    const source = map.getSource(followId);
+    let coords = [];
+    if (source && source._data && source._data.features) {
+      source._data.features.forEach(f => {
+        if (!f.geometry) return;
+        if (f.geometry.type === 'LineString') coords = coords.concat(f.geometry.coordinates);
+        if (f.geometry.type === 'Polygon') coords = coords.concat(f.geometry.coordinates[0]);
+        if (f.geometry.type === 'MultiLineString') coords = coords.concat(...f.geometry.coordinates);
+        if (f.geometry.type === 'MultiPolygon') coords = coords.concat(...f.geometry.coordinates.map(ring => ring[0]));
+      });
+    }
+    if (coords.length > 1) {
+      // Block all hash/camera updates until animation is done
+      pendingHashUpdate = { camera, layers, dynamicGeojsonToLoad };
+      followPathWithFreeCamera(map, coords, () => {
+        // After animation, update the hash/camera
+        pendingHashUpdate = null;
+        // Remove /follow: from hash
+        let hash = window.location.hash.replace('#', '');
+        hash = hash.split('/').filter(p => !p.startsWith('follow:')).join('/');
+        window.location.replace('#' + hash);
+      });
+      return;
+    }
+  }
+
+  // If animating, do not update camera/hash
+  if (isFreeCameraAnimating) return;
+
+  // ...existing code for camera/layer/hash update...
   // If allStyleLayers is empty (e.g. on direct hash change before map load), repopulate it
   if (!allStyleLayers.length) {
     allStyleLayers = map.getStyle().layers.map(l => ({ id: l.id, name: l.name }));
@@ -403,18 +464,16 @@ window.addEventListener('hashchange', () => {
       }
     });
   }
-  // Animate camera, then apply layer changes halfway through
   const flyOpts = {
     center: [camera.center[0], camera.center[1]],
     zoom: camera.zoom,
     bearing: camera.bearing,
     pitch: camera.pitch,
-    duration: 1200 // ms, can adjust as needed
+    duration: 1200
   };
   map.flyTo(flyOpts);
 
   // Only update visibility for layers explicitly in the hash as +id or ~id
-  // Parse the hash for explicit +id and ~id tokens
   const hashStr = window.location.hash.replace('#', '');
   const [, layersStr] = hashStr.split('/');
   const explicitState = {};
@@ -427,11 +486,9 @@ window.addEventListener('hashchange', () => {
     });
   }
 
-  // Remove dynamic layers not present as +id in the hash (i.e., not explicitState[id] === '+')
   let removedIds = [];
   allStyleLayers.slice().forEach(layer => {
     const id = layer.id;
-    // If this is a dynamic layer (not in style) and not present as +id in the hash, remove it
     if (!map.getStyle().layers.some(l => l.id === id) && explicitState[id] !== '+') {
       if (map.getLayer(id)) map.removeLayer(id);
       if (map.getSource(id)) map.removeSource(id);
@@ -439,10 +496,8 @@ window.addEventListener('hashchange', () => {
       delete styleDefaultVisibility[id];
     }
   });
-  // Actually remove from allStyleLayers after iteration
   allStyleLayers = allStyleLayers.filter(l => !removedIds.includes(l.id));
 
-  // Only update visibility for layers explicitly in the hash as +id or ~id
   Object.entries(explicitState).forEach(([id, sign]) => {
     if (map.getLayer(id)) {
       if (sign === '+') {
@@ -456,9 +511,7 @@ window.addEventListener('hashchange', () => {
       }
     }
   });
-  // Do NOT change visibility for any layer not explicitly mentioned in the hash
 
-  // Load any dynamic geojsons requested in the hash
   if (dynamicGeojsonToLoad && dynamicGeojsonToLoad.length) {
     dynamicGeojsonToLoad.forEach(name => {
       if (!allStyleLayers.some(l => l.id === name)) {
@@ -468,7 +521,6 @@ window.addEventListener('hashchange', () => {
       loadAndAddOrReplaceGeoJSON(name + '.geojson');
     });
   }
-  // Do NOT trigger animation after geojson load (even if source is now present)
   createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
 });
 </script>
