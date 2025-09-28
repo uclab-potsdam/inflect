@@ -267,17 +267,17 @@ function createLayerControls(map, visibleLayers) {
       }
       // Parse current hash for explicit toggles
       const hash = window.location.hash.replace('#', '');
-  const [cameraStr, layersStr] = hash.split('/');
+      const [cameraStr, layersStr] = hash.split('/');
       const explicitState = {};
       if (layersStr) {
         layersStr.split(',').forEach(token => {
-          const match = token.match(/^([+-])(.+)$/);
+          const match = token.match(/^([+~])(.+)$/);
           if (!match) return;
           const [, sign, lname] = match;
           explicitState[lname] = sign;
         });
       }
-      // Always toggle explicit + or -
+      // Toggle + or ~ in hash and set visibility
       if (this.checked) {
         explicitState[layerId] = '+';
         map.setLayoutProperty(layerId, 'visibility', 'visible');
@@ -302,11 +302,11 @@ function createLayerControls(map, visibleLayers) {
       const layerId = this.getAttribute('data-reset');
       // Parse current hash for explicit toggles
       const hash = window.location.hash.replace('#', '');
-  const [cameraStr, layersStr] = hash.split('/');
+      const [cameraStr, layersStr] = hash.split('/');
       const explicitState = {};
       if (layersStr) {
         layersStr.split(',').forEach(token => {
-          const match = token.match(/^([+-])(.+)$/);
+          const match = token.match(/^([+~])(.+)$/);
           if (!match) return;
           const [, sign, lname] = match;
           explicitState[lname] = sign;
@@ -314,9 +314,19 @@ function createLayerControls(map, visibleLayers) {
       }
       // Remove explicit toggle for this layer
       delete explicitState[layerId];
-      // Restore style default
-      const defaultVis = styleDefaultVisibility[layerId] || 'visible';
-      map.setLayoutProperty(layerId, 'visibility', defaultVis);
+      // If style layer: restore style default. If dynamic: remove from map and state.
+      if (map.getStyle().layers.some(l => l.id === layerId)) {
+        // Style layer: restore style default
+        const defaultVis = styleDefaultVisibility[layerId] || 'visible';
+        map.setLayoutProperty(layerId, 'visibility', defaultVis);
+      } else {
+        // Dynamic layer: remove from map and state
+        if (map.getLayer(layerId)) map.removeLayer(layerId);
+        if (map.getSource(layerId)) map.removeSource(layerId);
+        const idx = allStyleLayers.findIndex(l => l.id === layerId);
+        if (idx !== -1) allStyleLayers.splice(idx, 1);
+        delete styleDefaultVisibility[layerId];
+      }
       // Build new hash
       const tokens = Object.entries(explicitState).map(([lname, sign]) => `${sign}${lname}`);
       if (tokens.length > 0) {
@@ -403,41 +413,63 @@ window.addEventListener('hashchange', () => {
     duration: 1200 // ms, can adjust as needed
   };
   map.flyTo(flyOpts);
-  setTimeout(() => {
-    // Set visibility for layers explicitly mentioned in the hash, and restore style default for others
-    const layerState = {};
-    if (layers) {
-      layers.forEach(id => {
-        layerState[id] = '+';
-      });
+
+  // Only update visibility for layers explicitly in the hash as +id or ~id
+  // Parse the hash for explicit +id and ~id tokens
+  const hash = window.location.hash.replace('#', '');
+  const [, layersStr] = hash.split('/');
+  const explicitState = {};
+  if (layersStr) {
+    layersStr.split(',').forEach(token => {
+      const match = token.match(/^([+~])(.+)$/);
+      if (!match) return;
+      const [, sign, lname] = match;
+      explicitState[lname] = sign;
+    });
+  }
+
+  // Remove dynamic layers not in the hash IMMEDIATELY, before any UI or visibility update
+  let removedIds = [];
+  allStyleLayers.slice().forEach(layer => {
+    const id = layer.id;
+    // If this is a dynamic layer (not in style) and not in the hash, remove it
+    if (!map.getStyle().layers.some(l => l.id === id) && !explicitState[id]) {
+      if (map.getLayer(id)) map.removeLayer(id);
+      if (map.getSource(id)) map.removeSource(id);
+      removedIds.push(id);
+      delete styleDefaultVisibility[id];
     }
-    allStyleLayers.forEach(layer => {
-      const id = layer.id;
-      const state = layerState[id];
-      if (state === '+') {
-        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'visible');
-      } else if (state === '~') {
-        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
-      } else {
-        if (map.getLayer(id)) {
-          const defaultVis = styleDefaultVisibility[id] || 'visible';
-          map.setLayoutProperty(id, 'visibility', defaultVis);
+  });
+  // Actually remove from allStyleLayers after iteration
+  allStyleLayers = allStyleLayers.filter(l => !removedIds.includes(l.id));
+
+  // Only update visibility for layers explicitly in the hash as +id or ~id
+  Object.entries(explicitState).forEach(([id, sign]) => {
+    if (map.getLayer(id)) {
+      if (sign === '+') {
+        if (map.getLayoutProperty(id, 'visibility') !== 'visible') {
+          map.setLayoutProperty(id, 'visibility', 'visible');
+        }
+      } else if (sign === '~') {
+        if (map.getLayoutProperty(id, 'visibility') !== 'none') {
+          map.setLayoutProperty(id, 'visibility', 'none');
         }
       }
-    });
-    // Load any dynamic geojsons requested in the hash
-    if (dynamicGeojsonToLoad && dynamicGeojsonToLoad.length) {
-      dynamicGeojsonToLoad.forEach(name => {
-        // Always add to allStyleLayers if not present, so it appears in the list
-        if (!allStyleLayers.some(l => l.id === name)) {
-          allStyleLayers.push({ id: name, name });
-          styleDefaultVisibility[name] = 'visible';
-        }
-        loadAndAddOrReplaceGeoJSON(name + '.geojson');
-      });
     }
-    createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
-  }, 600); // Halfway through the flyTo duration
+  });
+  // Do NOT change visibility for any layer not explicitly mentioned in the hash
+
+  // Load any dynamic geojsons requested in the hash
+  if (dynamicGeojsonToLoad && dynamicGeojsonToLoad.length) {
+    dynamicGeojsonToLoad.forEach(name => {
+      if (!allStyleLayers.some(l => l.id === name)) {
+        allStyleLayers.push({ id: name, name });
+        styleDefaultVisibility[name] = 'visible';
+      }
+      loadAndAddOrReplaceGeoJSON(name + '.geojson');
+    });
+  }
+  createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
 });
 </script>
 </body>
