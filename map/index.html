@@ -551,6 +551,13 @@ let isFreeCameraAnimating = false;
 let pendingHashUpdate = null;
 function followPathWithFreeCamera(map, coords, onComplete, layerId) {
   isFreeCameraAnimating = true;
+  // Provide a robust global cancel function
+  if (window._cancelFreeCameraAnimation) window._cancelFreeCameraAnimation();
+  window._cancelFreeCameraAnimation = () => {
+    isFreeCameraAnimating = false;
+    window._isFreeCameraAnimating = false;
+    window._cancelFreeCameraAnimation = null;
+  };
   // Calculate total distance for constant speed
   function getDistance(a, b) {
     const R = 6371000;
@@ -616,8 +623,11 @@ function followPathWithFreeCamera(map, coords, onComplete, layerId) {
       const tokens = layersStr.split(',');
       stillFollowing = tokens.some(token => token.match(new RegExp(`^[+~]${layerId}:follow$`)));
     }
-    if (!stillFollowing) {
+    // Also check global cancel function
+    if (!stillFollowing || !isFreeCameraAnimating || window._cancelFreeCameraAnimation == null) {
       isFreeCameraAnimating = false;
+      window._isFreeCameraAnimating = false;
+      if (window._cancelFreeCameraAnimation) window._cancelFreeCameraAnimation = null;
       if (layerId && originalData) {
         const src = map.getSource(layerId);
         if (src) src.setData(originalData);
@@ -723,8 +733,21 @@ window.addEventListener('hashchange', () => {
 
   // If a followId is present (from +id:follow or ~id:follow), animate and block hash/camera updates until done
   // If followId is present, handle follow logic. If not, and animation is running, stop it and resume normal hash handling.
-  if (!followId && isFreeCameraAnimating) {
+  // Explicit :stop controller in the hash cancels any follow animation
+  const _hashStr = window.location.hash.replace('#', '');
+  const [, _layersStr] = _hashStr.split('/');
+  let stopRequested = false;
+  if (_layersStr) {
+    stopRequested = _layersStr.split(',').some(token => /:stop$/.test(token));
+  }
+  if (stopRequested && (isFreeCameraAnimating || window._isFreeCameraAnimating)) {
     isFreeCameraAnimating = false;
+    window._isFreeCameraAnimating = false;
+    if (window._cancelFreeCameraAnimation) window._cancelFreeCameraAnimation();
+  } else if (!followId && isFreeCameraAnimating) {
+    isFreeCameraAnimating = false;
+    window._isFreeCameraAnimating = false;
+    if (window._cancelFreeCameraAnimation) window._cancelFreeCameraAnimation();
   }
   if (followId && !isFreeCameraAnimating) {
     // 1. Check if the layer is loaded
