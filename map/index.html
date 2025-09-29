@@ -33,6 +33,42 @@
 <div id="map"></div>
 <div id="layer-controls"></div>
 <script>
+// Copy paint properties from one layer to another
+function copyPaintProperties(map, sourceLayerId, targetLayerId) {
+  function doCopy() {
+    const sourceLayer = map.getLayer(sourceLayerId);
+    const targetLayer = map.getLayer(targetLayerId);
+    if (!sourceLayer || !targetLayer) {
+      // Wait for both layers to be loaded, then retry
+      map.once('styledata', doCopy);
+      return;
+    }
+    if (sourceLayer.type !== targetLayer.type) {
+      console.warn('Layer types do not match:', sourceLayer.type, targetLayer.type);
+      return;
+    }
+    // Copy all paint properties except 'visibility'
+    const paint = map.getStyle().layers.find(l => l.id === sourceLayerId)?.paint || {};
+    for (const prop in paint) {
+      if (prop === 'visibility') continue;
+      const value = map.getPaintProperty(sourceLayerId, prop);
+      if (value !== undefined) {
+        map.setPaintProperty(targetLayerId, prop, value);
+      }
+    }
+    // Copy all layout properties except 'visibility'
+    const layout = map.getStyle().layers.find(l => l.id === sourceLayerId)?.layout || {};
+    for (const prop in layout) {
+      if (prop === 'visibility') continue;
+      const value = map.getLayoutProperty(sourceLayerId, prop);
+      if (value !== undefined) {
+        map.setLayoutProperty(targetLayerId, prop, value);
+      }
+    }
+    console.log(`Copied all paint and layout properties (except visibility) from ${sourceLayerId} to ${targetLayerId}`);
+  }
+  doCopy();
+}
 // Hide control panel if in an iframe
 if (window.self !== window.top) {
   document.addEventListener('DOMContentLoaded', function() {
@@ -80,30 +116,42 @@ function parseHash() {
   const cameraParts = cameraStr ? cameraStr.split(',').map(Number) : [];
   let layersOn = allStyleLayers.map(l => l.id);
   let dynamicGeojsonToLoad = [];
+  let paintCopyPairs = [];
   if (layersStr) {
     layersOn = [];
     const layerState = {};
     layersStr.split(',').forEach(token => {
-      // Support +id:follow and ~id:follow
-      const match = token.match(/^([+~])([^:]+)(:follow)?$/);
+      // Support +id:follow, ~id:follow, +target(source), ~target(source), with optional :follow
+      const match = token.match(/^([+~])([^:()]+)(\(([^)]+)\))?(:follow)?$/);
       if (!match) return;
-      const [, sign, lname, follow] = match;
+      const [, sign, lname, , copySource, follow] = match;
       // Always use the id without :follow for loading/toggling
-      layerState[lname] = { sign, follow: !!follow };
+      layerState[lname] = { sign, follow: !!follow, copySource };
+      if (copySource) {
+        paintCopyPairs.push({ target: lname, source: copySource, sign });
+      }
     });
-    Object.entries(layerState).forEach(([lname, { sign, follow }]) => {
+    Object.entries(layerState).forEach(([lname, { sign, follow, copySource }]) => {
       if (sign === '+') {
         if (!allStyleLayers.some(l => l.id === lname)) {
           dynamicGeojsonToLoad.push(lname);
         }
         layersOn.push(lname);
         if (follow) followId = lname;
+        // Also ensure source is loaded if copying
+        if (copySource && !allStyleLayers.some(l => l.id === copySource)) {
+          dynamicGeojsonToLoad.push(copySource);
+        }
       } else if (sign === '~') {
         // For ~new-id, load as invisible (unchecked) dynamic layer
         if (!allStyleLayers.some(l => l.id === lname)) {
           dynamicGeojsonToLoad.push(lname);
         }
         if (follow) followId = lname;
+        // Also ensure source is loaded if copying
+        if (copySource && !allStyleLayers.some(l => l.id === copySource)) {
+          dynamicGeojsonToLoad.push(copySource);
+        }
         // Do NOT add to layersOn, so it is not visible/checked
       }
     });
@@ -117,7 +165,8 @@ function parseHash() {
     },
     layers: layersOn,
     dynamicGeojsonToLoad,
-    followId
+    followId,
+    paintCopyPairs
   };
 }
 
@@ -653,7 +702,24 @@ window.addEventListener('hashchange', () => {
   if (window._lastHashState === currentHash) return;
   window._lastHashState = currentHash;
 
-  const { camera, layers, dynamicGeojsonToLoad, followId } = parseHash();
+  const { camera, layers, dynamicGeojsonToLoad, followId, paintCopyPairs } = parseHash();
+  // After all layers are loaded, perform paint property copying if needed
+  if (paintCopyPairs && paintCopyPairs.length > 0) {
+    paintCopyPairs.forEach(({ target, source, sign }) => {
+      // Wait for both layers to be loaded
+      const tryCopy = () => {
+        const targetLayer = map.getLayer(target);
+        const sourceLayer = map.getLayer(source);
+        if (targetLayer && sourceLayer) {
+          copyPaintProperties(map, source, target);
+        } else {
+          // Try again on the next styledata event
+          map.once('styledata', tryCopy);
+        }
+      };
+      tryCopy();
+    });
+  }
 
   // If a followId is present (from +id:follow or ~id:follow), animate and block hash/camera updates until done
   // If followId is present, handle follow logic. If not, and animation is running, stop it and resume normal hash handling.
