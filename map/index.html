@@ -563,29 +563,19 @@ function followPathWithFreeCamera(map, coords, onComplete, layerId) {
     return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
   }
 
-  // Before animation: calculate offset of path's start from map center and preserve camera state
-  const initialCamera = map.getFreeCameraOptions();
-  const camAlt = initialCamera.position ? initialCamera.position.z : 6000;
-  const camBearing = initialCamera.orientation && typeof initialCamera.orientation.bearing === 'number' ? initialCamera.orientation.bearing : 0;
-  const camPitch = initialCamera.orientation && typeof initialCamera.orientation.pitch === 'number' ? initialCamera.orientation.pitch : 0;
-  // Get current map center in Mercator
+  // Before animation: capture the current camera state at the moment follow starts
+  const camBearing = map.getBearing();
+  const camPitch = map.getPitch();
+  const camZoom = map.getZoom();
+  // Get current map center and path start in screen (pixel) coordinates
   const mapCenter = map.getCenter();
-  const mapCenterMerc = mapboxgl.MercatorCoordinate.fromLngLat({lng: mapCenter.lng, lat: mapCenter.lat}, camAlt);
-  // Get path start in Mercator
-  const pathStartMerc = mapboxgl.MercatorCoordinate.fromLngLat({lng: coords[0][0], lat: coords[0][1]}, camAlt);
-  // Offset vector from map center to path start
-  const offsetX = pathStartMerc.x - mapCenterMerc.x;
-  const offsetY = pathStartMerc.y - mapCenterMerc.y;
+  const mapCenterPx = map.project(mapCenter);
+  const pathStartPx = map.project({lng: coords[0][0], lat: coords[0][1]});
+  // Offset vector in pixels from map center to path start
+  const offsetPx = { x: pathStartPx.x - mapCenterPx.x, y: pathStartPx.y - mapCenterPx.y };
   // Camera state for smooth following
-  let currentCameraPos, useOffset;
-  if (Math.abs(offsetX) > 1e-10 || Math.abs(offsetY) > 1e-10) {
-    currentCameraPos = new mapboxgl.MercatorCoordinate(mapCenterMerc.x, mapCenterMerc.y, mapCenterMerc.z);
-    useOffset = true;
-  } else {
-    // If offset is zero, animate camera position along the path (classic follow)
-    currentCameraPos = new mapboxgl.MercatorCoordinate(pathStartMerc.x, pathStartMerc.y, pathStartMerc.z);
-    useOffset = false;
-  }
+  let currentCameraCenter = mapCenter;
+  let useOffset = Math.abs(offsetPx.x) > 1e-2 || Math.abs(offsetPx.y) > 1e-2;
 
   function animate(ts) {
     // Check if :follow is still present in the hash for this layer
@@ -641,32 +631,30 @@ function followPathWithFreeCamera(map, coords, onComplete, layerId) {
         src.setData(partialLine);
       }
     }
-    let targetCameraPos;
-    const tipMerc = mapboxgl.MercatorCoordinate.fromLngLat({lng: tip[0], lat: tip[1]}, camAlt);
+    let targetCameraCenter;
     if (useOffset) {
-      // Always keep the same offset from tip as original map center to path start
-      targetCameraPos = new mapboxgl.MercatorCoordinate(
-        tipMerc.x - offsetX,
-        tipMerc.y - offsetY,
-        camAlt
-      );
+      // Always keep the same pixel offset from tip as original map center to path start
+      const tipPx = map.project({lng: tip[0], lat: tip[1]});
+      const desiredCenterPx = { x: tipPx.x - offsetPx.x, y: tipPx.y - offsetPx.y };
+      targetCameraCenter = map.unproject(desiredCenterPx);
     } else {
-      // Move camera position along the path (classic follow)
-      targetCameraPos = tipMerc;
+      // Move camera center along the path (classic follow)
+      targetCameraCenter = {lng: tip[0], lat: tip[1]};
     }
+    // Smoothly ease the camera center
     const ease = 0.15;
-    currentCameraPos.x += (targetCameraPos.x - currentCameraPos.x) * ease;
-    currentCameraPos.y += (targetCameraPos.y - currentCameraPos.y) * ease;
-    currentCameraPos.z = camAlt;
-    // Set camera to always keep the same bearing and pitch as at start
-    const camera = map.getFreeCameraOptions();
-    camera.position = currentCameraPos;
-    camera.lookAtPoint = { lng: tip[0], lat: tip[1], altitude: 0 };
-    camera.orientation = {
-      bearing: camBearing,
-      pitch: camPitch
+    currentCameraCenter = {
+      lng: currentCameraCenter.lng + (targetCameraCenter.lng - currentCameraCenter.lng) * ease,
+      lat: currentCameraCenter.lat + (targetCameraCenter.lat - currentCameraCenter.lat) * ease
     };
-    map.setFreeCameraOptions(camera);
+    // Set camera to always keep the same bearing, pitch, and zoom as at start
+    map.jumpTo({
+      center: currentCameraCenter,
+      zoom: camZoom,
+      bearing: camBearing,
+      pitch: camPitch,
+      animate: false
+    });
     if (t < 1) {
       requestAnimationFrame(animate);
     } else {
