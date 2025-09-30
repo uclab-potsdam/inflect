@@ -33,42 +33,6 @@
 <div id="map"></div>
 <div id="layer-controls"></div>
 <script>
-// Copy paint properties from one layer to another
-function copyPaintProperties(map, sourceLayerId, targetLayerId) {
-  function doCopy() {
-    const sourceLayer = map.getLayer(sourceLayerId);
-    const targetLayer = map.getLayer(targetLayerId);
-    if (!sourceLayer || !targetLayer) {
-      // Wait for both layers to be loaded, then retry
-      map.once('styledata', doCopy);
-      return;
-    }
-    if (sourceLayer.type !== targetLayer.type) {
-      console.warn('Layer types do not match:', sourceLayer.type, targetLayer.type);
-      return;
-    }
-    // Copy all paint properties except 'visibility'
-    const paint = map.getStyle().layers.find(l => l.id === sourceLayerId)?.paint || {};
-    for (const prop in paint) {
-      if (prop === 'visibility') continue;
-      const value = map.getPaintProperty(sourceLayerId, prop);
-      if (value !== undefined) {
-        map.setPaintProperty(targetLayerId, prop, value);
-      }
-    }
-    // Copy all layout properties except 'visibility'
-    const layout = map.getStyle().layers.find(l => l.id === sourceLayerId)?.layout || {};
-    for (const prop in layout) {
-      if (prop === 'visibility') continue;
-      const value = map.getLayoutProperty(sourceLayerId, prop);
-      if (value !== undefined) {
-        map.setLayoutProperty(targetLayerId, prop, value);
-      }
-    }
-    console.log(`Copied all paint and layout properties (except visibility) from ${sourceLayerId} to ${targetLayerId}`);
-  }
-  doCopy();
-}
 // Hide control panel if in an iframe
 if (window.self !== window.top) {
   document.addEventListener('DOMContentLoaded', function() {
@@ -116,42 +80,30 @@ function parseHash() {
   const cameraParts = cameraStr ? cameraStr.split(',').map(Number) : [];
   let layersOn = allStyleLayers.map(l => l.id);
   let dynamicGeojsonToLoad = [];
-  let paintCopyPairs = [];
   if (layersStr) {
     layersOn = [];
     const layerState = {};
     layersStr.split(',').forEach(token => {
-      // Support +id:follow, ~id:follow, +target(source), ~target(source), with optional :follow
-      const match = token.match(/^([+~])([^:()]+)(\(([^)]+)\))?(:follow)?$/);
+      // Support +id:follow and ~id:follow
+      const match = token.match(/^([+~])([^:]+)(:follow)?$/);
       if (!match) return;
-      const [, sign, lname, , copySource, follow] = match;
+      const [, sign, lname, follow] = match;
       // Always use the id without :follow for loading/toggling
-      layerState[lname] = { sign, follow: !!follow, copySource };
-      if (copySource) {
-        paintCopyPairs.push({ target: lname, source: copySource, sign });
-      }
+      layerState[lname] = { sign, follow: !!follow };
     });
-    Object.entries(layerState).forEach(([lname, { sign, follow, copySource }]) => {
+    Object.entries(layerState).forEach(([lname, { sign, follow }]) => {
       if (sign === '+') {
         if (!allStyleLayers.some(l => l.id === lname)) {
           dynamicGeojsonToLoad.push(lname);
         }
         layersOn.push(lname);
         if (follow) followId = lname;
-        // Also ensure source is loaded if copying
-        if (copySource && !allStyleLayers.some(l => l.id === copySource)) {
-          dynamicGeojsonToLoad.push(copySource);
-        }
       } else if (sign === '~') {
         // For ~new-id, load as invisible (unchecked) dynamic layer
         if (!allStyleLayers.some(l => l.id === lname)) {
           dynamicGeojsonToLoad.push(lname);
         }
         if (follow) followId = lname;
-        // Also ensure source is loaded if copying
-        if (copySource && !allStyleLayers.some(l => l.id === copySource)) {
-          dynamicGeojsonToLoad.push(copySource);
-        }
         // Do NOT add to layersOn, so it is not visible/checked
       }
     });
@@ -165,8 +117,7 @@ function parseHash() {
     },
     layers: layersOn,
     dynamicGeojsonToLoad,
-    followId,
-    paintCopyPairs
+    followId
   };
 }
 
@@ -551,13 +502,6 @@ let isFreeCameraAnimating = false;
 let pendingHashUpdate = null;
 function followPathWithFreeCamera(map, coords, onComplete, layerId) {
   isFreeCameraAnimating = true;
-  // Provide a robust global cancel function
-  if (window._cancelFreeCameraAnimation) window._cancelFreeCameraAnimation();
-  window._cancelFreeCameraAnimation = () => {
-    isFreeCameraAnimating = false;
-    window._isFreeCameraAnimating = false;
-    window._cancelFreeCameraAnimation = null;
-  };
   // Calculate total distance for constant speed
   function getDistance(a, b) {
     const R = 6371000;
@@ -614,6 +558,35 @@ function followPathWithFreeCamera(map, coords, onComplete, layerId) {
     ];
   }
 
+  // Easing function (easeInOutQuad)
+  function easeInOutQuad(x) {
+    return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+  }
+
+  // Before animation: calculate offset of path's start from map center and preserve camera state
+  const initialCamera = map.getFreeCameraOptions();
+  const camAlt = initialCamera.position ? initialCamera.position.z : 6000;
+  const camBearing = initialCamera.orientation && typeof initialCamera.orientation.bearing === 'number' ? initialCamera.orientation.bearing : 0;
+  const camPitch = initialCamera.orientation && typeof initialCamera.orientation.pitch === 'number' ? initialCamera.orientation.pitch : 0;
+  // Get current map center in Mercator
+  const mapCenter = map.getCenter();
+  const mapCenterMerc = mapboxgl.MercatorCoordinate.fromLngLat({lng: mapCenter.lng, lat: mapCenter.lat}, camAlt);
+  // Get path start in Mercator
+  const pathStartMerc = mapboxgl.MercatorCoordinate.fromLngLat({lng: coords[0][0], lat: coords[0][1]}, camAlt);
+  // Offset vector from map center to path start
+  const offsetX = pathStartMerc.x - mapCenterMerc.x;
+  const offsetY = pathStartMerc.y - mapCenterMerc.y;
+  // Camera state for smooth following
+  let currentCameraPos, useOffset;
+  if (Math.abs(offsetX) > 1e-10 || Math.abs(offsetY) > 1e-10) {
+    currentCameraPos = new mapboxgl.MercatorCoordinate(mapCenterMerc.x, mapCenterMerc.y, mapCenterMerc.z);
+    useOffset = true;
+  } else {
+    // If offset is zero, animate camera position along the path (classic follow)
+    currentCameraPos = new mapboxgl.MercatorCoordinate(pathStartMerc.x, pathStartMerc.y, pathStartMerc.z);
+    useOffset = false;
+  }
+
   function animate(ts) {
     // Check if :follow is still present in the hash for this layer
     const hash = window.location.hash.replace('#', '');
@@ -623,11 +596,8 @@ function followPathWithFreeCamera(map, coords, onComplete, layerId) {
       const tokens = layersStr.split(',');
       stillFollowing = tokens.some(token => token.match(new RegExp(`^[+~]${layerId}:follow$`)));
     }
-    // Also check global cancel function
-    if (!stillFollowing || !isFreeCameraAnimating || window._cancelFreeCameraAnimation == null) {
+    if (!stillFollowing) {
       isFreeCameraAnimating = false;
-      window._isFreeCameraAnimating = false;
-      if (window._cancelFreeCameraAnimation) window._cancelFreeCameraAnimation = null;
       if (layerId && originalData) {
         const src = map.getSource(layerId);
         if (src) src.setData(originalData);
@@ -638,7 +608,6 @@ function followPathWithFreeCamera(map, coords, onComplete, layerId) {
     if (!startTime) startTime = ts;
     let elapsed = ts - startTime;
     let t = Math.min(1, elapsed / duration);
-    // Draw partial line up to tip
     let tip = interpolateLine(coords, t);
     if (layerId) {
       const src = map.getSource(layerId);
@@ -672,23 +641,30 @@ function followPathWithFreeCamera(map, coords, onComplete, layerId) {
         src.setData(partialLine);
       }
     }
-    // Camera position moves from start to end at constant speed
-    const start = coords[0];
-    const end = coords[coords.length - 1];
-    const camLng = start[0] + (end[0] - start[0]) * t;
-    const camLat = start[1] + (end[1] - start[1]) * t;
-    const camAlt = 6000;
-    // Calculate bearing and pitch to always center on the tip
-    const camPos = [camLng, camLat];
-    const bearing = getBearing(camPos, tip) * 180 / Math.PI;
-    // Calculate pitch: higher when closer, lower when farther (optional, here fixed)
-    const pitch = 60; // degrees, adjust for more/less tilt
+    let targetCameraPos;
+    const tipMerc = mapboxgl.MercatorCoordinate.fromLngLat({lng: tip[0], lat: tip[1]}, camAlt);
+    if (useOffset) {
+      // Always keep the same offset from tip as original map center to path start
+      targetCameraPos = new mapboxgl.MercatorCoordinate(
+        tipMerc.x - offsetX,
+        tipMerc.y - offsetY,
+        camAlt
+      );
+    } else {
+      // Move camera position along the path (classic follow)
+      targetCameraPos = tipMerc;
+    }
+    const ease = 0.15;
+    currentCameraPos.x += (targetCameraPos.x - currentCameraPos.x) * ease;
+    currentCameraPos.y += (targetCameraPos.y - currentCameraPos.y) * ease;
+    currentCameraPos.z = camAlt;
+    // Set camera to always keep the same bearing and pitch as at start
     const camera = map.getFreeCameraOptions();
-    camera.position = mapboxgl.MercatorCoordinate.fromLngLat({lng: camLng, lat: camLat}, camAlt);
+    camera.position = currentCameraPos;
     camera.lookAtPoint = { lng: tip[0], lat: tip[1], altitude: 0 };
     camera.orientation = {
-      bearing: bearing,
-      pitch: pitch
+      bearing: camBearing,
+      pitch: camPitch
     };
     map.setFreeCameraOptions(camera);
     if (t < 1) {
@@ -703,7 +679,6 @@ function followPathWithFreeCamera(map, coords, onComplete, layerId) {
     }
   }
   requestAnimationFrame(animate);
-  // (no animate() call here, requestAnimationFrame is used)
 }
 
 window.addEventListener('hashchange', () => {
@@ -712,42 +687,12 @@ window.addEventListener('hashchange', () => {
   if (window._lastHashState === currentHash) return;
   window._lastHashState = currentHash;
 
-  const { camera, layers, dynamicGeojsonToLoad, followId, paintCopyPairs } = parseHash();
-  // After all layers are loaded, perform paint property copying if needed
-  if (paintCopyPairs && paintCopyPairs.length > 0) {
-    paintCopyPairs.forEach(({ target, source, sign }) => {
-      // Wait for both layers to be loaded
-      const tryCopy = () => {
-        const targetLayer = map.getLayer(target);
-        const sourceLayer = map.getLayer(source);
-        if (targetLayer && sourceLayer) {
-          copyPaintProperties(map, source, target);
-        } else {
-          // Try again on the next styledata event
-          map.once('styledata', tryCopy);
-        }
-      };
-      tryCopy();
-    });
-  }
+  const { camera, layers, dynamicGeojsonToLoad, followId } = parseHash();
 
   // If a followId is present (from +id:follow or ~id:follow), animate and block hash/camera updates until done
   // If followId is present, handle follow logic. If not, and animation is running, stop it and resume normal hash handling.
-  // Explicit :stop controller in the hash cancels any follow animation
-  const _hashStr = window.location.hash.replace('#', '');
-  const [, _layersStr] = _hashStr.split('/');
-  let stopRequested = false;
-  if (_layersStr) {
-    stopRequested = _layersStr.split(',').some(token => /:stop$/.test(token));
-  }
-  if (stopRequested && (isFreeCameraAnimating || window._isFreeCameraAnimating)) {
+  if (!followId && isFreeCameraAnimating) {
     isFreeCameraAnimating = false;
-    window._isFreeCameraAnimating = false;
-    if (window._cancelFreeCameraAnimation) window._cancelFreeCameraAnimation();
-  } else if (!followId && isFreeCameraAnimating) {
-    isFreeCameraAnimating = false;
-    window._isFreeCameraAnimating = false;
-    if (window._cancelFreeCameraAnimation) window._cancelFreeCameraAnimation();
   }
   if (followId && !isFreeCameraAnimating) {
     // 1. Check if the layer is loaded
@@ -782,16 +727,16 @@ window.addEventListener('hashchange', () => {
       return;
     }
     // If already loaded, proceed as before
-    // 1. Fly to new location using the hash camera location (with animation)
-    const flyOpts = {
+    // 1. Set location using the hash camera location (immediately, no animation)
+    const setOpts = {
       center: [camera.center[0], camera.center[1]],
       zoom: camera.zoom,
       bearing: camera.bearing,
       pitch: camera.pitch,
-      duration: 1200
+      animate: false
     };
-    map.flyTo(flyOpts);
-    console.log('[FOLLOW] 1. Flying to new location:', flyOpts.center, 'zoom:', flyOpts.zoom);
+    map.jumpTo(setOpts);
+    console.log('[FOLLOW] 1. Set location using hash camera:', setOpts.center, 'zoom:', setOpts.zoom);
 
     // 2. Change visibility of existing layers
     const hashStr = window.location.hash.replace('#', '');
