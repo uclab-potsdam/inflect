@@ -85,24 +85,26 @@ function parseHash() {
     layersOn = [];
     const layerState = {};
     layersStr.split(',').forEach(token => {
-      // Support +id:follow and ~id:follow
-      const match = token.match(/^([+~])([^:]+)(:follow)?$/);
+      // Support +id:follow, ~id:follow and +id(source):follow
+      // token examples: +name, ~name, +name:follow, +name(source), +name(source):follow
+      const match = token.match(/^([+~])([^:(]+)(?:\(([^)]+)\))?(?::follow)?$/);
       if (!match) return;
-      const [, sign, lname, follow] = match;
+      const [, sign, lname, sourceHint] = match;
       // Always use the id without :follow for loading/toggling
-      layerState[lname] = { sign, follow: !!follow };
+      layerState[lname] = { sign, sourceHint: sourceHint || null, follow: token.endsWith(':follow') };
     });
-    Object.entries(layerState).forEach(([lname, { sign, follow }]) => {
+    Object.entries(layerState).forEach(([lname, { sign, sourceHint, follow }]) => {
       if (sign === '+') {
         if (!allStyleLayers.some(l => l.id === lname)) {
-          dynamicGeojsonToLoad.push(lname);
+          // remember source hint by pushing an object like "name|source" for later loading
+          dynamicGeojsonToLoad.push({ name: lname, sourceHint });
         }
         layersOn.push(lname);
         if (follow) followId = lname;
       } else if (sign === '~') {
         // For ~new-id, load as invisible (unchecked) dynamic layer
         if (!allStyleLayers.some(l => l.id === lname)) {
-          dynamicGeojsonToLoad.push(lname);
+          dynamicGeojsonToLoad.push({ name: lname, sourceHint });
         }
         if (follow) followId = lname;
         // Do NOT add to layersOn, so it is not visible/checked
@@ -128,12 +130,13 @@ function parseHash() {
 }
 
 // Helper: load and add GeoJSON as top layer or replace source of a layer
+// geojsonFile: path or filename, toLayer: optional { visibility } or { sourceHint }
 async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
   try {
     const response = await fetch(geojsonFile);
     if (!response.ok) throw new Error('Failed to fetch GeoJSON');
     const geojson = await response.json();
-    let fileId = geojsonFile.split('/').pop();
+  let fileId = geojsonFile.split('/').pop();
     let cleanId = fileId.replace(/(_geojson|\.geojson)$/i, '');
     cleanId = cleanId.replace(/[^a-zA-Z0-9_-]/g, '_');
     const sourceId = cleanId;
@@ -161,6 +164,30 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
              type === 'fill' ? { 'fill-color': '#f00', 'fill-opacity': 0.5 } :
              { 'circle-radius': 6, 'circle-color': '#f00' }
     };
+
+    // If caller passed a source hint (toLayer.sourceHint) try to copy paint/layout from that style layer
+    try {
+      let sourceHint = null;
+      if (typeof toLayer === 'object' && toLayer !== null && toLayer.sourceHint) sourceHint = toLayer.sourceHint;
+      // Also support passing sourceHint as a second parameter when callers pass an object in dynamicGeojsonToLoad
+      if (!sourceHint && typeof geojsonFile === 'object' && geojsonFile.sourceHint) sourceHint = geojsonFile.sourceHint;
+      if (sourceHint) {
+        // If the hinted source exists in the style, copy its paint and layout properties
+        const styleLayer = map.getStyle().layers.find(l => l.id === sourceHint);
+        if (styleLayer) {
+          // Copy paint and layout if present, but do NOT copy visibility (we keep computed visibility)
+          if (styleLayer.paint) layerDef.paint = JSON.parse(JSON.stringify(styleLayer.paint));
+          if (styleLayer.layout) {
+            const copiedLayout = JSON.parse(JSON.stringify(styleLayer.layout));
+            if (typeof copiedLayout.visibility !== 'undefined') delete copiedLayout.visibility;
+            layerDef.layout = Object.assign({}, layerDef.layout, copiedLayout);
+          }
+        }
+      }
+    } catch (ex) {
+      console.warn('Failed to apply source hint style:', ex);
+    }
+
     map.addLayer(layerDef);
     console.log(`Layer loaded: ${layerId}`);
     // After loading, always check if the hash has :follow for this layer and trigger follow logic if needed
@@ -503,8 +530,12 @@ map.on('load', () => {
   // Load any dynamic geojsons requested in the hash
   const { dynamicGeojsonToLoad } = parseHash();
   if (dynamicGeojsonToLoad && dynamicGeojsonToLoad.length) {
-    dynamicGeojsonToLoad.forEach(name => {
-      loadAndAddOrReplaceGeoJSON(name + '.geojson');
+    dynamicGeojsonToLoad.forEach(entry => {
+      if (typeof entry === 'string') {
+        loadAndAddOrReplaceGeoJSON(entry + '.geojson');
+      } else if (entry && typeof entry === 'object' && entry.name) {
+        loadAndAddOrReplaceGeoJSON(entry.name + '.geojson', { sourceHint: entry.sourceHint });
+      }
     });
   }
 });
@@ -930,16 +961,20 @@ window.addEventListener('hashchange', () => {
 
   if (dynamicGeojsonToLoad && dynamicGeojsonToLoad.length) {
     const { layers: layersOn } = parseHash();
-    dynamicGeojsonToLoad.forEach(name => {
+    dynamicGeojsonToLoad.forEach(entry => {
+      let name = null, sourceHint = null;
+      if (typeof entry === 'string') name = entry;
+      else if (entry && typeof entry === 'object') { name = entry.name; sourceHint = entry.sourceHint; }
+      if (!name) return;
       if (!allStyleLayers.some(l => l.id === name)) {
         allStyleLayers.push({ id: name, name });
         styleDefaultVisibility[name] = 'visible';
       }
       // If not visible (not in layersOn), load as invisible
       if (!layersOn.includes(name)) {
-        loadAndAddOrReplaceGeoJSON(name + '.geojson', { visibility: 'none' });
+        loadAndAddOrReplaceGeoJSON(name + '.geojson', { visibility: 'none', sourceHint });
       } else {
-        loadAndAddOrReplaceGeoJSON(name + '.geojson');
+        loadAndAddOrReplaceGeoJSON(name + '.geojson', { sourceHint });
       }
     });
   }

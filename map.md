@@ -37,10 +37,9 @@ Simply place a `filename.geojson` in the `/map` directory and load it using the 
 
 From that point on it can be shown and hidden like any other layer.
 
-<!-- 
+
 We can add a custom style to the new layer by noting which source layer should it look like. For example, we can use the hidden `track` layer as a source like this: `+filename(source)`:
-[map/#31.43672,34.34664,10.16,37.6,0.0/+jabalia-rafah(track)](map/#31.43672,34.34664,10.16,37.6,0.0/+jabalia-rafah(track))
- -->
+[map/#31.45086,34.38246,11.54,37.6,0.0/+jabalia-rafah(track)](map/#31.45086,34.38246,11.54,37.6,0.0/+jabalia-rafah(track))
 
 
 With externally loaded paths we can even animate the camera to follow the path by adding the `:follow` syntax:
