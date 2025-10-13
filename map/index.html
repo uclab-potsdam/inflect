@@ -10,6 +10,7 @@
       margin: 0;
       padding: 0;
       width: 100%;
+      background: #333; 
     }
     #layer-controls {
       position: absolute;
@@ -44,7 +45,7 @@ if (window.self !== window.top) {
 mapboxgl.accessToken = 'pk.eyJ1IjoibXVzaG9uIiwiYSI6ImNtOGVhMWFkZTJqOGkyanI3aHJzaG11N3oifQ.gU_FaxkjsMZqUbFQedDSJA';
 
 // Sample style
-const style = 'mapbox://styles/mushon/cmg0uv6tl00jn01qy6ruzhg29';
+const style = 'mapbox://styles/mushon/cmg0uv6tl00jn01qy6ruzhg29/draft';
 
 // Layers to toggle (layer ids must exist in the style)
 // Will be populated with all layers from the style after map load
@@ -108,12 +109,17 @@ function parseHash() {
       }
     });
   }
+  // Helper: treat 0 as a valid numeric value (don't use || which treats 0 as falsy)
+  function pickNum(val, def) {
+    return (typeof val === 'number' && !isNaN(val)) ? val : def;
+  }
+
   return {
     camera: {
-      center: [cameraParts[1] || defaultCamera.center[0], cameraParts[0] || defaultCamera.center[1]],
-      zoom: cameraParts[2] || defaultCamera.zoom,
-      bearing: cameraParts[3] || defaultCamera.bearing,
-      pitch: cameraParts[4] || defaultCamera.pitch
+      center: [pickNum(cameraParts[1], defaultCamera.center[0]), pickNum(cameraParts[0], defaultCamera.center[1])],
+      zoom: pickNum(cameraParts[2], defaultCamera.zoom),
+      bearing: pickNum(cameraParts[3], defaultCamera.bearing),
+      pitch: pickNum(cameraParts[4], defaultCamera.pitch)
     },
     layers: layersOn,
     dynamicGeojsonToLoad,
@@ -162,12 +168,15 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
       const hash = window.location.hash.replace('#', '');
       const [, layersStr] = hash.split('/');
       if (layersStr) {
+        const safeLayerId = layerId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const tokens = layersStr.split(',');
-        const match = tokens.find(token => token.match(new RegExp(`^[+~]${layerId}:follow$`)));
-        if (match && !(window._isFreeCameraAnimating)) {
-          // Directly invoke the follow logic as in the hashchange handler
+        const match = tokens.find(token => token.match(new RegExp(`^[+~]${safeLayerId}:follow$`)));
+        console.log('[FOLLOW DEBUG] Checking layerId:', layerId, 'tokens:', tokens, 'match:', match);
+        if (match && !(window._isFreeCameraAnimating) && (match.slice(1, match.indexOf(':')) === layerId)) {
+          // Only start follow if the hash contains the exact :follow for this layer
           const { camera, layers, dynamicGeojsonToLoad, followId } = parseHash();
           if (followId === layerId) {
+            // ...existing code for flyTo, visibility, and followPathWithFreeCamera...
             // 1. Fly to new location
             const flyOpts = {
               center: [camera.center[0], camera.center[1]],
@@ -217,7 +226,6 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
             console.log(`[FOLLOW] 3. Layer loaded: ${layerId}`);
 
             // 4. Start following the line
-            // Helper to extract coordinates from a source
             function getCoordsFromSource(source) {
               let coords = [];
               if (source && source._data && source._data.features) {
@@ -239,13 +247,7 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
               pendingHashUpdate = { camera, layers, dynamicGeojsonToLoad };
               followPathWithFreeCamera(map, coords, () => {
                 pendingHashUpdate = null;
-                // Remove :follow from the hash for this layer
-                let hash = window.location.hash.replace('#', '');
-                const parts = hash.split('/');
-                if (parts[1]) {
-                  parts[1] = parts[1].replace(new RegExp(`([+~]${layerId}):follow`), '$1');
-                }
-                window.location.replace('#' + parts.join('/'));
+                // Do not update the hash here; let external events control :follow removal
               }, layerId);
             }
           }
@@ -482,6 +484,22 @@ map.on('load', () => {
   });
   // Only update the toggle list to reflect the current style visibility (do not use hash for initial state)
   createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
+  // Re-apply camera from hash after style load to ensure bearing/pitch/zoom are honored
+  try {
+    const { camera: parsedCamera } = parseHash();
+    if (parsedCamera) {
+      map.jumpTo({
+        center: parsedCamera.center,
+        zoom: parsedCamera.zoom,
+        bearing: parsedCamera.bearing,
+        pitch: parsedCamera.pitch,
+        animate: false
+      });
+      console.log('[INIT] Applied camera from hash on load:', parsedCamera);
+    }
+  } catch (e) {
+    console.warn('[INIT] Failed to apply parsed camera on load', e);
+  }
   // Load any dynamic geojsons requested in the hash
   const { dynamicGeojsonToLoad } = parseHash();
   if (dynamicGeojsonToLoad && dynamicGeojsonToLoad.length) {
@@ -501,6 +519,26 @@ map.on('moveend', () => {
 let isFreeCameraAnimating = false;
 let pendingHashUpdate = null;
 function followPathWithFreeCamera(map, coords, onComplete, layerId) {
+  // Periodic check for :follow in the hash
+  // Escape layerId for regex
+  const safeLayerId = layerId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  let followCheckInterval = setInterval(() => {
+    const rawHash = window.location.hash;
+    const hash = rawHash.replace('#', '');
+    const [, layersStr] = hash.split('/');
+    let stillFollowing = false;
+    if (layersStr) {
+      const tokens = layersStr.split(',');
+      stillFollowing = tokens.some(token => token.match(new RegExp(`^[+~]${safeLayerId}:follow$`)));
+    }
+    console.log(`[FOLLOW CHECK] hash: ${rawHash} | :follow present for ${layerId}?`, stillFollowing);
+    if (!stillFollowing) {
+      console.log(`[FOLLOW CHECK] :follow removed for ${layerId}, stopping animation and applying hash params.`);
+      isFreeCameraAnimating = false;
+      clearInterval(followCheckInterval);
+      if (typeof onComplete === 'function') onComplete();
+    }
+  }, 1000);
   isFreeCameraAnimating = true;
   // Calculate total distance for constant speed
   function getDistance(a, b) {
@@ -578,23 +616,14 @@ function followPathWithFreeCamera(map, coords, onComplete, layerId) {
   let useOffset = Math.abs(offsetPx.x) > 1e-2 || Math.abs(offsetPx.y) > 1e-2;
 
   function animate(ts) {
-    // Check if :follow is still present in the hash for this layer
-    const hash = window.location.hash.replace('#', '');
-    const [, layersStr] = hash.split('/');
-    let stillFollowing = false;
-    if (layersStr) {
-      const tokens = layersStr.split(',');
-      stillFollowing = tokens.some(token => token.match(new RegExp(`^[+~]${layerId}:follow$`)));
-    }
-    if (!stillFollowing) {
-      isFreeCameraAnimating = false;
-      if (layerId && originalData) {
-        const src = map.getSource(layerId);
-        if (src) src.setData(originalData);
-      }
-      if (typeof onComplete === 'function') onComplete();
-      return;
-    }
+  if (!isFreeCameraAnimating) return;
+    // (Hash :follow check now handled by periodic interval)
+  // Cleanup interval on animation end
+  const originalOnComplete = onComplete;
+  onComplete = function() {
+    clearInterval(followCheckInterval);
+    if (typeof originalOnComplete === 'function') originalOnComplete();
+  };
     if (!startTime) startTime = ts;
     let elapsed = ts - startTime;
     let t = Math.min(1, elapsed / duration);
@@ -844,31 +873,60 @@ window.addEventListener('hashchange', () => {
     });
   }
 
+  // Build a set of style layer ids for quick lookup
+  const styleLayerIds = map.getStyle().layers.map(l => l.id);
+
   let removedIds = [];
+  // Iterate over known layers (including dynamic ones tracked in allStyleLayers)
   allStyleLayers.slice().forEach(layer => {
     const id = layer.id;
-    if (!map.getStyle().layers.some(l => l.id === id) && explicitState[id] !== '+') {
-      if (map.getLayer(id)) map.removeLayer(id);
-      if (map.getSource(id)) map.removeSource(id);
-      removedIds.push(id);
-      delete styleDefaultVisibility[id];
-    }
-  });
-  allStyleLayers = allStyleLayers.filter(l => !removedIds.includes(l.id));
+    const isStyleLayer = styleLayerIds.includes(id);
+    const explicit = explicitState[id]; // '+' or '~' or undefined
 
-  Object.entries(explicitState).forEach(([id, sign]) => {
-    if (map.getLayer(id)) {
-      if (sign === '+') {
-        if (map.getLayoutProperty(id, 'visibility') !== 'visible') {
+    if (isStyleLayer) {
+      // For style layers: restore style default if not explicitly mentioned
+      const defaultVis = styleDefaultVisibility[id] || 'visible';
+      if (explicit === '+') {
+        if (map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'visible') {
           map.setLayoutProperty(id, 'visibility', 'visible');
         }
-      } else if (sign === '~') {
-        if (map.getLayoutProperty(id, 'visibility') !== 'none') {
+      } else if (explicit === '~') {
+        if (map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none') {
           map.setLayoutProperty(id, 'visibility', 'none');
         }
+      } else {
+        // Not explicitly mentioned: ensure it matches style default
+        if (map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== defaultVis) {
+          map.setLayoutProperty(id, 'visibility', defaultVis);
+        }
+      }
+    } else {
+      // Dynamic layer (not part of style)
+      if (explicit === '+') {
+        // Ensure the dynamic layer is loaded and visible
+        if (!map.getLayer(id)) {
+          // Attempt to load a geojson with this id
+          loadAndAddOrReplaceGeoJSON(id + '.geojson');
+        } else {
+          if (map.getLayoutProperty(id, 'visibility') !== 'visible') map.setLayoutProperty(id, 'visibility', 'visible');
+        }
+      } else if (explicit === '~') {
+        // Ensure it's loaded but hidden
+        if (!map.getLayer(id)) {
+          loadAndAddOrReplaceGeoJSON(id + '.geojson', { visibility: 'none' });
+        } else {
+          if (map.getLayoutProperty(id, 'visibility') !== 'none') map.setLayoutProperty(id, 'visibility', 'none');
+        }
+      } else {
+        // Not explicitly mentioned: remove previously added dynamic layer
+        if (map.getLayer(id)) map.removeLayer(id);
+        if (map.getSource(id)) map.removeSource(id);
+        removedIds.push(id);
+        delete styleDefaultVisibility[id];
       }
     }
   });
+  allStyleLayers = allStyleLayers.filter(l => !removedIds.includes(l.id));
 
   if (dynamicGeojsonToLoad && dynamicGeojsonToLoad.length) {
     const { layers: layersOn } = parseHash();
