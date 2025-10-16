@@ -51,8 +51,12 @@ section p{
     margin: 0;
 }
 
+section.testimony {
+    margin-right: 0;
+}
+
 section.testimony p{
-    font-size: 1.6em;
+    font-size: 1.2em;
     background-image: repeating-linear-gradient(0deg, #FA5F5F66, #FA5F5F66 2px, transparent 2px, transparent);
     background-size: 1.5em 1.5em;
     background-color: rgba(250, 95, 95, 0);
