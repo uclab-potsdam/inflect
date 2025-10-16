@@ -187,7 +187,6 @@
     // Track last path (excluding hash)
     let lastIframePath = null;
     let firstFrame = true;
-    let snapSectionTimeout = null;
     const iframe = document.getElementById('if');
 
     // Fade in new content 
@@ -269,8 +268,7 @@
 
     document.addEventListener("scroll", (event) => {
         if (location.hostname=="localhost") sessionStorage.setItem("scrollPosition", window.scrollY);
-    });
-
+    });    
     window.addEventListener("beforeunload", function () {
         if (location.hostname=="localhost") sessionStorage.setItem("scrollPosition", window.scrollY);
     });
@@ -302,13 +300,6 @@
                         visibleLink.classList.add('active');
                         // Update iframe, ignoring just changes
                         setIframeIfPathChanged(visibleLink.href);
-
-                        // snap section
-                        clearTimeout(snapSectionTimeout);
-                        snapSectionTimeout = setTimeout(function(){
-                            const section = visibleLink.closest('section');
-                            if (section) section.scrollIntoView({ behavior: 'smooth' });
-                        }, 500);                        
                     }
                 }
                 else entry.target.classList.remove("active")
@@ -351,7 +342,6 @@
             event.key === 'ArrowUp' ||
             event.key === ' '  // space key
         ) {
-            clearTimeout(snapSectionTimeout);
             const sections = Array.from(document.querySelectorAll('main section'));
             if (sections.length === 0) return;
 
