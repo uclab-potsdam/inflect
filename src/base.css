@@ -1,0 +1,80 @@
+/* Base styles (original repo appearance) */
+
+@font-face {
+    font-family: "Atkinson";
+    src: url("src/fonts/AtkinsonHyperlegibleNextVF-Variable.woff2") format("woff2-variations");
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "AtkinsonMono";
+    src: url("src/fonts/AtkinsonHyperlegibleMono-Medium.woff2") format("woff2-variations");
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "AtkinsonMono";
+    src: url("src/fonts/AtkinsonHyperlegibleMono-Bold.woff2") format("woff2-variations");
+    font-style: normal;
+    font-weight: bold;
+}
+
+html, body {
+    box-sizing: border-box;
+    direction: ltr;
+    background-color: #efefef;
+    color: #111;
+    margin: 0;
+    padding: 0;
+    font-family: "Atkinson", sans-serif;
+}
+
+code, pre, kbd, samp, tt, textarea {
+    font-family: "AtkinsonMono", monospace;
+}
+
+main {
+    position: absolute;
+    left: 67vw;
+    top: 0;
+    bottom: 0;
+    right: 0; /* reserve right-hand column for iframe */
+    padding: 4vh 5vh;
+    overflow-y: auto;
+}
+
+iframe {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 67vw;
+    height: 100vh;
+    border: 0;
+    background: #fff;
+}
+
+section {
+    margin: 6vh 0;
+    padding: 18px;
+    max-width: 640px;
+    min-height: 100vh;
+}
+
+section img { max-width: 100%; }
+
+h1 { font-size: 2.4em; font-weight: 200; margin-bottom: 0; }
+h2 { font-size: 1.8em; }
+h3 { font-size: 1.4em; }
+h4 { font-size: 1.2em; }
+
+p { font-size: 1em; line-height: 1.5em; }
+
+a { color: #0b66a8; }
+
+footer { opacity: 0.6; text-align: left; padding: 1rem 0; }
+
+@media (max-width: 1000px) and (orientation: portrait) {
+    iframe { position: fixed; left: 0; width: 100vw; height: 50vh; }
+    main { right: 0; left: 0; padding: 2vh 4vw; }
+}
