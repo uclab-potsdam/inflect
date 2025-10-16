@@ -3,234 +3,231 @@
    Layout/positioning rules remain in index.html inline style.
 */
 
-@font-face {
-    font-family: "Atkinson";
-    src: url("src/fonts/AtkinsonHyperlegibleNextVF-Variable.woff2") format("woff2-variations");
-    font-style: normal;
+@import url('https://fonts.googleapis.com/css2?family=David+Libre:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Miriam+Libre:wght@400..700&display=swap');
+
+
+body {
+    font-family: 'David Libre', serif;
+    direction: rtl;
+    font-weight: 250;
+    font-size: calc(1vw + 1vh);
+    background-color: #222;
+    margin: 0;
+    padding: 0;
 }
 
-@font-face {
-    font-family: "AtkinsonMono";
-    src: url("src/fonts/AtkinsonHyperlegibleMono-Medium.woff2") format("woff2-variations");
-    font-style: normal;
+code, pre, kbd, samp, tt, textarea {
+    font-family: "AtkinsonMono", monospace;
 }
 
-@font-face {
-    font-family: "AtkinsonMono";
-    src: url("src/fonts/AtkinsonHyperlegibleMono-Bold.woff2") format("woff2-variations");
-    font-style: normal;
-    font-weight: bold;
+a.img {
+    float: left; width: 0; height: 0;            
 }
 
-        @font-face {
-            font-family: "Atkinson";
-            src: url("src/fonts/AtkinsonHyperlegibleNextVF-Variable.woff2") format("woff2-variations");
-            font-style: normal;
-        }
+section img {
+    max-width: 100%;
+}
 
-        @font-face {
-            font-family: "AtkinsonMono";
-            src: url("src/fonts/AtkinsonHyperlegibleMono-Medium.woff2") format("woff2-variations");
-            font-style: normal;
-        }
+strong { font-weight: 500; }
 
-        @font-face {
-            font-family: "AtkinsonMono";
-            src: url("src/fonts/AtkinsonHyperlegibleMono-Bold.woff2") format("woff2-variations");
-            font-style: normal;
-            font-weight: bold;
-        }
+h1 { font-size: 2.4em; font-weight: 200; margin-bottom: 0;}
+h2 { font-size: 1.8em; }
+h3 { font-size: 1.4em; }
+h4 { font-size: 1.2em; }
+h2, h3, h4 { font-weight: 500; }
 
-        body {
-            font-family: 'David Libre', serif;
-            direction: rtl;
-            font-weight: 250;
-            font-size: calc(1vw + 1vh);
-            background-color: #222;
-            margin: 0;
-            padding: 0;
-        }
+section {
+    /* theme: color, text-shadow */
+    color: #fff;
+    text-shadow: 0px 4px 3px rgba(0,0,0,0.4),
+                0px 8px 13px rgba(0,0,0,0.1),
+                0px 18px 23px rgba(0,0,0,0.1);
+}
 
-        code, pre, kbd, samp, tt, textarea {
-            font-family: "AtkinsonMono", monospace;
-        }
+section p{
+    padding: .5em 1em .5em;
+    border-right: 8px solid #FA5F5F;
+    margin: 0;
+}
 
-        a.img {
-            float: left; width: 0; height: 0;            
-        }
+section.testimony p{
+    font-size: 1.5em;
+    background-image: repeating-linear-gradient(0deg, #FA5F5F44, #FA5F5F44 2px, transparent 2px, transparent);
+    background-size: 1.5em 1.5em;
+    background-color: rgba(250, 95, 95, 0);
+    background-position-y: 1.6em;
+}
 
-        section img {
-            max-width: 100%;
-        }
+section:first-of-type h1,
+section:first-of-type h2 {
+    margin: 0;
+    font-weight: 700;
+}
 
-        strong { font-weight: 500; }
+section:first-of-type h1 {
+    color: #FA5F5F;
+}
 
-        h1 { font-size: 2.4em; font-weight: 200; margin-bottom: 0;}
-        h2 { font-size: 1.8em; }
-        h3 { font-size: 1.4em; }
-        h4 { font-size: 1.2em; }
-        h2, h3, h4 { font-weight: 500; }
+section:first-of-type img{
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 100px;
+    height: auto;
+}
 
-        section {
-            /* theme: color, text-shadow */
-            color: #fff;
-            text-shadow: 0px 4px 3px rgba(0,0,0,0.4),
-                        0px 8px 13px rgba(0,0,0,0.1),
-                        0px 18px 23px rgba(0,0,0,0.1);
-        }
+section:first-of-type img:last-of-type{
+    top: auto;
+    bottom: 16px;
+}
 
-        section p{
-            padding-right: 16px;
-            border-right: 8px solid #FA5F5F;
-        }
+p {
+    font-size: 1em;
+    line-height: 1.5em;
+}
 
-        section:first-of-type h1,
-        section:first-of-type h2 {
-            margin: 0;
-            font-weight: 700;
-        }
+a {
+    color: #eee;
+}
 
-        section:first-of-type h1 {
-            color: #FA5F5F;
-        }
+ul, ol {
+    padding-left: 1em;
+}
 
-        section:first-of-type img{
-            position: absolute;
-            top: 16px;
-            left: 50%;
-            transform: translateX(-50%);
-            max-width: 100px;
-            height: auto;
-        }
+li { padding-bottom: 0.5em; }
+li li { padding-bottom: 0; }
 
-        section:first-of-type img:last-of-type{
-            top: auto;
-            bottom: 16px;
-        }
+a.dontinflect { color: #555; }
+a.dontinflect:hover { color: #000; }
 
-        p {
-            font-size: 1em;
-            line-height: 1.5em;
-        }
+a.active {
+    cursor: default;
+    text-decoration: none;
+}
 
-        a {
-            color: #eee;
-        }
+footer {
+    bottom: 0;
+    display: block;
+    width: 100%;
+    text-align: right;
+    margin: 0;
+    padding: 0;
+    opacity: 0.33;
+    height: 7vh;
+    font-size: .85em;
+}
 
-        ul, ol {
-            padding-left: 1em;
-        }
+footer a.dontinflect { color: #333; }
 
-        li { padding-bottom: 0.5em; }
-        li li { padding-bottom: 0; }
+/* Responsive theme tweaks */
+@media (max-width: 1000px) and (orientation: portrait) {
+    body {
+        font-size: calc(1.5vw + 1.5vh);
+    }
+}
 
-        a.dontinflect { color: #555; }
-        a.dontinflect:hover { color: #000; }
+/* Typewriter styles */
+.typewriter {
+    white-space: pre-wrap; /* preserve spacing */
+    overflow: hidden;
+}
+.typewriter.cursor::after {
+    content: '';
+    display: inline-block;
+    width: 1ch;
+    background: currentColor;
+    margin-left: 2px;
+    animation: tw-blink 1s steps(1,start) infinite;
+}
+@keyframes tw-blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
 
-        a.active {
-            cursor: default;
-            text-decoration: none;
-        }
+/* Layout rules from latest commit: make iframe and main match the committed appearance */
+main {
+    box-sizing: border-box;
+    position: absolute;
+    right: 0;
+    left: 0;
+    padding: 0 5vh;
+    margin: 0;
+}
 
-        footer {
-            bottom: 0;
-            display: block;
-            width: 100%;
-            text-align: right;
-            margin: 0;
-            padding: 0;
-            opacity: 0.33;
-            height: 7vh;
-            font-size: .85em;
-        }
+section {
+    margin: 6vh auto;
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+}
 
-        footer a.dontinflect { color: #333; }
+section:first-of-type, section:last-of-type {
+    display: flex;
+    justify-content: end;
+    flex-direction: column;
+    text-align: center;
+}
 
-        /* Responsive theme tweaks */
-        @media (max-width: 1000px) and (orientation: portrait) {
-            body {
-                font-size: calc(1.5vw + 1.5vh);
-            }
-        }
+section:first-of-type {
+    min-height: 85vh;
+    padding-bottom: 15vh;
+    margin-top: 0;
+}
 
-        /* Layout rules from latest commit: make iframe and main match the committed appearance */
-        main {
-            box-sizing: border-box;
-            position: absolute;
-            right: 0;
-            left: 0;
-            padding: 0 5vh;
-            margin: 0;
-        }
+section:last-of-type {
+    min-height: 93vh;
+    margin-bottom: 0;
+}
 
-        section {
-            margin: 6vh auto;
-            color: #fff;
-            display: flex;
-            justify-content: center;
-            flex-direction: column;
-        }
+section.big-pic{
+    font-family: 'Miriam Libre', sans-serif;
+}
 
-        section:first-of-type, section:last-of-type {
-            display: flex;
-            justify-content: end;
-            flex-direction: column;
-            text-align: center;
-        }
+iframe {
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 100vw;
+    position: fixed;
+    background-color: #fff;
+    border: 0;
+    margin: 0;
+    padding: 0;
+}
 
-        section:first-of-type {
-            min-height: 85vh;
-            padding-bottom: 15vh;
-            margin-top: 0;
-        }
+iframe {
+    transition: opacity 0.1s ease-in;
+}
 
-        section:last-of-type {
-            min-height: 93vh;
-            margin-bottom: 0;
-        }
+@media (max-width: 1000px) and (orientation: portrait) {
+    iframe {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 50vh;
+        z-index: 100;
+    }
 
-        iframe {
-            top: 0;
-            left: 0;
-            height: 100vh;
-            width: 100vw;
-            position: fixed;
-            background-color: #fff;
-            border: 0;
-            margin: 0;
-            padding: 0;
-        }
+    main {
+        position: relative; 
+        width: 100vw;
+        right: auto;        
+        padding: 0 5vw;     
+        margin-top: 50vh;   
+        z-index: 1;
+    }
 
-        iframe {
-            transition: opacity 0.1s ease-in;
-        }
+    section {
+        margin: 50vh 0;         
+    }
 
-        @media (max-width: 1000px) and (orientation: portrait) {
-            iframe {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100vw;
-                height: 50vh;
-                z-index: 100;
-            }
-
-            main {
-                position: relative; 
-                width: 100vw;
-                right: auto;        
-                padding: 0 5vw;     
-                margin-top: 50vh;   
-                z-index: 1;
-            }
-
-            section {
-                margin: 50vh 0;         
-            }
-
-            section:first-of-type {
-                margin: 0;
-                justify-content: start;
-                min-height: 50vh;
-            }
-        }
+    section:first-of-type {
+        margin: 0;
+        justify-content: start;
+        min-height: 50vh;
+    }
+}
