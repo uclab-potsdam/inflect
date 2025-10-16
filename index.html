@@ -298,38 +298,41 @@
             const response = await fetch(file + ".md"); 
             let text = await response.text();
 
-            // split sections by two empty lines
-                        // keep existing section-splitting behavior
+                        // Detect and strip a leading body-class marker from the raw markdown before we wrap sections
+                        // e.g. a file starting with `{.ltr}` should set body classes, not produce an empty section.
+                        let pageBodyClasses = null;
+                        // accept marker followed by either a blank line or just a single newline
+                        const rawBodyMarkerRe = /^\s*\{\.([A-Za-z0-9_\- ]+)\}\s*(?:\r?\n){1,2}/;
+                        const rawBm = text.match(rawBodyMarkerRe);
+                        if (rawBm) {
+                            pageBodyClasses = rawBm[1].trim().replace(/\s+/g, ' ');
+                            text = text.replace(rawBodyMarkerRe, '');
+                        }
+
+                        // split sections by two empty lines (existing behavior)
                         text = text.replace(/\s*\n\s*\n\s*\n\s*/g, '\n\n</section>\n\n<section>\n\n');
                         text = "<section>\n\n" + text + "\n\n</section>";
 
                         // Preprocess section class markers: lines like `{.lead}` placed alone
                         // immediately after a section break will attach that class to the following <section>
-                                    function applySectionClasses(t) {
-                                        // 1) Start-of-doc marker (before the very first <section>)
-                                        t = t.replace(/^\s*\{\.([A-Za-z0-9_\- ]+)\}\s*\n\n/, (m, cls) => {
-                                            return `<section class="${cls.trim().replace(/\s+/g,' ')}">\n\n`;
-                                        });
+                        function applySectionClasses(t) {
+                            // 1) Marker immediately AFTER an opening <section> (attach class to that opening tag)
+                            t = t.replace(/<section>\s*\n\s*\{\.([A-Za-z0-9_\- ]+)\}\s*\n\s*/g, (m, cls) => {
+                                return `<section class="${cls.trim().replace(/\s+/g,' ')}">\n\n`;
+                            });
 
-                                        // 2) Marker immediately AFTER an opening <section> (attach class to that opening tag)
-                                        //    <section>\n\n{.cls}\n\n -> <section class="cls">\n\n
-                                        t = t.replace(/<section>\s*\n\s*\{\.([A-Za-z0-9_\- ]+)\}\s*\n\s*/g, (m, cls) => {
-                                            return `<section class="${cls.trim().replace(/\s+/g,' ')}">\n\n`;
-                                        });
+                            // 2) Marker that appears right after a section split: close/open pair followed by marker
+                            t = t.replace(/<\/section>\s*\n\s*<section>\s*\n\s*\{\.([A-Za-z0-9_\- ]+)\}\s*\n\s*/g, (m, cls) => {
+                                return `</section>\n\n<section class="${cls.trim().replace(/\s+/g,' ')}">\n\n`;
+                            });
 
-                                        // 3) Marker that appears right after a section split: close/open pair followed by marker
-                                        //    </section>\n\n<section>\n\n{.cls}\n\n -> </section>\n\n<section class="cls">\n\n
-                                        t = t.replace(/<\/section>\s*\n\s*<section>\s*\n\s*\{\.([A-Za-z0-9_\- ]+)\}\s*\n\s*/g, (m, cls) => {
-                                            return `</section>\n\n<section class="${cls.trim().replace(/\s+/g,' ')}">\n\n`;
-                                        });
+                            // 3) Fallback: marker between paragraphs - create a new section with the class
+                            t = t.replace(/\n\n\s*\{\.([A-Za-z0-9_\- ]+)\}\s*\n\n/g, (m, cls) => {
+                                return `\n\n<section class="${cls.trim().replace(/\s+/g,' ')}">\n\n`;
+                            });
 
-                                        // 4) Fallback: marker between paragraphs - create a new section with the class
-                                        t = t.replace(/\n\n\s*\{\.([A-Za-z0-9_\- ]+)\}\s*\n\n/g, (m, cls) => {
-                                            return `\n\n<section class="${cls.trim().replace(/\s+/g,' ')}">\n\n`;
-                                        });
-
-                                        return t;
-                                    }
+                            return t;
+                        }
 
                         text = applySectionClasses(text);
             
@@ -347,7 +350,20 @@
             // skip footer when on inflect page
             if (document.URL!="https://uclab.fh-potsdam.de/inflect/") html = html + "\n<footer>a story made with <strong><a class='dontinflect' href='https://uclab.fh-potsdam.de/inflect/'>!nflect</a></strong></footer>";
 
-            document.querySelector('main').innerHTML = html;
+                        document.querySelector('main').innerHTML = html;
+
+                        // If the markdown included a leading body-class marker, apply it to <body>
+                        // Remove any previously applied classes from earlier renders (kept in data-body-classes)
+                        try {
+                            if (pageBodyClasses) {
+                                const prev = document.body.getAttribute('data-body-classes');
+                                if (prev) prev.split(' ').forEach(c => document.body.classList.remove(c));
+                                pageBodyClasses.split(' ').forEach(c => document.body.classList.add(c));
+                                document.body.setAttribute('data-body-classes', pageBodyClasses);
+                            }
+                        } catch (e) {
+                            console.warn('Failed to apply body classes from markdown marker', e);
+                        }
 
             transformInflectionImages();
 

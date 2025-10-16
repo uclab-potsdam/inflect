@@ -1,7 +1,7 @@
 {.ltr}
 
 
-{.ltr}
+{.header}
 # Map (map.html) — Interactive mapping tutorial
 
 [](map/#23.99000,29.92877,2.00,0.0,0.0/~Gaza_border_dash,~Gaza_border_base)
