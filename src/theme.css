@@ -46,17 +46,18 @@ section {
 }
 
 section p{
-    padding: .5em 1em .5em;
+    padding: .4em .8em .4em;
     border-right: 8px solid #FA5F5F;
     margin: 0;
 }
 
 section.testimony p{
-    font-size: 1.5em;
-    background-image: repeating-linear-gradient(0deg, #FA5F5F44, #FA5F5F44 2px, transparent 2px, transparent);
+    font-size: 1.6em;
+    background-image: repeating-linear-gradient(0deg, #FA5F5F66, #FA5F5F66 2px, transparent 2px, transparent);
     background-size: 1.5em 1.5em;
     background-color: rgba(250, 95, 95, 0);
-    background-position-y: 1.6em;
+    background-position-y: 1.5em;
+    border-right: 4px solid #FA5F5F;
 }
 
 section:first-of-type h1,
