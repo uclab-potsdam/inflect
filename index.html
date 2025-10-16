@@ -187,6 +187,7 @@
     // Track last path (excluding hash)
     let lastIframePath = null;
     let firstFrame = true;
+    let snapSectionTimeout = null;
     const iframe = document.getElementById('if');
 
     // Fade in new content 
@@ -301,6 +302,13 @@
                         visibleLink.classList.add('active');
                         // Update iframe, ignoring just changes
                         setIframeIfPathChanged(visibleLink.href);
+
+                        // snap section
+                        clearTimeout(snapSectionTimeout);
+                        snapSectionTimeout = setTimeout(function(){
+                            const section = visibleLink.closest('section');
+                            if (section) section.scrollIntoView({ behavior: 'smooth' });
+                        }, 500);                        
                     }
                 }
                 else entry.target.classList.remove("active")
@@ -332,12 +340,18 @@
     }
 
     // scroll up when pressing Escape
+    // scroll to next or previous sections using space bar or arrow keys
     document.addEventListener('keydown', function(event) {
         if (event.key === 'Escape') {
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        else  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        else if (
+            event.key === 'ArrowDown' ||
+            event.key === 'ArrowUp' ||
+            event.key === ' '  // space key
+        ) {
+            clearTimeout(snapSectionTimeout);
             const sections = Array.from(document.querySelectorAll('main section'));
             if (sections.length === 0) return;
 
@@ -346,15 +360,26 @@
 
             let targetSection = null;
 
-            if (event.key === 'ArrowDown') {
+            // Determine intended direction
+            const goingDown = (
+                event.key === 'ArrowDown' ||
+                (event.key === ' ' && !event.shiftKey)
+            );
+
+            const goingUp = (
+                event.key === 'ArrowUp' ||
+                (event.key === ' ' && event.shiftKey)
+            );
+
+            if (goingDown) {
                 targetSection = sections.find(section => {
                     const rect = section.getBoundingClientRect();
-                    return rect.top > 1; // more than 1px below the viewport top
+                    return rect.top > 1;
                 });
-            } else if (event.key === 'ArrowUp') {
+            } else if (goingUp) {
                 for (let i = sections.length - 1; i >= 0; i--) {
                     const rect = sections[i].getBoundingClientRect();
-                    if (rect.bottom < -1) { // completely above the viewport
+                    if (rect.bottom < -1) {
                         targetSection = sections[i];
                         break;
                     }
@@ -362,11 +387,10 @@
             }
 
             if (targetSection) {
-                event.preventDefault();
+                event.preventDefault(); // prevent default spacebar scrolling
                 targetSection.scrollIntoView({ behavior: 'smooth' });
             }
         }
-
     });
 
     // Load, parse, and display markdown on page load
