@@ -299,8 +299,39 @@
             let text = await response.text();
 
             // split sections by two empty lines
-            text = text.replace(/\s*\n\s*\n\s*\n\s*/g, '\n\n</section>\n\n<section>\n\n');
-            text = "<section>\n\n" + text + "\n\n</section>";
+                        // keep existing section-splitting behavior
+                        text = text.replace(/\s*\n\s*\n\s*\n\s*/g, '\n\n</section>\n\n<section>\n\n');
+                        text = "<section>\n\n" + text + "\n\n</section>";
+
+                        // Preprocess section class markers: lines like `{.lead}` placed alone
+                        // immediately after a section break will attach that class to the following <section>
+                                    function applySectionClasses(t) {
+                                        // 1) Start-of-doc marker (before the very first <section>)
+                                        t = t.replace(/^\s*\{\.([A-Za-z0-9_\- ]+)\}\s*\n\n/, (m, cls) => {
+                                            return `<section class="${cls.trim().replace(/\s+/g,' ')}">\n\n`;
+                                        });
+
+                                        // 2) Marker immediately AFTER an opening <section> (attach class to that opening tag)
+                                        //    <section>\n\n{.cls}\n\n -> <section class="cls">\n\n
+                                        t = t.replace(/<section>\s*\n\s*\{\.([A-Za-z0-9_\- ]+)\}\s*\n\s*/g, (m, cls) => {
+                                            return `<section class="${cls.trim().replace(/\s+/g,' ')}">\n\n`;
+                                        });
+
+                                        // 3) Marker that appears right after a section split: close/open pair followed by marker
+                                        //    </section>\n\n<section>\n\n{.cls}\n\n -> </section>\n\n<section class="cls">\n\n
+                                        t = t.replace(/<\/section>\s*\n\s*<section>\s*\n\s*\{\.([A-Za-z0-9_\- ]+)\}\s*\n\s*/g, (m, cls) => {
+                                            return `</section>\n\n<section class="${cls.trim().replace(/\s+/g,' ')}">\n\n`;
+                                        });
+
+                                        // 4) Fallback: marker between paragraphs - create a new section with the class
+                                        t = t.replace(/\n\n\s*\{\.([A-Za-z0-9_\- ]+)\}\s*\n\n/g, (m, cls) => {
+                                            return `\n\n<section class="${cls.trim().replace(/\s+/g,' ')}">\n\n`;
+                                        });
+
+                                        return t;
+                                    }
+
+                        text = applySectionClasses(text);
             
             // add class dontinflect to regular html links
             text = text.replace(/<a\b([^>]*)>/gi, (m, attrs) => 
