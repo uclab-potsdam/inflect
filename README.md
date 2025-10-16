@@ -1,3 +1,4 @@
+{.css(src/theme.css)}
 ![img](img/#cover&&&&nibal_2023.jpg)
 
 <img src="img/bts_logo.svg" alt="בצלם: מסעות עקירה]" style="max-width:100px;height:auto;">
@@ -8,6 +9,7 @@
 <img src="img/scrol-signal.svg" alt="יש לגלול את הדף למטה" style="max-width:100px;height:auto;">
 
 
+{.meta}
 [](img/#cover&10&&&nibal_2023.jpg)
 
 ## הקדמה

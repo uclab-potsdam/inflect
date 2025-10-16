@@ -39,7 +39,7 @@ main {
     top: 0;
     bottom: 0;
     right: 0; /* reserve right-hand column for iframe */
-    padding: 4vh 5vh;
+    padding: 4vh 0;
     overflow-y: auto;
 }
 

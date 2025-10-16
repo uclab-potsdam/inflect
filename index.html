@@ -17,12 +17,10 @@
     <link href="https://fonts.googleapis.com/css2?family=David+Libre:wght@400;700&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="src/base.css">
-    <link rel="stylesheet" href="src/theme.css">
     <style>
-        /* Layout is controlled by external CSS files:
-           - src/base.css provides the original two-column LTR layout
-           - src/theme.css can override the base styles when present
-        */
+        /* Layout is controlled by external CSS files: base.css is always loaded.
+           Per-page theme files can be requested from Markdown via a marker; the
+           JS below will detect and load them dynamically. */
     </style>
 </head>
 
@@ -85,6 +83,60 @@
             const response = await fetch(file + ".md"); 
             let text = await response.text();
 
+            // --- Per-page CSS marker parsing ---
+            function extractPageCssMarker(t) {
+                // YAML front matter: look for css: path
+                const fmRe = /^\s*---\n([\s\S]*?)\n---\s*\n?/;
+                const fm = t.match(fmRe);
+                if (fm) {
+                    const body = fm[1];
+                    const cssMatch = body.match(/^\s*css:\s*(.+)\s*$/m);
+                    if (cssMatch) {
+                        const path = cssMatch[1].trim().replace(/^['\"]|['\"]$/g, '');
+                        t = t.replace(fmRe, '');
+                        return { text: t, css: path };
+                    }
+                }
+
+                // Single-line marker: {.css(src/path.css)} or {.css src/path.css}
+                const markerRe = /^\s*\{\.css(?:\(\s*([^\)]+?)\s*\)|\s+([^\}\r\n]+))\}\s*(?:\r?\n){1,2}/;
+                const m = t.match(markerRe);
+                if (m) {
+                    const path = (m[1] || m[2] || '').trim().replace(/^['\"]|['\"]$/g, '');
+                    t = t.replace(markerRe, '');
+                    return { text: t, css: path };
+                }
+
+                return { text: t, css: null };
+            }
+
+            function isSafeCssPath(p) {
+                if (!p) return false;
+                if (/^[a-zA-Z]+:\/\//.test(p) || p.startsWith('data:')) return false;
+                if (p.includes('..')) return false;
+                if (!/^(src|css|pages)\/[A-Za-z0-9_\-\/\.]+\.css$/.test(p)) return false;
+                return true;
+            }
+
+            function applyPageCss(cssPath) {
+                const id = 'page-css';
+                const existing = document.getElementById(id);
+                if (existing) existing.remove();
+                if (!cssPath) return;
+                if (!isSafeCssPath(cssPath)) { console.warn('Rejected unsafe page css path:', cssPath); return; }
+                const link = document.createElement('link');
+                link.id = id;
+                link.rel = 'stylesheet';
+                link.href = cssPath;
+                document.head.appendChild(link);
+            }
+
+            const extracted = extractPageCssMarker(text);
+            text = extracted.text;
+            // Defer applying the page CSS until after render so it overrides base.
+            const pageCssPath = extracted.css;
+            // --- end per-page CSS marker parsing ---
+
                         // Detect and strip a leading body-class marker from the raw markdown before we wrap sections
                         // e.g. a file starting with `{.ltr}` should set body classes, not produce an empty section.
                         let pageBodyClasses = null;
@@ -138,6 +190,9 @@
             if (document.URL!="https://uclab.fh-potsdam.de/inflect/") html = html + "\n<footer>a story made with <strong><a class='dontinflect' href='https://uclab.fh-potsdam.de/inflect/'>!nflect</a></strong></footer>";
 
                         document.querySelector('main').innerHTML = html;
+
+                        // apply per-page css after rendering
+                        try { applyPageCss(pageCssPath); } catch (e) { console.warn('Failed to apply page CSS', e); }
 
                         // If the markdown included a leading body-class marker, apply it to <body>
                         // Remove any previously applied classes from earlier renders (kept in data-body-classes)
