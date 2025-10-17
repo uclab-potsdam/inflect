@@ -82,7 +82,12 @@
     <br />
     <label for="opacity">Image Opacity</label>
     <input id="opacity" type="range" min="0" max="100" value="100" style="width: 6em; vertical-align: middle;">
+    <br />
+    <label for="rotate">Rotate</label>
+    <input id="rotate" type="range" min="-180" max="180" value="0" style="width:6em; vertical-align: middle;"> 
+    <button id="rotate-reset" title="Reset rotation">↺</button>
   </nav>
+
 
   <script>
     // ---------------------------------------------------------------------
@@ -150,6 +155,9 @@
     let isDragging = false;
     let startDrag = null;
 
+  // Rotation in degrees
+  let imageRotationDeg = 0;
+
     const ANIMATION_DURATION = 1000; // used for pan/zoom if same URL changes
 
     // Durations for fade out/in
@@ -182,7 +190,7 @@
         };
       }
 
-      const [viewPart, opacityStr, boxes, lines, url] = hash.split('&');
+  const [viewPart, opacityStr, boxes, lines, url, rotationStr] = hash.split('&');
       let color = 'ff0000';
       let opacity = 100;
       // If the second field is a color (legacy), detect and shift
@@ -199,7 +207,8 @@
         annotations: { boxes: [], lines: [], color },
         poster: false,
         cover: false,
-        opacity
+        opacity,
+        rotation: 0
       };
 
       if (viewPart === 'poster') {
@@ -219,10 +228,13 @@
       if (lines) {
         result.annotations.lines = lines.split(',').map(Number);
       }
+      if (rotationStr && !isNaN(parseFloat(rotationStr))) {
+        result.rotation = parseFloat(rotationStr);
+      }
       return result;
     }
 
-    function updateHash(url, theView, annotations = {}, opacity = 100) {
+    function updateHash(url, theView, annotations = {}, opacity = 100, rotation = undefined) {
       interactiveChange = true;
       const defaultAnnotations = {
         boxes: [],
@@ -237,7 +249,7 @@
             .join(',')}`
         : '';
 
-      let color = annotations.color || 'ff0000';
+  let color = annotations.color || 'ff0000';
       if (color.startsWith('#')) color = color.slice(1);
 
       const boxParams =
@@ -246,7 +258,13 @@
         annotations.lines.length > 0 ? annotations.lines.join(',') : '';
 
       // Opacity is always the second field
-      location.hash = `${viewParams}&${opacity}&${boxParams}&${arrowParams}&${url}`;
+      // If rotation wasn't explicitly provided, preserve existing rotation from the hash
+      let finalRotation = rotation;
+      if (typeof finalRotation === 'undefined') {
+        const parsed = parseHash();
+        finalRotation = (parsed && typeof parsed.rotation === 'number') ? parsed.rotation : 0;
+      }
+      location.hash = `${viewParams}&${opacity}&${boxParams}&${arrowParams}&${url}&${finalRotation}`;
 
       setTimeout(() => {
         interactiveChange = false;
@@ -406,11 +424,11 @@
       );
       ctx.scale(scale, scale);
 
-      // Draw the image with opacity
+      // Draw the image with opacity and rotation
       if (image && image.width && image.height) {
         ctx.save();
         ctx.globalAlpha = imageOpacity;
-        ctx.drawImage(image, 0, 0);
+        drawImageWithRotation(ctx, image, imageRotationDeg);
         ctx.restore();
       }
 
@@ -483,8 +501,8 @@
       ctx.scale(scale, scale);
 
       if (img && img.width && img.height) {
-        ctx.globalAlpha = alpha;
-        ctx.drawImage(img, 0, 0);
+      ctx.globalAlpha = alpha;
+      drawImageWithRotation(ctx, img, imageRotationDeg);
       }
 
       ctx.restore();
@@ -570,6 +588,25 @@
       image.src = url;
     }
 
+    // Helper to draw an image at 0,0 in canvas coords while applying the current
+    // rotation around the image center. This assumes ctx has already been transformed
+    // to map image coordinates to canvas display coordinates (scale/translate applied).
+    function drawImageWithRotation(ctx, img, deg) {
+      if (!img) return;
+      if (!deg || deg === 0) {
+        ctx.drawImage(img, 0, 0);
+        return;
+      }
+      const rad = (deg * Math.PI) / 180;
+      const cx = img.width / 2;
+      const cy = img.height / 2;
+      ctx.translate(cx, cy);
+      ctx.rotate(rad);
+      ctx.drawImage(img, -cx, -cy);
+      ctx.rotate(-rad);
+      ctx.translate(-cx, -cy);
+    }
+
     // ---------------------------------------------------------------------
     // Interactions
     // ---------------------------------------------------------------------
@@ -598,6 +635,36 @@
         imageOpacity = 1.0;
         opacityInput.addEventListener('input', () => {
           imageOpacity = parseInt(opacityInput.value, 10) / 100;
+          render();
+        });
+      }
+
+      // Rotation control
+      const rotateInput = document.getElementById('rotate');
+      const rotateReset = document.getElementById('rotate-reset');
+      // Initialize from hash if present
+      const parsedInit = parseHash();
+      if (parsedInit && typeof parsedInit.rotation === 'number') {
+        imageRotationDeg = parsedInit.rotation || 0;
+      }
+      if (rotateInput) {
+        rotateInput.value = imageRotationDeg;
+        rotateInput.addEventListener('input', () => {
+          imageRotationDeg = parseFloat(rotateInput.value) || 0;
+          // Update hash with rotation field
+          const parsed = parseHash();
+          const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
+          updateHash(currentUrl, view, annotations, Math.round((imageOpacity||1)*100), imageRotationDeg);
+          render();
+        });
+      }
+      if (rotateReset) {
+        rotateReset.addEventListener('click', () => {
+          imageRotationDeg = 0;
+          if (rotateInput) rotateInput.value = '0';
+          const parsed = parseHash();
+          const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
+          updateHash(currentUrl, view, annotations, Math.round((imageOpacity||1)*100), imageRotationDeg);
           render();
         });
       }
@@ -782,9 +849,13 @@
       // Increment token to cancel any old animations
       animationCancelToken++;
 
-      const parsed = parseHash();
-      if (!parsed) return;
-      const { url, view: newView, poster, cover, opacity } = parsed;
+  const parsed = parseHash();
+  if (!parsed) return;
+  const { url, view: newView, poster, cover, opacity, rotation } = parsed;
+  // Apply rotation from the hash
+  imageRotationDeg = (typeof rotation === 'number') ? rotation : 0;
+  const rotateInput = document.getElementById('rotate');
+  if (rotateInput) rotateInput.value = imageRotationDeg;
 
       // Animate opacity slider and image opacity from hash
       if (typeof opacity === 'number' && opacityInput) {
@@ -892,6 +963,8 @@
 
     const parsed = parseHash();
     if (parsed) {
+      // Apply rotation from initial hash
+      if (typeof parsed.rotation === 'number') imageRotationDeg = parsed.rotation;
       currentUrl = parsed.url;
       if (parsed.annotations && parsed.annotations.color) {
         colorInput.value = '#' + parsed.annotations.color;
