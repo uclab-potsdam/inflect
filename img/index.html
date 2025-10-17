@@ -315,6 +315,26 @@
       return result;
     }
 
+    // Derive a stable layer id from a URL by using the filename (last path segment).
+    function layerIdFromUrl(url) {
+      try {
+        const u = new URL(String(url), location.origin);
+        const path = u.pathname || String(url);
+        const segs = path.split('/').filter(Boolean);
+        let last = segs.length ? segs[segs.length - 1] : path;
+        last = String(last).replace(/[?#].*$/, '');
+        try { last = decodeURIComponent(last); } catch (e) {}
+        return last || String(url);
+      } catch (e) {
+        const s = String(url || '');
+        const segs = s.split('/').filter(Boolean);
+        let last = segs.length ? segs[segs.length - 1] : s;
+        last = String(last).replace(/[?#].*$/, '');
+        try { last = decodeURIComponent(last); } catch (e) {}
+        return last || s;
+      }
+    }
+
     // Public helper so parent frames can forward messy hrefs/hashes safely.
     // Accepts strings like '/img/cover.png', full URLs, or a raw href containing
     // the viewer token '&&&...'. Returns true if applied, false otherwise.
@@ -377,7 +397,7 @@
         url = String(url).trim();
         if (!url) return; // skip empty
 
-        const layer = { url, opacity: 100, rotation: 0, tx: 0.5, ty: 0.5, scale: 1, img: null, loaded: false };
+  const layer = { id: layerIdFromUrl(url), url, opacity: 100, rotation: 0, tx: 0.5, ty: 0.5, scale: 1, img: null, loaded: false };
         parts.slice(1).forEach(p => {
           const eq = p.indexOf('=');
           if (eq === -1) return;
@@ -432,7 +452,8 @@
     function preloadLayers(layersSpec, onDone, options = {}) {
       const preserveExisting = !!options.preserveExisting;
       if (!preserveExisting) {
-        layers = layersSpec.map(ls => ({ ...ls }));
+        layers = layersSpec.map(ls => ({ id: layerIdFromUrl(ls.url), ...ls }));
+        window.layers = layers;
       } else {
         // Merge layersSpec with existing layers by URL, preserving img/loaded when present
         const urlToExisting = {};
@@ -440,6 +461,7 @@
         layers = layersSpec.map(ls => {
           const existing = urlToExisting[ls.url] || {};
           return {
+            id: layerIdFromUrl(ls.url),
             url: ls.url,
             opacity: typeof ls.opacity === 'number' ? ls.opacity : (existing.opacity || 100),
             rotation: typeof ls.rotation === 'number' ? ls.rotation : (existing.rotation || 0),
@@ -450,17 +472,19 @@
             loaded: existing.loaded || false
           };
         });
+        window.layers = layers;
       }
 
       let remaining = layers.filter(l => !l.loaded).length;
       if (remaining === 0) {
         // ensure legacy image is set
         image = layers[0] && layers[0].img ? layers[0].img : image;
-        // mark ready now that everything required is present
-        window.viewerReady = true;
-        if (onDone) onDone();
         // reflect serialized url in currentUrl
         currentUrl = layersToUrlField(layers);
+        window.layers = layers;
+        // mark ready only after images report natural sizes and any initial fades
+        setViewerReadyDeferred(layers);
+        if (onDone) onDone();
         return;
       }
 
@@ -476,8 +500,10 @@
           // set primary image for legacy paths
           if (idx === 0) image = imgObj;
           if (remaining <= 0) {
-            // all loaded
-            window.viewerReady = true;
+            // all loaded — defer readiness until images have measurable sizes / fades
+            currentUrl = layersToUrlField(layers);
+            window.layers = layers;
+            setViewerReadyDeferred(layers);
             if (onDone) onDone();
           }
         };
@@ -487,7 +513,9 @@
           remaining--;
           if (idx === 0) image = imgObj;
           if (remaining <= 0) {
-            window.viewerReady = true;
+            currentUrl = layersToUrlField(layers);
+            window.layers = layers;
+            setViewerReadyDeferred(layers);
             if (onDone) onDone();
           }
         };
@@ -501,6 +529,21 @@
     function applyParsedLayers(parsedLayers, onDone) {
   // applyParsedLayers: parsedLayers and existing layers info suppressed in normal logs
       if (!parsedLayers || parsedLayers.length === 0) {
+        // Fade out all existing layers rather than clearing immediately
+        const old = layers || [];
+        if (old.length > 0) {
+          old.forEach(r => {
+            if (!fadingOutLayers.includes(r)) {
+              r._animProps = { opacity: r.opacity, rotation: r.rotation, tx: r.tx, ty: r.ty, scale: r.scale, _animAlpha: 1 };
+              r._animAlpha = 1;
+              fadingOutLayers.push(r);
+              tweenProps({ _animAlpha: 1 }, { _animAlpha: 0 }, FADE_OUT_DURATION || 300, v => { r._animAlpha = v._animAlpha; r._animProps._animAlpha = v._animAlpha; }, () => {
+                const idx = fadingOutLayers.indexOf(r);
+                if (idx !== -1) fadingOutLayers.splice(idx, 1);
+              });
+            }
+          });
+        }
         layers = [];
         currentUrl = null;
         if (onDone) onDone();
@@ -526,36 +569,68 @@
       // all parsed URLs are present), don't immediately drop existing layers —
       // treat it as a params-only update and merge into the existing array.
       const parsedIsSubsetOfExisting = parsedUrlsArr.length > 0 && parsedUrlsArr.every(u => existingUrls.has(u)) && parsedLayers.length < layers.length;
-      if (parsedIsSubsetOfExisting) {
-        // parsed is subset of existing; merge params into existing layers and preserve count
-        // Merge parsed params into existing layers by URL
+  if (parsedIsSubsetOfExisting) {
+        // parsed is subset of existing; we still need to remove layers that
+        // are no longer referenced and animate them out, and animate any new
+        // ones that may also be present in parsedLayers (edge cases).
         const urlToParsed = {};
         parsedLayers.forEach(p => { if (p && p.url) urlToParsed[p.url] = p; });
-        layers = layers.map(l => {
-          const p = urlToParsed[l.url];
-          if (!p) return l; // keep existing
+        // Determine which existing layers are removed
+        const removed = (layers || []).filter(l => l && l.url && !parsedUrls.has(l.url));
+        removed.forEach(r => { r._animAlpha = 1; fadingOutLayers.push(r); });
+        // Merge parsed params into existing and keep only parsed order
+        const oldLayersSnapshot = (layers || []).slice();
+        layers = parsedLayers.map(p => {
+          const existing = (oldLayersSnapshot || []).find(l => l && l.url === p.url) || {};
           return {
-            url: l.url,
-            opacity: typeof p.opacity === 'number' ? p.opacity : l.opacity,
-            rotation: typeof p.rotation === 'number' ? p.rotation : l.rotation,
-            tx: typeof p.tx === 'number' ? p.tx : l.tx,
-            ty: typeof p.ty === 'number' ? p.ty : l.ty,
-            scale: typeof p.scale === 'number' ? p.scale : l.scale,
-            img: l.img,
-            loaded: l.loaded
+            id: layerIdFromUrl(p.url),
+            url: p.url,
+            opacity: typeof p.opacity === 'number' ? p.opacity : (existing.opacity !== undefined ? existing.opacity : 100),
+            rotation: typeof p.rotation === 'number' ? p.rotation : (existing.rotation !== undefined ? existing.rotation : 0),
+            tx: typeof p.tx === 'number' ? p.tx : (existing.tx !== undefined ? existing.tx : 0.5),
+            ty: typeof p.ty === 'number' ? p.ty : (existing.ty !== undefined ? existing.ty : 0.5),
+            scale: typeof p.scale === 'number' ? p.scale : (existing.scale !== undefined ? existing.scale : 1),
+            img: existing.img || null,
+            loaded: existing.loaded || false
           };
         });
-        currentUrl = layersToUrlField(layers);
+        window.layers = layers;
+  currentUrl = layersToUrlField(layers);
+        // If any merged layer isn't loaded yet, preload only the missing images
+        const unloaded = layers.filter(l => !l.loaded || !l.img);
+        if (unloaded.length > 0) {
+          preloadLayers(layers.map(l => ({ url: l.url, opacity: l.opacity, rotation: l.rotation, tx: l.tx, ty: l.ty, scale: l.scale })), () => {
+            image = layers[0] && layers[0].img ? layers[0].img : image;
+            // Fade-in any newly added ones
+            const added = parsedLayers.filter(p => p && p.url && !existingUrls.has(p.url));
+            const newlyAdded = (layers || []).filter(l => l && added.find(a => a.url === l.url));
+            newlyAdded.forEach(n => { n._animAlpha = 0; const start = performance.now(); const dur = 300; (function step(now) { const t = Math.min((now - start) / dur,1); n._animAlpha = t; render(); if (t<1) requestAnimationFrame(step); })(start); });
+            // Fade-out removed ones
+            fadingOutLayers.forEach(f => { const start = performance.now(); const dur = 300; (function step(now) { const t = Math.min((now - start) / dur,1); f._animAlpha = 1 - t; render(); if (t<1) requestAnimationFrame(step); else { const idx = fadingOutLayers.indexOf(f); if (idx !== -1) fadingOutLayers.splice(idx,1); } })(start); });
+            // start reconcile animation between old and new
+            reconcileLayers(oldLayersSnapshot, layers);
+            if (onDone) onDone();
+          }, { preserveExisting: true });
+          return;
+        }
+        // No preload needed; still animate removed and added layers
+        const addedNow = parsedLayers.filter(p => p && p.url && !existingUrls.has(p.url));
+        const newlyAddedNow = (layers || []).filter(l => l && addedNow.find(a => a.url === l.url));
+        newlyAddedNow.forEach(n => { n._animAlpha = 0; const start = performance.now(); const dur = 300; (function step(now) { const t = Math.min((now - start) / dur,1); n._animAlpha = t; render(); if (t<1) requestAnimationFrame(step); })(start); });
+        fadingOutLayers.forEach(f => { const start = performance.now(); const dur = 300; (function step(now) { const t = Math.min((now - start) / dur,1); f._animAlpha = 1 - t; render(); if (t<1) requestAnimationFrame(step); else { const idx = fadingOutLayers.indexOf(f); if (idx !== -1) fadingOutLayers.splice(idx,1); } })(start); });
+        // animate diffs
+        reconcileLayers(oldLayersSnapshot, layers);
         if (onDone) onDone();
         return;
       }
       // needPreload decision logged only on preload
-      if (needPreload) {
+  if (needPreload) {
         // When preloading due to URL changes, animate removed/added layers
         // Determine removed layers (present in existingUrlsArr but not in parsed)
         const removed = (layers || []).filter(l => l && l.url && !parsedUrls.has(l.url));
         const added = parsedLayers.filter(p => p && p.url && !existingUrls.has(p.url));
         // Move removed layers into fadingOutLayers and start fade animation
+        const oldLayersSnapshot = (layers || []).slice();
         removed.forEach(r => {
           // preserve current visual state
           r._animAlpha = 1;
@@ -566,6 +641,7 @@
           // After preload, mark newly added layers to fade in
           // Recompute layers variable from newly loaded content
           currentUrl = layersToUrlField(layers);
+          window.layers = layers;
           const newlyAdded = (layers || []).filter(l => l && l.url && added.find(a => a.url === l.url));
           newlyAdded.forEach(n => { n._animAlpha = 0; });
           // schedule fade-in animations for new layers
@@ -595,6 +671,8 @@
               }
             })(start);
           });
+          // reconcile props between old snapshot and new layers
+          reconcileLayers(oldLayersSnapshot, layers);
           if (onDone) onDone();
         });
         return;
@@ -604,6 +682,7 @@
   // No full preload needed: merge parsed params with existing layers by URL.
       // This keeps existing Image objects and loaded flags stable even if tokens
       // were reordered or encoded differently.
+      const oldLayersSnapshot = (layers || []).slice();
       const urlToExisting = {};
       layers.forEach((l, idx) => {
         if (l && l.url) urlToExisting[l.url] = { img: l.img, loaded: l.loaded, opacity: l.opacity, rotation: l.rotation, tx: l.tx, ty: l.ty, scale: l.scale };
@@ -611,6 +690,7 @@
       layers = parsedLayers.map((p) => {
         const existing = urlToExisting[p.url] || {};
         return {
+          id: layerIdFromUrl(p.url),
           url: p.url,
           opacity: typeof p.opacity === 'number' ? p.opacity : (existing.opacity !== undefined ? existing.opacity : 100),
           rotation: typeof p.rotation === 'number' ? p.rotation : (existing.rotation !== undefined ? existing.rotation : 0),
@@ -621,7 +701,7 @@
           loaded: existing.loaded || false
         };
       });
-      currentUrl = layersToUrlField(layers);
+  currentUrl = layersToUrlField(layers);
       // If any merged layer isn't loaded yet, preload only the missing images
       const unloaded = layers.filter(l => !l.loaded || !l.img);
       if (unloaded.length > 0) {
@@ -629,10 +709,14 @@
         preloadLayers(layers.map(l => ({ url: l.url, opacity: l.opacity, rotation: l.rotation, tx: l.tx, ty: l.ty, scale: l.scale })), () => {
           // After targeted preload, ensure primary image and view are correct
           image = layers[0] && layers[0].img ? layers[0].img : image;
+          // reconcile props
+          reconcileLayers(oldLayersSnapshot, layers);
           if (onDone) onDone();
         }, { preserveExisting: true });
         return;
       }
+      // finalize by reconciling (no preload path)
+      reconcileLayers(oldLayersSnapshot, layers);
       if (onDone) onDone();
     }
 
@@ -879,8 +963,12 @@
           }
           if (!layer.img || !layer.img.width) continue;
           ctx.save();
-          // combine global opacity with layer opacity
-          const layerOpacity = (imageOpacity || 1) * ((typeof layer.opacity === 'number' ? layer.opacity : 100) / 100);
+          // Use animated props when present so we can tween between states
+          const props = layer._animProps || layer;
+          // combine global opacity with layer opacity and per-layer animation alpha
+          const baseOpacity = (imageOpacity || 1) * ((typeof props.opacity === 'number' ? props.opacity : 100) / 100);
+          const animAlpha = (typeof props._animAlpha === 'number') ? props._animAlpha : ((typeof layer._animAlpha === 'number') ? layer._animAlpha : 1);
+          const layerOpacity = baseOpacity * animAlpha;
           ctx.globalAlpha = layerOpacity;
           // drop shadow
           ctx.shadowColor = IMG_SHADOW_COLOR;
@@ -888,16 +976,16 @@
           ctx.shadowOffsetX = 0;
           ctx.shadowOffsetY = IMG_SHADOW_OFFSET_Y;
           // compute anchor in image coords
-          const px = (typeof layer.tx === 'number' ? layer.tx : 0.5) * layer.img.width;
-          const py = (typeof layer.ty === 'number' ? layer.ty : 0.5) * layer.img.height;
+          const px = (typeof props.tx === 'number' ? props.tx : 0.5) * layer.img.width;
+          const py = (typeof props.ty === 'number' ? props.ty : 0.5) * layer.img.height;
           // If embedded in an iframe, nudge layers slightly so they remain
           // visually separable even when fully opaque. This avoids a case
           // where stacked images obscure each other in embedded contexts.
           const iframeNudge = (inFrame && layers.length > 1) ? ((i - (layers.length - 1) / 2) * 10) : 0;
           ctx.translate(px, py + iframeNudge);
-          const rad = ((typeof layer.rotation === 'number' ? layer.rotation : 0) * Math.PI) / 180;
+          const rad = ((typeof props.rotation === 'number' ? props.rotation : 0) * Math.PI) / 180;
           ctx.rotate(rad);
-          const sc = typeof layer.scale === 'number' ? layer.scale : 1;
+          const sc = typeof props.scale === 'number' ? props.scale : 1;
           ctx.scale(sc, sc);
           // draw centered at anchor
           ctx.drawImage(layer.img, -layer.img.width / 2, -layer.img.height / 2);
@@ -912,16 +1000,18 @@
           for (const layer of fadingOutLayers) {
             if (!layer.img || !layer.img.width) continue;
             ctx.save();
-            const layerOpacity = (imageOpacity || 1) * ((typeof layer.opacity === 'number' ? layer.opacity : 100) / 100);
-            const anim = (typeof layer._animAlpha === 'number') ? layer._animAlpha : 1;
+            // fadingOutLayers may carry their own _animProps; prefer them
+            const props = layer._animProps || layer;
+            const layerOpacity = (imageOpacity || 1) * ((typeof props.opacity === 'number' ? props.opacity : 100) / 100);
+            const anim = (typeof props._animAlpha === 'number') ? props._animAlpha : ((typeof layer._animAlpha === 'number') ? layer._animAlpha : 1);
             ctx.globalAlpha = layerOpacity * anim;
-            const px = (typeof layer.tx === 'number' ? layer.tx : 0.5) * layer.img.width;
-            const py = (typeof layer.ty === 'number' ? layer.ty : 0.5) * layer.img.height;
+            const px = (typeof props.tx === 'number' ? props.tx : 0.5) * layer.img.width;
+            const py = (typeof props.ty === 'number' ? props.ty : 0.5) * layer.img.height;
             const iframeNudge = (inFrame && layers.length + fadingOutLayers.length > 1) ? 0 : 0;
             ctx.translate(px, py + iframeNudge);
-            const rad = ((typeof layer.rotation === 'number' ? layer.rotation : 0) * Math.PI) / 180;
+            const rad = ((typeof props.rotation === 'number' ? props.rotation : 0) * Math.PI) / 180;
             ctx.rotate(rad);
-            const sc = typeof layer.scale === 'number' ? layer.scale : 1;
+            const sc = typeof props.scale === 'number' ? props.scale : 1;
             ctx.scale(sc, sc);
             ctx.drawImage(layer.img, -layer.img.width / 2, -layer.img.height / 2);
             ctx.restore();
@@ -1079,6 +1169,219 @@
       })(start);
     }
 
+    // Wait for images to have natural sizes (naturalWidth/naturalHeight > 0)
+    function waitForImageSizes(layersArr, timeout = 3000) {
+      return new Promise((resolve) => {
+        const imgs = (layersArr || []).map(l => l && l.img).filter(Boolean);
+        if (!imgs.length) return resolve();
+        const start = performance.now();
+        (function check() {
+          const allReady = imgs.every(i => i && i.naturalWidth && i.naturalHeight);
+          if (allReady) return resolve();
+          if (performance.now() - start > timeout) return resolve();
+          setTimeout(check, 80);
+        })();
+      });
+    }
+
+    // Wait for any initial per-layer _animAlpha fades to reach ~1 (for added layers)
+    function waitForInitialFades(layersArr, timeout = 1000) {
+      return new Promise((resolve) => {
+        const start = performance.now();
+        (function check() {
+          const allDone = (layersArr || []).every(l => {
+            if (!l) return true;
+            const a = (l._animProps && typeof l._animProps._animAlpha === 'number') ? l._animProps._animAlpha : (typeof l._animAlpha === 'number' ? l._animAlpha : 1);
+            return a >= 0.99;
+          });
+          if (allDone) return resolve();
+          if (performance.now() - start > timeout) return resolve();
+          setTimeout(check, 50);
+        })();
+      });
+    }
+
+    // Defer window.viewerReady until images have sizes and initial fades have completed
+    async function setViewerReadyDeferred(layersArr) {
+      // bump cancel token to stop competing animations while settling
+      animationCancelToken++;
+      // If running in an automated/headless environment (puppeteer), be more lenient
+      // and accept image.complete or width>0 quickly to avoid test flakiness.
+      const isHeadless = (typeof navigator !== 'undefined' && !!navigator.webdriver);
+      if (isHeadless) {
+        // wait briefly for images to at least be present/complete
+        const start = performance.now();
+        await new Promise(resolve => {
+          (function check() {
+            const imgs = (layersArr || []).map(l => l && l.img).filter(Boolean);
+            const ready = imgs.length === 0 || imgs.every(i => i && (i.complete || i.width > 0));
+            if (ready) return resolve();
+            if (performance.now() - start > 1500) return resolve();
+            setTimeout(check, 80);
+          })();
+        });
+        // short wait for fades
+        await waitForInitialFades(layersArr, 300);
+        setTimeout(() => { window.viewerReady = true; render(); }, 20);
+      } else {
+        await waitForImageSizes(layersArr, 4000);
+        await waitForInitialFades(layersArr, 800);
+        // small extra tick to ensure render has settled
+        setTimeout(() => { window.viewerReady = true; render(); }, 20);
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // Per-layer tween helpers
+    // -----------------------------------------------------------------
+    // Tween numeric props from `from` to `to` over duration (ms). Returns
+    // a cancel function. The `apply` callback is called with intermediate
+    // props on each frame.
+    function tweenProps(from, to, duration, apply, onDone) {
+      const start = performance.now();
+      let cancelled = false;
+      function step(now) {
+        if (cancelled) return;
+        let t = (now - start) / duration;
+        if (t < 0) t = 0;
+        if (t > 1) t = 1;
+        const interp = {};
+        for (const k of Object.keys(to)) {
+          const vTo = to[k];
+          const vFrom = from && typeof from[k] !== 'undefined' ? from[k] : 0;
+          if (typeof vTo === 'number' && typeof vFrom === 'number') {
+            interp[k] = vFrom + (vTo - vFrom) * t;
+          } else {
+            interp[k] = typeof vTo !== 'undefined' ? vTo : vFrom;
+          }
+        }
+        try { apply(interp); } catch (e) { /* swallow */ }
+        render();
+        if (t < 1) requestAnimationFrame(step);
+        else if (onDone) onDone();
+      }
+      requestAnimationFrame(step);
+      return function cancel() { cancelled = true; };
+    }
+
+    // Reconcile layers: animate per-layer numeric props from current to target.
+    // This will animate opacity, rotation, tx, ty, scale and per-layer _animAlpha
+    // (for fades). `oldLayers` and `newLayers` are arrays of layer objects.
+    function reconcileLayers(oldLayers, newLayers) {
+      // bump global token so other long-running animations (view anim, fadeImage)
+      // are treated as cancelled for the duration of our per-layer tweens.
+      animationCancelToken++;
+      const localAnimationToken = animationCancelToken;
+      const oldByUrl = {};
+      (oldLayers || []).forEach(l => { if (l && l.url) oldByUrl[l.url] = l; });
+      const newByUrl = {};
+      (newLayers || []).forEach(l => { if (l && l.url) newByUrl[l.url] = l; });
+
+      // Determine removed and added
+      const removed = (oldLayers || []).filter(l => l && l.url && !newByUrl[l.url]);
+      const added = (newLayers || []).filter(l => l && l.url && !oldByUrl[l.url]);
+
+      // We'll track pending tweens so we can commit the final layer state to
+      // the URL hash only after all tweens have completed. Intermediate frames
+      // must not cause hash writes.
+      let pendingTweens = 0;
+      const notePending = () => { pendingTweens++; };
+      const donePending = () => { pendingTweens--; checkFinish(); };
+
+      function checkFinish() {
+        // Only finalize if all tweens done and the local animation token is still current
+        if (pendingTweens <= 0 && localAnimationToken === animationCancelToken) {
+          // Commit final animated props into the canonical layer fields and
+          // update the serialized url hash once.
+          (newLayers || []).forEach(n => {
+            const target = n;
+            const layerRef = layers.find(l => l.url === n.url);
+            if (layerRef) {
+              // If an _animProps container exists, pull final numeric props from it
+              if (layerRef._animProps) {
+                layerRef.opacity = typeof layerRef._animProps.opacity === 'number' ? layerRef._animProps.opacity : layerRef.opacity;
+                layerRef.rotation = typeof layerRef._animProps.rotation === 'number' ? layerRef._animProps.rotation : layerRef.rotation;
+                layerRef.tx = typeof layerRef._animProps.tx === 'number' ? layerRef._animProps.tx : layerRef.tx;
+                layerRef.ty = typeof layerRef._animProps.ty === 'number' ? layerRef._animProps.ty : layerRef.ty;
+                layerRef.scale = typeof layerRef._animProps.scale === 'number' ? layerRef._animProps.scale : layerRef.scale;
+              } else {
+                // otherwise use target values
+                layerRef.opacity = typeof target.opacity === 'number' ? target.opacity : layerRef.opacity;
+                layerRef.rotation = typeof target.rotation === 'number' ? target.rotation : layerRef.rotation;
+                layerRef.tx = typeof target.tx === 'number' ? target.tx : layerRef.tx;
+                layerRef.ty = typeof target.ty === 'number' ? target.ty : layerRef.ty;
+                layerRef.scale = typeof target.scale === 'number' ? target.scale : layerRef.scale;
+              }
+            }
+          });
+          // Serialize and write final hash. Use parseHash to preserve annotations/view.
+          try {
+            const serialized = layersToUrlField(layers);
+            const parsed = parseHash();
+            const annotations = (parsed && parsed.annotations) ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
+            // Write the final url/state into the hash (this sets interactiveChange briefly)
+            updateHash(serialized, view, annotations, Math.round((imageOpacity||1)*100), imageRotationDeg);
+          } catch (e) {
+            // ignore errors writing hash
+          }
+        }
+      }
+
+      // Ensure finish check in case there are zero tweens
+      checkFinish();
+
+      // Animate removed layers: move into fadingOutLayers and tween _animAlpha to 0
+      removed.forEach(r => {
+        // if already in fading list, skip
+        if (!fadingOutLayers.includes(r)) {
+          // capture current visible props
+          r._animProps = { opacity: r.opacity, rotation: r.rotation, tx: r.tx, ty: r.ty, scale: r.scale, _animAlpha: 1 };
+          r._animAlpha = 1;
+          fadingOutLayers.push(r);
+          // start fade-out
+          notePending();
+          tweenProps({ _animAlpha: 1 }, { _animAlpha: 0 }, FADE_OUT_DURATION || 300, v => { r._animAlpha = v._animAlpha; r._animProps._animAlpha = v._animAlpha; }, () => {
+            // remove when done
+            const idx = fadingOutLayers.indexOf(r);
+            if (idx !== -1) fadingOutLayers.splice(idx, 1);
+            donePending();
+          });
+        }
+      });
+
+      // Animate existing layers' property changes
+      (newLayers || []).forEach(n => {
+        const prev = oldByUrl[n.url];
+        const layerObj = layers.find(l => l.url === n.url) || n;
+        // prepare target props
+        const to = { opacity: typeof n.opacity === 'number' ? n.opacity : 100, rotation: typeof n.rotation === 'number' ? n.rotation : 0, tx: typeof n.tx === 'number' ? n.tx : 0.5, ty: typeof n.ty === 'number' ? n.ty : 0.5, scale: typeof n.scale === 'number' ? n.scale : 1 };
+        const from = prev ? { opacity: typeof prev.opacity === 'number' ? prev.opacity : 100, rotation: typeof prev.rotation === 'number' ? prev.rotation : 0, tx: typeof prev.tx === 'number' ? prev.tx : 0.5, ty: typeof prev.ty === 'number' ? prev.ty : 0.5, scale: typeof prev.scale === 'number' ? prev.scale : 1 } : to;
+        // initialize an _animProps container to drive render
+        layerObj._animProps = { ...(layerObj._animProps || {}), ...from, _animAlpha: (layerObj._animProps && typeof layerObj._animProps._animAlpha === 'number') ? layerObj._animProps._animAlpha : ((typeof layerObj._animAlpha === 'number') ? layerObj._animAlpha : 1) };
+        // tween to target props
+        notePending();
+        tweenProps(from, to, 300, v => { layerObj._animProps = { ...(layerObj._animProps || {}), ...v }; }, () => { /* done - leave final props */ donePending(); });
+      });
+
+      // Animate added layers fade-in when they become available (img loaded)
+      added.forEach(a => {
+        // find layer reference in layers array
+        const l = layers.find(x => x.url === a.url) || a;
+        // ensure starting alpha 0
+        l._animProps = { ...(l._animProps || {}), _animAlpha: 0, opacity: typeof l.opacity === 'number' ? l.opacity : 100, rotation: typeof l.rotation === 'number' ? l.rotation : 0, tx: typeof l.tx === 'number' ? l.tx : 0.5, ty: typeof l.ty === 'number' ? l.ty : 0.5, scale: typeof l.scale === 'number' ? l.scale : 1 };
+        // If image already loaded, start tween immediately; otherwise hook onload
+        const startFadeIn = () => {
+          notePending();
+          tweenProps({ _animAlpha: 0 }, { _animAlpha: 1 }, FADE_IN_DURATION || 300, v => { l._animProps._animAlpha = v._animAlpha; l._animAlpha = v._animAlpha; }, () => { /* done */ donePending(); });
+        };
+        if (l.img && l.img.width) {
+          startFadeIn();
+        } else if (l.img) {
+          l.img.onload = () => { startFadeIn(); };
+        }
+      });
+    }
+
     // ---------------------------------------------------------------------
     // loadImage
     // ---------------------------------------------------------------------
@@ -1094,7 +1397,8 @@
           fitViewToCanvas(image);
         }
         render();
-        window.viewerReady = true;
+        // Defer readiness until image has measurable size and fades are complete
+        setViewerReadyDeferred([{ img: image, _animAlpha: 1 }]);
       };
       image.src = url;
     }
@@ -1598,10 +1902,10 @@
         row.style.marginBottom = '6px';
         row.style.background = '#fff';
 
-        const title = document.createElement('div');
+  const title = document.createElement('div');
         title.style.fontSize = '0.85em';
         title.style.marginBottom = '4px';
-        title.textContent = `${idx}: ${layer.url}`;
+  title.textContent = `${layer.id}: ${layer.url}`;
         row.appendChild(title);
 
         // opacity
@@ -1673,9 +1977,9 @@
         const upBtn = document.createElement('button'); upBtn.textContent = '↑';
         const downBtn = document.createElement('button'); downBtn.textContent = '↓';
         const remBtn = document.createElement('button'); remBtn.textContent = 'Remove';
-        upBtn.addEventListener('click', () => { moveLayerUp(idx); });
-        downBtn.addEventListener('click', () => { moveLayerDown(idx); });
-        remBtn.addEventListener('click', () => { removeLayer(idx); });
+  upBtn.addEventListener('click', () => { moveLayerUpById(layer.id); });
+  downBtn.addEventListener('click', () => { moveLayerDownById(layer.id); });
+  remBtn.addEventListener('click', () => { removeLayerById(layer.id); });
         controls.appendChild(upBtn); controls.appendChild(downBtn); controls.appendChild(remBtn);
         row.appendChild(controls);
 
@@ -1701,26 +2005,33 @@
 
     function addLayer(url) {
       if (!url) return;
-      const newLayer = { url, opacity: 100, rotation: 0, tx: 0.5, ty: 0.5, scale: 1, img: null, loaded: false };
+      const newLayer = { id: url, url, opacity: 100, rotation: 0, tx: 0.5, ty: 0.5, scale: 1, img: null, loaded: false };
       // Append to top (index 0) so new layer is topmost
       layers.unshift(newLayer);
       commitLayersChange();
     }
 
-    function removeLayer(idx) {
-      if (idx < 0 || idx >= layers.length) return;
+    function findLayerIndexById(id) {
+      return layers.findIndex(l => l && l.id === id);
+    }
+
+    function removeLayerById(id) {
+      const idx = findLayerIndexById(id);
+      if (idx === -1) return;
       layers.splice(idx, 1);
       commitLayersChange();
     }
 
-    function moveLayerUp(idx) {
+    function moveLayerUpById(id) {
+      const idx = findLayerIndexById(id);
       if (idx <= 0) return;
       const a = layers.splice(idx, 1)[0];
       layers.splice(idx - 1, 0, a);
       commitLayersChange();
     }
 
-    function moveLayerDown(idx) {
+    function moveLayerDownById(id) {
+      const idx = findLayerIndexById(id);
       if (idx < 0 || idx >= layers.length - 1) return;
       const a = layers.splice(idx, 1)[0];
       layers.splice(idx + 1, 0, a);

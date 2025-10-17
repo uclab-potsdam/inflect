@@ -149,13 +149,9 @@
 
                         text = applySectionClasses(text);
             
-            // add class dontinflect to regular html links
-            text = text.replace(/<a\b([^>]*)>/gi, (m, attrs) => 
-              `<a${/class\s*=\s*["']([^"']*)["']/i.test(attrs) 
-                  ? attrs.replace(/class\s*=\s*["']([^"']*)["']/i, 
-                                  (m, c) => `class="${c} dontinflect"`) 
-                  : ` class="dontinflect"${attrs}`}>`
-            );
+                        // (Previously we injected a `dontinflect` class into anchors. Revert that
+                        // behavior so external links or arbitrary hrefs can be treated as
+                        // inflection links. Leave anchors as authored.)
 
             // render markdown into HTML           
             let html = marked.parse(text);
@@ -198,7 +194,7 @@
                             // If the image src appears to be inside the /img/ folder,
                             // ensure it's wrapped by an anchor so intersection/click
                             // handlers can detect it.
-                            if (src.includes('/img/')) {
+                            if (src.includes('/img/') || src.includes('/map/')) {
                                 const parent = img.parentElement;
                                 if (parent && parent.tagName.toLowerCase() === 'a') return;
                                 const a = document.createElement('a');
@@ -215,8 +211,9 @@
 
             initializeObservers();
 
-            // Setup typewriter animation: find elements with .typewriter and animate when they enter viewport
-            setupTypewriterAnimations();
+                // Setup typewriter animation: register elements; actual start is triggered
+                // when the section's link becomes the active link and is loaded into the iframe.
+                setupTypewriterAnimations();
 
             // return to old position
             if (location.hostname=="localhost") window.scrollTo(0, sessionStorage.getItem("scrollPosition") || 0);
@@ -265,20 +262,61 @@
     function setupTypewriterAnimations() {
         const els = document.querySelectorAll('.typewriter');
         els.forEach(el => {
-            const text = (el.textContent || '').trim();
-            el.textContent = '';
-            el.classList.add('cursor');
+            // Store original HTML/text for later replay and mark as not started
+            if (!typewriterStore.has(el)) {
+                typewriterStore.set(el, { original: el.innerHTML, started: false });
+            }
+            // Do not start here — starts are triggered when the containing section
+            // becomes active (its link is visible and forwarded to the iframe). 
+        });
+    }
+
+    // Start typewriter animation for a single element if not already started.
+    function startTypewriter(el) {
+        if (!el) return;
+        const info = typewriterStore.get(el) || { original: el.innerHTML, started: false };
+        if (info.started) return;
+        // If element contains an anchor with class 'active', do not animate it
+        const anchor = el.querySelector('a');
+        if (anchor && anchor.classList.contains('active')) return;
+
+        // Begin animation
+        info.started = true;
+        typewriterStore.set(el, info);
+        el.classList.add('cursor');
+
+        if (anchor) {
+            const anchorText = (anchor.textContent || '').trim();
+            anchor.textContent = '';
             let idx = 0;
             const speed = 40;
-            function step() {
-                if (idx <= text.length) {
-                    el.textContent = text.slice(0, idx);
+            (function step() {
+                if (idx <= anchorText.length) {
+                    anchor.textContent = anchorText.slice(0, idx);
                     idx++;
                     setTimeout(step, speed);
                 }
+            })();
+            return;
+        }
+
+        const text = (info.original || '').replace(/<[^>]+>/g, '').trim();
+        el.textContent = '';
+        let idx = 0;
+        const speed = 40;
+        (function step() {
+            if (idx <= text.length) {
+                el.textContent = text.slice(0, idx);
+                idx++;
+                setTimeout(step, speed);
             }
-            step();
-        });
+        })();
+    }
+
+    function startTypewriterForSection(section) {
+        if (!section) return;
+        const els = section.querySelectorAll('.typewriter');
+        els.forEach(el => startTypewriter(el));
     }
 
     // with IntersectionObserver we can check what is visible    
@@ -293,6 +331,13 @@
                         visibleLink.classList.add('active');
                         // Update iframe, ignoring just changes
                         setIframeIfPathChanged(visibleLink.href);
+                        // Start any typewriter animation for the section that contains this link
+                        // after the iframe has been asked to load the path. Use a short delay
+                        // to allow the iframe transition to start.
+                        try {
+                            const section = visibleLink.closest('section') || document.querySelector('main');
+                            setTimeout(() => startTypewriterForSection(section), 450);
+                        } catch (e) { /* swallow */ }
                     }
                 }
                 else entry.target.classList.remove("active")
@@ -303,18 +348,19 @@
         const inflectLinks = document.querySelectorAll('a');
         inflectLinks.forEach(link => {
             observer.observe(link);
-            // Determine if this link is an inflection link we should handle.
-            // We consider links that point to local img tokens (e.g. 'img/#...'),
-            // contain the multilayer viewer token '&&&', or are site-local paths
-            // as actionable. External links will be left alone (marked dontinflect).
             const hrefAttr = (link.getAttribute('href') || '').trim();
-            const isInflection = hrefAttr.startsWith('img/') || hrefAttr.includes('/img/') || hrefAttr.includes('&&&') || hrefAttr.startsWith('/') || hrefAttr.startsWith('#');
+            // Treat any non-empty href as an inflection-link candidate. This allows
+            // external URLs as well as local paths to be handled by the iframe
+            // forwarding logic. Skip empty hrefs or javascript/mailto pseudo-links.
+            const isInflection = hrefAttr && !hrefAttr.toLowerCase().startsWith('javascript:') && !hrefAttr.toLowerCase().startsWith('mailto:');
             if (isInflection) {
                 // Add event listener to manually handle click
                 link.addEventListener('click', function(event) {
                     document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
                     link.classList.add('active');
                     setIframeIfPathChanged(link.href);
+                    // Start typewriter for the section containing this link after a short delay
+                    try { const sec = link.closest('section') || document.querySelector('main'); setTimeout(() => startTypewriterForSection(sec), 450); } catch (e) {}
                 });
             } else {
                 // mark external/non-inflection links so they can be styled differently
