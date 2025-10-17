@@ -12,7 +12,7 @@ body {
     direction: rtl;
     font-weight: 250;
     font-size: calc(1vw + 1vh);
-    background-color: #222;
+    background: #333;
     margin: 0;
     padding: 0;
 }

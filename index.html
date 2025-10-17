@@ -33,8 +33,7 @@
     let lastIframePath = null;
     let firstFrame = true;
     const iframe = document.getElementById('if');
-    // Store per-element typewriter state (array of {node, original})
-    const typewriterStore = new WeakMap();
+    // (typewriter functionality removed)
 
     
 
@@ -211,9 +210,7 @@
 
             initializeObservers();
 
-                // Setup typewriter animation: register elements; actual start is triggered
-                // when the section's link becomes the active link and is loaded into the iframe.
-                setupTypewriterAnimations();
+                // (typewriter functionality removed)
 
             // return to old position
             if (location.hostname=="localhost") window.scrollTo(0, sessionStorage.getItem("scrollPosition") || 0);
@@ -256,68 +253,7 @@
             }
         }
 
-    // Setup typewriter animation: find elements with .typewriter and animate them
-    // in a simple, self-contained way. This replaces an earlier more complex
-    // implementation that left stray variables in the file during a revert.
-    function setupTypewriterAnimations() {
-        const els = document.querySelectorAll('.typewriter');
-        els.forEach(el => {
-            // Store original HTML/text for later replay and mark as not started
-            if (!typewriterStore.has(el)) {
-                typewriterStore.set(el, { original: el.innerHTML, started: false });
-            }
-            // Do not start here — starts are triggered when the containing section
-            // becomes active (its link is visible and forwarded to the iframe). 
-        });
-    }
-
-    // Start typewriter animation for a single element if not already started.
-    function startTypewriter(el) {
-        if (!el) return;
-        const info = typewriterStore.get(el) || { original: el.innerHTML, started: false };
-        if (info.started) return;
-        // If element contains an anchor with class 'active', do not animate it
-        const anchor = el.querySelector('a');
-        if (anchor && anchor.classList.contains('active')) return;
-
-        // Begin animation
-        info.started = true;
-        typewriterStore.set(el, info);
-        el.classList.add('cursor');
-
-        if (anchor) {
-            const anchorText = (anchor.textContent || '').trim();
-            anchor.textContent = '';
-            let idx = 0;
-            const speed = 40;
-            (function step() {
-                if (idx <= anchorText.length) {
-                    anchor.textContent = anchorText.slice(0, idx);
-                    idx++;
-                    setTimeout(step, speed);
-                }
-            })();
-            return;
-        }
-
-        const text = (info.original || '').replace(/<[^>]+>/g, '').trim();
-        el.textContent = '';
-        let idx = 0;
-        const speed = 40;
-        (function step() {
-            if (idx <= text.length) {
-                el.textContent = text.slice(0, idx);
-                idx++;
-                setTimeout(step, speed);
-            }
-        })();
-    }
-
-    function startTypewriterForSection(section) {
-        if (!section) return;
-        const els = section.querySelectorAll('.typewriter');
-        els.forEach(el => startTypewriter(el));
-    }
+    // (typewriter functionality removed)
 
     // with IntersectionObserver we can check what is visible    
     function initializeObservers() {
@@ -336,7 +272,7 @@
                         // to allow the iframe transition to start.
                         try {
                             const section = visibleLink.closest('section') || document.querySelector('main');
-                            setTimeout(() => startTypewriterForSection(section), 450);
+                            // (typewriter removed)
                         } catch (e) { /* swallow */ }
                     }
                 }
@@ -359,8 +295,7 @@
                     document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
                     link.classList.add('active');
                     setIframeIfPathChanged(link.href);
-                    // Start typewriter for the section containing this link after a short delay
-                    try { const sec = link.closest('section') || document.querySelector('main'); setTimeout(() => startTypewriterForSection(sec), 450); } catch (e) {}
+                    // (typewriter removed)
                 });
             } else {
                 // mark external/non-inflection links so they can be styled differently
@@ -385,6 +320,13 @@
 
     // Load, parse, and display markdown on page load
     renderMarkdown();
+        // Load external typewriter script (handles its own initialization)
+        (function(){
+            const s = document.createElement('script');
+            s.src = 'src/typewriter.js';
+            s.defer = true;
+            document.head.appendChild(s);
+        })();
 </script>
 </body>
 </html>
