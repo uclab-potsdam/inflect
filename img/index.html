@@ -164,6 +164,11 @@
     let image = new Image();
   // layers support: array of {url, opacity, rotation, tx, ty, scale, img, loaded}
   let layers = [];
+  // Layers that are in the process of fading out (removed from main layers array)
+  let fadingOutLayers = [];
+  // Deterministic readiness signal for tests and parents. true when current
+  // view (single image or multilayers) has finished loading and initial render.
+  window.viewerReady = false;
 
     // Pan/zoom "view" in image coords
     let view = { topLeft: [0, 0], bottomRight: [0, 0] };
@@ -200,10 +205,11 @@
 
       if (!hash.includes('&')) {
         // If no ampersand is found, assume the hash is just a URL
+        // return color as 6-digit hex WITHOUT leading '#'
         return {
           url: hash,
           view: null,
-          annotations: { boxes: [], lines: [], color: '#ff0000' },
+          annotations: { boxes: [], lines: [], color: 'ff0000' },
           poster: false,
           cover: false,
           opacity: 100
@@ -259,6 +265,17 @@
         opacity = parseInt(opacityStr, 10);
       }
 
+      // normalize color to 6-digit hex without '#'
+      if (typeof color === 'string') {
+        color = color.replace(/[^0-9a-fA-F]/g, '').trim();
+        if (color.length === 3) color = color.split('').map(c => c + c).join('');
+        if (color.length > 6) color = color.slice(0,6);
+        if (color.length === 0) color = 'ff0000';
+        color = color.toLowerCase();
+      } else {
+        color = 'ff0000';
+      }
+
       const result = {
         url,
         view: null,
@@ -297,6 +314,40 @@
       if (result.layers && result.layers.length > 0) result.url = result.layers[0].url;
       return result;
     }
+
+    // Public helper so parent frames can forward messy hrefs/hashes safely.
+    // Accepts strings like '/img/cover.png', full URLs, or a raw href containing
+    // the viewer token '&&&...'. Returns true if applied, false otherwise.
+    window.acceptViewerHash = function(raw) {
+      try {
+        if (!raw || typeof raw !== 'string') return false;
+        const s = raw.trim();
+        const ampIdx = s.indexOf('&&&');
+        if (ampIdx !== -1) {
+          // extract token after &&& up to next '&'
+          const after = s.slice(ampIdx + 3);
+          const tokenSegment = after.split('&')[0] || '';
+          if (!tokenSegment) return false;
+          location.hash = '#&&&' + tokenSegment;
+          return true;
+        }
+        const urlMatch = s.match(/(https?:\/\/[^#\s]+|\/[^#\s]+|[^#\s]+\.(png|jpe?g|gif|webp|svg))/i);
+        if (urlMatch && urlMatch[0]) {
+          let url = urlMatch[0];
+          try {
+            const u = new URL(url, location.origin);
+            url = u.pathname + (u.search || '');
+          } catch (e) {
+            // keep raw
+          }
+          location.hash = '#' + url;
+          return true;
+        }
+        return false;
+      } catch (e) {
+        return false;
+      }
+    };
 
     // Parse a url field into layer specs. Each token is "url[@k=v@k2=v2]" and tokens are pipe-separated.
     // This parser is tolerant: it will split on literal '|' or encoded '%7C', strip any stray
@@ -405,6 +456,8 @@
       if (remaining === 0) {
         // ensure legacy image is set
         image = layers[0] && layers[0].img ? layers[0].img : image;
+        // mark ready now that everything required is present
+        window.viewerReady = true;
         if (onDone) onDone();
         // reflect serialized url in currentUrl
         currentUrl = layersToUrlField(layers);
@@ -422,14 +475,21 @@
           remaining--;
           // set primary image for legacy paths
           if (idx === 0) image = imgObj;
-          if (remaining <= 0 && onDone) onDone();
+          if (remaining <= 0) {
+            // all loaded
+            window.viewerReady = true;
+            if (onDone) onDone();
+          }
         };
         imgObj.onerror = () => {
           console.warn('Failed to load layer image', layer.url);
           layer.loaded = false;
           remaining--;
           if (idx === 0) image = imgObj;
-          if (remaining <= 0 && onDone) onDone();
+          if (remaining <= 0) {
+            window.viewerReady = true;
+            if (onDone) onDone();
+          }
         };
         imgObj.src = layer.url;
       });
@@ -491,11 +551,53 @@
       }
       // needPreload decision logged only on preload
       if (needPreload) {
+        // When preloading due to URL changes, animate removed/added layers
+        // Determine removed layers (present in existingUrlsArr but not in parsed)
+        const removed = (layers || []).filter(l => l && l.url && !parsedUrls.has(l.url));
+        const added = parsedLayers.filter(p => p && p.url && !existingUrls.has(p.url));
+        // Move removed layers into fadingOutLayers and start fade animation
+        removed.forEach(r => {
+          // preserve current visual state
+          r._animAlpha = 1;
+          fadingOutLayers.push(r);
+        });
+        // Preload new set
         preloadLayers(parsedLayers, () => {
-          // ensure serialized url updated
+          // After preload, mark newly added layers to fade in
+          // Recompute layers variable from newly loaded content
           currentUrl = layersToUrlField(layers);
+          const newlyAdded = (layers || []).filter(l => l && l.url && added.find(a => a.url === l.url));
+          newlyAdded.forEach(n => { n._animAlpha = 0; });
+          // schedule fade-in animations for new layers
+          newlyAdded.forEach(n => {
+            const start = performance.now();
+            const dur = 300;
+            (function step(now) {
+              const t = Math.min((now - start) / dur, 1);
+              n._animAlpha = t;
+              render();
+              if (t < 1) requestAnimationFrame(step);
+            })(start);
+          });
+          // start fade-out animations for removed layers and remove them when done
+          fadingOutLayers.forEach(f => {
+            const start = performance.now();
+            const dur = 300;
+            (function step(now) {
+              const t = Math.min((now - start) / dur, 1);
+              f._animAlpha = 1 - t;
+              render();
+              if (t < 1) requestAnimationFrame(step);
+              else {
+                // remove from fadingOutLayers
+                const idx = fadingOutLayers.indexOf(f);
+                if (idx !== -1) fadingOutLayers.splice(idx, 1);
+              }
+            })(start);
+          });
           if (onDone) onDone();
         });
+        return;
         return;
       }
 
@@ -596,6 +698,22 @@
       ];
     }
 
+    // Compute view object (topLeft/bottomRight) that would be set by fitViewToCanvas
+    function computeFitView(img) {
+      if (!img || !img.width || !img.height) return null;
+      const scaleX = canvas.width / img.width;
+      const scaleY = canvas.height / img.height;
+      const scale = Math.min(scaleX, scaleY);
+      const displayWidth = img.width * scale;
+      const displayHeight = img.height * scale;
+      const offsetX = (canvas.width - displayWidth) / 2;
+      const offsetY = (canvas.height - displayHeight) / 2;
+      return {
+        topLeft: [-offsetX / scale, -offsetY / scale],
+        bottomRight: [img.width + offsetX / scale, img.height + offsetY / scale]
+      };
+    }
+
     function fitViewToCoverCanvas(img) {
       if (!img || !img.width || !img.height) return;
       const canvasAspect = canvas.width / canvas.height;
@@ -616,6 +734,26 @@
       }
       view.topLeft = [offsetX, offsetY];
       view.bottomRight = [offsetX + cropWidth, offsetY + cropHeight];
+    }
+
+    // Compute a cover view without mutating global view
+    function computeCoverView(img) {
+      if (!img || !img.width || !img.height) return null;
+      const canvasAspect = canvas.width / canvas.height;
+      const imgAspect = img.width / img.height;
+      let cropWidth, cropHeight, offsetX, offsetY;
+      if (canvasAspect > imgAspect) {
+        cropWidth = img.width;
+        cropHeight = img.width / canvasAspect;
+        offsetX = 0;
+        offsetY = (img.height - cropHeight) / 2;
+      } else {
+        cropHeight = img.height;
+        cropWidth = img.height * canvasAspect;
+        offsetY = 0;
+        offsetX = (img.width - cropWidth) / 2;
+      }
+      return { topLeft: [offsetX, offsetY], bottomRight: [offsetX + cropWidth, offsetY + cropHeight] };
     }
 
     function animateView(targetView) {
@@ -768,6 +906,26 @@
         if (inFrame && needRetry) {
           // Re-render shortly to allow image natural size to initialize
           setTimeout(() => render(), 80);
+        }
+        // Draw any layers that are fading out on top so their fade is visible
+        if (fadingOutLayers && fadingOutLayers.length) {
+          for (const layer of fadingOutLayers) {
+            if (!layer.img || !layer.img.width) continue;
+            ctx.save();
+            const layerOpacity = (imageOpacity || 1) * ((typeof layer.opacity === 'number' ? layer.opacity : 100) / 100);
+            const anim = (typeof layer._animAlpha === 'number') ? layer._animAlpha : 1;
+            ctx.globalAlpha = layerOpacity * anim;
+            const px = (typeof layer.tx === 'number' ? layer.tx : 0.5) * layer.img.width;
+            const py = (typeof layer.ty === 'number' ? layer.ty : 0.5) * layer.img.height;
+            const iframeNudge = (inFrame && layers.length + fadingOutLayers.length > 1) ? 0 : 0;
+            ctx.translate(px, py + iframeNudge);
+            const rad = ((typeof layer.rotation === 'number' ? layer.rotation : 0) * Math.PI) / 180;
+            ctx.rotate(rad);
+            const sc = typeof layer.scale === 'number' ? layer.scale : 1;
+            ctx.scale(sc, sc);
+            ctx.drawImage(layer.img, -layer.img.width / 2, -layer.img.height / 2);
+            ctx.restore();
+          }
         }
       } else {
         // Fallback single image
@@ -926,6 +1084,8 @@
     // ---------------------------------------------------------------------
     function loadImage(url) {
       currentUrl = url;
+      // mark not-ready while loading
+      window.viewerReady = false;
       image.onload = () => {
         const parsed = parseHash();
         if (parsed && parsed.view) {
@@ -934,6 +1094,7 @@
           fitViewToCanvas(image);
         }
         render();
+        window.viewerReady = true;
       };
       image.src = url;
     }
@@ -1277,12 +1438,16 @@
               currentUrl = layersToUrlField(layers);
             }
             // After layers applied, handle view/fit and rendering
+        // Determine target view and animate the transition for visual smoothness
+        const primaryImg = (layers && layers[0] && layers[0].img) ? layers[0].img : image;
         if (cover) {
-          fitViewToCoverCanvas(layers[0] && layers[0].img ? layers[0].img : image);
+          const target = computeCoverView(primaryImg) || computeFitView(primaryImg);
+          if (target) updateView(target, true, false, true);
         } else if (poster) {
-          fitViewToCanvas(layers[0] && layers[0].img ? layers[0].img : image);
+          const target = computeFitView(primaryImg) || computeCoverView(primaryImg);
+          if (target) updateView(target, true, true, false);
         } else {
-          if (newView) updateView(newView, inFrame, poster, cover);
+          if (newView) updateView(newView, true, poster, cover);
         }
         render();
       });
@@ -1359,14 +1524,18 @@
             opacityInput.value = parsed.opacity;
             imageOpacity = parsed.opacity / 100;
           }
+          // Animate into the requested view for a smoother initial presentation
           if (parsed.cover) {
-            fitViewToCoverCanvas(image);
+            const target = computeCoverView(image) || computeFitView(image);
+            if (target) updateView(target, true, false, true);
           } else if (parsed.poster) {
-            fitViewToCanvas(image);
+            const target = computeFitView(image) || computeCoverView(image);
+            if (target) updateView(target, true, true, false);
           } else if (parsed.view) {
-            setViewImmediately(parsed.view);
+            updateView(parsed.view, true);
           } else {
-            fitViewToCanvas(image);
+            const target = computeFitView(image);
+            if (target) updateView(target, true);
           }
           render();
         });

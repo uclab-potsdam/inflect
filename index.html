@@ -228,9 +228,12 @@
     // Update markdown when hash changes
         // Fade in new content only on path change
         function setIframeIfPathChanged(newHref) {
-            const newURL = new URL(newHref, window.location.origin);
-            newURL.hash = '';
-            const newPath = newURL.href;
+            const parsedURL = new URL(newHref, window.location.origin);
+            const originalHash = parsedURL.hash || '';
+            // compute path-only URL for comparison
+            const pathOnly = new URL(parsedURL.href);
+            pathOnly.hash = '';
+            const newPath = pathOnly.href;
 
             if (newPath !== lastIframePath) {
                 if (firstFrame) {
@@ -249,7 +252,9 @@
                 }
                 lastIframePath = newPath;
             } else {
-                // Only hash changed, do not fade
+                // Only hash changed — assign src to force the iframe to pick up the
+                // full hash token. This is more robust and avoids cross-window
+                // access issues in browsers/environments used in tests.
                 iframe.src = newHref;
             }
         }
@@ -294,19 +299,26 @@
             });
         });
 
-        // Add observer to all inflect links
+        // Add observer to all links and attach click handlers to inflection links
         const inflectLinks = document.querySelectorAll('a');
         inflectLinks.forEach(link => {
             observer.observe(link);
-
-            // ignore local links to markdown files
-            if (!link.classList.contains("dontinflect")) {
+            // Determine if this link is an inflection link we should handle.
+            // We consider links that point to local img tokens (e.g. 'img/#...'),
+            // contain the multilayer viewer token '&&&', or are site-local paths
+            // as actionable. External links will be left alone (marked dontinflect).
+            const hrefAttr = (link.getAttribute('href') || '').trim();
+            const isInflection = hrefAttr.startsWith('img/') || hrefAttr.includes('/img/') || hrefAttr.includes('&&&') || hrefAttr.startsWith('/') || hrefAttr.startsWith('#');
+            if (isInflection) {
                 // Add event listener to manually handle click
-                link.addEventListener('click', function(event) {                    
+                link.addEventListener('click', function(event) {
                     document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
                     link.classList.add('active');
                     setIframeIfPathChanged(link.href);
                 });
+            } else {
+                // mark external/non-inflection links so they can be styled differently
+                link.classList.add('dontinflect');
             }
         });
 

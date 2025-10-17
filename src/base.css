@@ -2,19 +2,19 @@
 
 @font-face {
     font-family: "Atkinson";
-    src: url("src/fonts/AtkinsonHyperlegibleNextVF-Variable.woff2") format("woff2-variations");
+    src: url("fonts/AtkinsonHyperlegibleNextVF-Variable.woff2") format("woff2-variations");
     font-style: normal;
 }
 
 @font-face {
     font-family: "AtkinsonMono";
-    src: url("src/fonts/AtkinsonHyperlegibleMono-Medium.woff2") format("woff2-variations");
+    src: url("fonts/AtkinsonHyperlegibleMono-Medium.woff2") format("woff2-variations");
     font-style: normal;
 }
 
 @font-face {
     font-family: "AtkinsonMono";
-    src: url("src/fonts/AtkinsonHyperlegibleMono-Bold.woff2") format("woff2-variations");
+    src: url("fonts/AtkinsonHyperlegibleMono-Bold.woff2") format("woff2-variations");
     font-style: normal;
     font-weight: bold;
 }
