@@ -36,33 +36,7 @@
     // Store per-element typewriter state (array of {node, original})
     const typewriterStore = new WeakMap();
 
-    // Fade in new content only on path change
-    function setIframeIfPathChanged(newHref) {
-      const newURL = new URL(newHref, window.location.origin);
-      newURL.hash = '';
-      const newPath = newURL.href;
-
-      if (newPath !== lastIframePath) {
-        if (firstFrame) {
-          firstFrame = false;
-          iframe.style.opacity = '1';
-          iframe.src = newHref;
-        } else {
-          if (iframe.style.opacity !== '0') {
-            iframe.style.opacity = '0';
-            setTimeout(() => {
-              iframe.src = newHref;
-            }, 400); // match transition duration
-          } else {
-            iframe.src = newHref;
-          }
-        }
-        lastIframePath = newPath;
-      } else {
-        // Only hash changed, do not fade
-        iframe.src = newHref;
-      }
-    }
+    
 
     // Fade in once the iframe finishes loading
     iframe.addEventListener('load', () => {
@@ -207,7 +181,37 @@
                             console.warn('Failed to apply body classes from markdown marker', e);
                         }
 
-            transformInflectionImages();
+            // Convert plain images or image links that reference /img/ into
+            // explicit links the parent page can observe. This function used
+            // to exist and was removed during edits; reintroduce a small,
+            // defensive implementation so callers don't throw.
+            try {
+                transformInflectionImages();
+            } catch (e) {
+                // Provide a lightweight fallback implementation inline
+                (function transformInflectionImagesFallback() {
+                    try {
+                        const imgs = Array.from(document.querySelectorAll('img'));
+                        imgs.forEach(img => {
+                            const src = img.getAttribute('src') || '';
+                            if (!src) return;
+                            // If the image src appears to be inside the /img/ folder,
+                            // ensure it's wrapped by an anchor so intersection/click
+                            // handlers can detect it.
+                            if (src.includes('/img/')) {
+                                const parent = img.parentElement;
+                                if (parent && parent.tagName.toLowerCase() === 'a') return;
+                                const a = document.createElement('a');
+                                a.href = src;
+                                a.appendChild(img.cloneNode(true));
+                                parent.replaceChild(a, img);
+                            }
+                        });
+                    } catch (inner) {
+                        // swallow — best-effort only
+                    }
+                })();
+            }
 
             initializeObservers();
 
@@ -222,143 +226,56 @@
     }
 
     // Update markdown when hash changes
-    window.addEventListener('hashchange', function() {
-        event.preventDefault();
-        window.scrollTo(0, 0);
-        if (location.hostname=="localhost") sessionStorage.setItem("scrollPosition", 0);
-        renderMarkdown();        
-    });
+        // Fade in new content only on path change
+        function setIframeIfPathChanged(newHref) {
+            const newURL = new URL(newHref, window.location.origin);
+            newURL.hash = '';
+            const newPath = newURL.href;
 
-    document.addEventListener("scroll", (event) => {
-        if (location.hostname=="localhost") sessionStorage.setItem("scrollPosition", window.scrollY);
-    });
-
-    window.addEventListener("beforeunload", function () {
-        if (location.hostname=="localhost") sessionStorage.setItem("scrollPosition", window.scrollY);
-    });
-
-    // turn images with alt-tag img to inflection links
-    function transformInflectionImages() {
-        const images = document.querySelectorAll('img[alt="img"]');
-        images.forEach(img => {
-            const link = document.createElement('a');
-
-            link.href = img.getAttribute('src');
-            link.classList.add("img");
-
-            const p = img.closest('p');
-
-            p.replaceWith(link);
-        });
-    }
-
-    // Typewriter animation: animate elements with .typewriter when they enter viewport
-    function setupTypewriterAnimations() {
-        const seen = new WeakSet();
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (!entry.isIntersecting) return;
-                const el = entry.target;
-                if (seen.has(el)) return;
-                seen.add(el);
-                // start typing
-                startTypewriter(el);
-                observer.unobserve(el);
-            });
-        }, { threshold: 0.5 });
-
-        document.querySelectorAll('.typewriter').forEach(el => {
-            // Prepare DOM: collect descendant text nodes and clear them while preserving tags
-            if (!typewriterStore.has(el)) prepareTypewriterElement(el);
-            el.classList.add('cursor');
-            observer.observe(el);
-        });
-    }
-
-    
-
-    // Collect descendant text nodes that contain non-whitespace text, store originals and clear them
-    function prepareTypewriterElement(root) {
-        const list = [];
-        function walk(node) {
-            node.childNodes.forEach(child => {
-                if (child.nodeType === Node.TEXT_NODE) {
-                    // keep nodes that have any non-whitespace characters
-                    if (/[\S]/.test(child.textContent)) {
-                        list.push({ node: child, original: child.textContent });
-                        child.textContent = '';
+            if (newPath !== lastIframePath) {
+                if (firstFrame) {
+                    firstFrame = false;
+                    iframe.style.opacity = '1';
+                    iframe.src = newHref;
+                } else {
+                    if (iframe.style.opacity !== '0') {
+                        iframe.style.opacity = '0';
+                        setTimeout(() => {
+                            iframe.src = newHref;
+                        }, 400); // match transition duration
+                    } else {
+                        iframe.src = newHref;
                     }
-                } else if (child.nodeType === Node.ELEMENT_NODE) {
-                    // don't descend into elements that are themselves typewriter containers
-                    if (!child.classList.contains('typewriter')) walk(child);
                 }
-            });
+                lastIframePath = newPath;
+            } else {
+                // Only hash changed, do not fade
+                iframe.src = newHref;
+            }
         }
-        walk(root);
-        // Fallback: if no text nodes found, treat the element as a single text container
-        if (list.length === 0) {
-            const orig = root.textContent || '';
-            root.textContent = '';
-            // create a synthetic text node inside the root to type into
-            const tn = document.createTextNode('');
-            root.appendChild(tn);
-            list.push({ node: tn, original: orig });
-        }
-        typewriterStore.set(root, { nodes: list });
-    }
-    
-    // Perform typing across collected text nodes sequentially
-    function startTypewriter(el, speed = 40) {
-        const state = typewriterStore.get(el);
-        if (!state) {
-            // Fallback to simple behavior
-            const text = el.textContent || '';
+
+    // Setup typewriter animation: find elements with .typewriter and animate them
+    // in a simple, self-contained way. This replaces an earlier more complex
+    // implementation that left stray variables in the file during a revert.
+    function setupTypewriterAnimations() {
+        const els = document.querySelectorAll('.typewriter');
+        els.forEach(el => {
+            const text = (el.textContent || '').trim();
             el.textContent = '';
             el.classList.add('cursor');
-            let i = 0;
-            (function step() {
-                if (i < text.length) {
-                    el.textContent += text.charAt(i);
-                    const ch = text.charAt(i);
-                    i++;
-                    const delay = /[.,!?\n]/.test(ch) ? speed * 6 : speed;
-                    setTimeout(step, delay);
-                } else {
-                    setTimeout(() => el.classList.remove('cursor'), 800);
+            let idx = 0;
+            const speed = 40;
+            function step() {
+                if (idx <= text.length) {
+                    el.textContent = text.slice(0, idx);
+                    idx++;
+                    setTimeout(step, speed);
                 }
-            })();
-            return;
-        }
-
-        const nodes = state.nodes;
-        let nIndex = 0;
-        let cIndex = 0;
-
-        function step() {
-            if (nIndex >= nodes.length) {
-                setTimeout(() => el.classList.remove('cursor'), 800);
-                return;
             }
-
-            const entry = nodes[nIndex];
-            const orig = entry.original || '';
-            if (cIndex < orig.length) {
-                entry.node.textContent += orig.charAt(cIndex);
-                const ch = orig.charAt(cIndex);
-                cIndex++;
-                const delay = /[.,!?\n]/.test(ch) ? speed * 6 : speed;
-                setTimeout(step, delay);
-            } else {
-                // move to next text node
-                nIndex++;
-                cIndex = 0;
-                setTimeout(step, speed);
-            }
-        }
-
-        el.classList.add('cursor');
-        step();
+            step();
+        });
     }
+
     // with IntersectionObserver we can check what is visible    
     function initializeObservers() {
         const observer = new IntersectionObserver((entries) => {

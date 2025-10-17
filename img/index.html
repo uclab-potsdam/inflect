@@ -41,6 +41,10 @@
     body.frame nav {
       display: none;
     }
+    /* Hide the layers UI when embedded in an iframe */
+    body.frame #layers-panel {
+      display: none;
+    }
 
     nav {
       padding: 0.5em;
@@ -87,6 +91,16 @@
     <input id="rotate" type="range" min="-180" max="180" value="0" style="width:6em; vertical-align: middle;"> 
     <button id="rotate-reset" title="Reset rotation">↺</button>
   </nav>
+
+  <!-- Layers UI panel -->
+  <aside id="layers-panel" style="position: fixed; left: 0; top: 0; bottom: 0; width: 14em; background: rgba(255,255,255,0.95); padding: 0.5em; overflow:auto; z-index:3;">
+    <h3 style="margin:0 0 0.5em 0; font-size:1em;">Layers</h3>
+    <div id="layers-list"></div>
+    <div style="margin-top:0.5em;">
+      <input id="new-layer-url" type="text" placeholder="Image URL or path" style="width:100%; box-sizing:border-box;">
+      <button id="add-layer" style="width:100%; margin-top:0.25em;">Add Layer</button>
+    </div>
+  </aside>
 
 
   <script>
@@ -148,6 +162,8 @@
     // The current image (old) and its URL
     let currentUrl = null;
     let image = new Image();
+  // layers support: array of {url, opacity, rotation, tx, ty, scale, img, loaded}
+  let layers = [];
 
     // Pan/zoom "view" in image coords
     let view = { topLeft: [0, 0], bottomRight: [0, 0] };
@@ -157,6 +173,10 @@
 
   // Rotation in degrees
   let imageRotationDeg = 0;
+  // Image drop shadow settings (RGBA, blur, vertical offset in canvas pixels)
+  const IMG_SHADOW_COLOR = 'rgba(0,0,0,0.35)';
+  const IMG_SHADOW_BLUR = 18;
+  const IMG_SHADOW_OFFSET_Y = 8;
 
     const ANIMATION_DURATION = 1000; // used for pan/zoom if same URL changes
 
@@ -190,7 +210,45 @@
         };
       }
 
-  const [viewPart, opacityStr, boxes, lines, url, rotationStr] = hash.split('&');
+  const parts = hash.split('&');
+  let viewPart = '';
+  let opacityStr = '';
+  let boxes = '';
+  let lines = '';
+  let url = '';
+  let rotationStr = '';
+  if (parts.length >= 1) viewPart = parts[0];
+  if (parts.length >= 2) opacityStr = parts[1];
+  if (parts.length >= 3) boxes = parts[2];
+  if (parts.length >= 4) lines = parts[3];
+  if (parts.length >= 5) url = parts[4];
+  if (parts.length >= 6) rotationStr = parts[5];
+  // Tolerate a common short form where the final numeric rotation ended up as the
+  // 5th part (url slot) because the user supplied fewer &-separated fields.
+  // Example: "&&&/img/cover.png&45" => parts.length === 5 and url === '45'.
+  if (!rotationStr && url && !isNaN(parseFloat(url))) {
+  // detected trailing numeric rotation (shifted fields)
+    rotationStr = url;
+    // shift fields left so url is what was in the `lines` slot, etc.
+    url = lines || '';
+    lines = boxes || '';
+    boxes = opacityStr || '';
+    opacityStr = viewPart || '';
+    viewPart = '';
+    // fields shifted to recover rotation and url
+  }
+  // Also tolerate the case where the url token landed in the `lines` slot
+  // e.g. the hash was '#&&&/img/cover.png&' so parts[3] contains the url and
+  // parts[4] is empty. Detect a path-like lines value and shift left.
+  if (!rotationStr && !url && lines && (lines.startsWith('/') || lines.startsWith('http') || lines.indexOf('.png') !== -1 || lines.indexOf('/img/') !== -1)) {
+    // detected url token in `lines` slot, shift fields
+    url = lines || '';
+    lines = boxes || '';
+    boxes = opacityStr || '';
+    opacityStr = viewPart || '';
+    viewPart = '';
+    // shifted fields (url-in-lines)
+  }
       let color = 'ff0000';
       let opacity = 100;
       // If the second field is a color (legacy), detect and shift
@@ -208,7 +266,8 @@
         poster: false,
         cover: false,
         opacity,
-        rotation: 0
+        rotation: 0,
+        layers: []
       };
 
       if (viewPart === 'poster') {
@@ -231,7 +290,248 @@
       if (rotationStr && !isNaN(parseFloat(rotationStr))) {
         result.rotation = parseFloat(rotationStr);
       }
+
+      // Parse layers if the url field contains pipe-separated layer specs
+      result.layers = parseLayersFromUrlField(url);
+      // Keep result.url as the raw first layer url for backward compatibility
+      if (result.layers && result.layers.length > 0) result.url = result.layers[0].url;
       return result;
+    }
+
+    // Parse a url field into layer specs. Each token is "url[@k=v@k2=v2]" and tokens are pipe-separated.
+    // This parser is tolerant: it will split on literal '|' or encoded '%7C', strip any stray
+    // fragment identifiers that accidentally landed in the token (e.g. '/img/#-...'), and
+    // defensively decode URI components.
+    function parseLayersFromUrlField(urlField) {
+      if (!urlField) return [];
+      const rawStr = String(urlField || '');
+      // split on pipe or encoded pipe
+      const tokens = rawStr.split(/\||%7C/i).map(t => (t || '').trim()).filter(Boolean);
+      const out = [];
+      tokens.forEach(tok => {
+        // parts after @ are params; first part is raw url token
+        const parts = tok.split('@');
+        let raw = parts[0] || '';
+        // If the token somehow contains a '#' (fragment), strip it off: e.g. '/img/#-...' => '/img/'
+        const hashIdx = raw.indexOf('#');
+        if (hashIdx !== -1) raw = raw.slice(0, hashIdx);
+        // Defensive decode
+        let url = raw;
+        try {
+          url = decodeURIComponent(raw);
+        } catch (e) {
+          // leave url as raw if decode fails
+          url = raw;
+        }
+        url = String(url).trim();
+        if (!url) return; // skip empty
+
+        const layer = { url, opacity: 100, rotation: 0, tx: 0.5, ty: 0.5, scale: 1, img: null, loaded: false };
+        parts.slice(1).forEach(p => {
+          const eq = p.indexOf('=');
+          if (eq === -1) return;
+          const k = p.slice(0, eq);
+          let vRaw = p.slice(eq + 1);
+          let v = vRaw;
+          try { v = decodeURIComponent(vRaw); } catch (e) { v = vRaw; }
+          if (k === 'o') layer.opacity = Number(v);
+          else if (k === 'r') layer.rotation = Number(v);
+          else if (k === 'x') layer.tx = Number(v);
+          else if (k === 'y') layer.ty = Number(v);
+          else if (k === 's') layer.scale = Number(v);
+        });
+        out.push(layer);
+      });
+      // If any parsed layer looks incomplete (no extension), attempt to recover
+      // by scanning the original urlField for image-like paths and using the
+      // first suitable match.
+      const extRe = /\.(png|jpe?g|gif|webp|svg)$/i;
+      const imgMatches = rawStr.match(/\/img\/[^@\|\s#]+?\.(png|jpe?g|gif|webp|svg)/ig) || [];
+      const recovered = out.map((l, idx) => {
+        if (l && l.url && extRe.test(l.url)) return l;
+        // pick same-index match if available, otherwise first match
+        const candidate = imgMatches[idx] || imgMatches[0];
+        if (candidate) {
+          return { ...l, url: candidate };
+        }
+        return l;
+      });
+      return recovered.filter(l => l && l.url);
+    }
+
+    // Serialize layers back into the url field (pipe-separated)
+    function layersToUrlField(layersArr) {
+      if (!layersArr || !layersArr.length) return '';
+      return layersArr
+        .map(l => {
+          const parts = [encodeURIComponent(l.url)];
+          if (typeof l.opacity === 'number' && l.opacity !== 100) parts.push('o=' + l.opacity);
+          if (typeof l.rotation === 'number' && l.rotation !== 0) parts.push('r=' + l.rotation);
+          if (typeof l.tx === 'number' && l.tx !== 0.5) parts.push('x=' + l.tx);
+          if (typeof l.ty === 'number' && l.ty !== 0.5) parts.push('y=' + l.ty);
+          if (typeof l.scale === 'number' && l.scale !== 1) parts.push('s=' + l.scale);
+          return parts.join('@');
+        })
+        .join('|');
+    }
+
+    // Preload layers (Image objects). Calls onDone when all complete (or errored).
+    // If options.preserveExisting is true, existing Image objects on matching URLs
+    // will be reused and only missing images will be loaded.
+    function preloadLayers(layersSpec, onDone, options = {}) {
+      const preserveExisting = !!options.preserveExisting;
+      if (!preserveExisting) {
+        layers = layersSpec.map(ls => ({ ...ls }));
+      } else {
+        // Merge layersSpec with existing layers by URL, preserving img/loaded when present
+        const urlToExisting = {};
+        (layers || []).forEach(l => { if (l && l.url) urlToExisting[l.url] = l; });
+        layers = layersSpec.map(ls => {
+          const existing = urlToExisting[ls.url] || {};
+          return {
+            url: ls.url,
+            opacity: typeof ls.opacity === 'number' ? ls.opacity : (existing.opacity || 100),
+            rotation: typeof ls.rotation === 'number' ? ls.rotation : (existing.rotation || 0),
+            tx: typeof ls.tx === 'number' ? ls.tx : (existing.tx !== undefined ? existing.tx : 0.5),
+            ty: typeof ls.ty === 'number' ? ls.ty : (existing.ty !== undefined ? existing.ty : 0.5),
+            scale: typeof ls.scale === 'number' ? ls.scale : (existing.scale !== undefined ? existing.scale : 1),
+            img: existing.img || null,
+            loaded: existing.loaded || false
+          };
+        });
+      }
+
+      let remaining = layers.filter(l => !l.loaded).length;
+      if (remaining === 0) {
+        // ensure legacy image is set
+        image = layers[0] && layers[0].img ? layers[0].img : image;
+        if (onDone) onDone();
+        // reflect serialized url in currentUrl
+        currentUrl = layersToUrlField(layers);
+        return;
+      }
+
+      layers.forEach((layer, idx) => {
+        if (layer.loaded && layer.img) return; // already loaded
+        const imgObj = new Image();
+        layer.img = imgObj;
+        layer.loaded = false;
+        imgObj.crossOrigin = 'anonymous';
+        imgObj.onload = () => {
+          layer.loaded = true;
+          remaining--;
+          // set primary image for legacy paths
+          if (idx === 0) image = imgObj;
+          if (remaining <= 0 && onDone) onDone();
+        };
+        imgObj.onerror = () => {
+          console.warn('Failed to load layer image', layer.url);
+          layer.loaded = false;
+          remaining--;
+          if (idx === 0) image = imgObj;
+          if (remaining <= 0 && onDone) onDone();
+        };
+        imgObj.src = layer.url;
+      });
+      // reflect serialized url in currentUrl for updateHash compatibility
+      currentUrl = layersToUrlField(layers);
+    }
+
+    // Apply parsed layers: if URLs changed or count changed, preload; otherwise merge params into existing layers
+    function applyParsedLayers(parsedLayers, onDone) {
+  // applyParsedLayers: parsedLayers and existing layers info suppressed in normal logs
+      if (!parsedLayers || parsedLayers.length === 0) {
+        layers = [];
+        currentUrl = null;
+        if (onDone) onDone();
+        return;
+      }
+
+      // Decide whether to preload: only preload if parsedLayers introduce any
+      // URL not already present in the existing `layers` set. This is robust to
+      // reordering and encoding differences.
+  const existingUrlsArr = (layers || []).map(l => l && l.url);
+  const parsedUrlsArr = (parsedLayers || []).map(p => p && p.url);
+  const existingUrls = new Set(existingUrlsArr);
+  const parsedUrls = new Set(parsedUrlsArr);
+      let needPreload = false;
+      for (const u of parsedUrls) {
+        if (!existingUrls.has(u)) {
+          needPreload = true;
+          // missing url -> will preload
+          break;
+        }
+      }
+      // If parsedUrls is a strict subset of existingUrls (parsed is shorter but
+      // all parsed URLs are present), don't immediately drop existing layers —
+      // treat it as a params-only update and merge into the existing array.
+      const parsedIsSubsetOfExisting = parsedUrlsArr.length > 0 && parsedUrlsArr.every(u => existingUrls.has(u)) && parsedLayers.length < layers.length;
+      if (parsedIsSubsetOfExisting) {
+        // parsed is subset of existing; merge params into existing layers and preserve count
+        // Merge parsed params into existing layers by URL
+        const urlToParsed = {};
+        parsedLayers.forEach(p => { if (p && p.url) urlToParsed[p.url] = p; });
+        layers = layers.map(l => {
+          const p = urlToParsed[l.url];
+          if (!p) return l; // keep existing
+          return {
+            url: l.url,
+            opacity: typeof p.opacity === 'number' ? p.opacity : l.opacity,
+            rotation: typeof p.rotation === 'number' ? p.rotation : l.rotation,
+            tx: typeof p.tx === 'number' ? p.tx : l.tx,
+            ty: typeof p.ty === 'number' ? p.ty : l.ty,
+            scale: typeof p.scale === 'number' ? p.scale : l.scale,
+            img: l.img,
+            loaded: l.loaded
+          };
+        });
+        currentUrl = layersToUrlField(layers);
+        if (onDone) onDone();
+        return;
+      }
+      // needPreload decision logged only on preload
+      if (needPreload) {
+        preloadLayers(parsedLayers, () => {
+          // ensure serialized url updated
+          currentUrl = layersToUrlField(layers);
+          if (onDone) onDone();
+        });
+        return;
+      }
+
+  // No full preload needed: merge parsed params with existing layers by URL.
+      // This keeps existing Image objects and loaded flags stable even if tokens
+      // were reordered or encoded differently.
+      const urlToExisting = {};
+      layers.forEach((l, idx) => {
+        if (l && l.url) urlToExisting[l.url] = { img: l.img, loaded: l.loaded, opacity: l.opacity, rotation: l.rotation, tx: l.tx, ty: l.ty, scale: l.scale };
+      });
+      layers = parsedLayers.map((p) => {
+        const existing = urlToExisting[p.url] || {};
+        return {
+          url: p.url,
+          opacity: typeof p.opacity === 'number' ? p.opacity : (existing.opacity !== undefined ? existing.opacity : 100),
+          rotation: typeof p.rotation === 'number' ? p.rotation : (existing.rotation !== undefined ? existing.rotation : 0),
+          tx: typeof p.tx === 'number' ? p.tx : (existing.tx !== undefined ? existing.tx : 0.5),
+          ty: typeof p.ty === 'number' ? p.ty : (existing.ty !== undefined ? existing.ty : 0.5),
+          scale: typeof p.scale === 'number' ? p.scale : (existing.scale !== undefined ? existing.scale : 1),
+          img: existing.img || null,
+          loaded: existing.loaded || false
+        };
+      });
+      currentUrl = layersToUrlField(layers);
+      // If any merged layer isn't loaded yet, preload only the missing images
+      const unloaded = layers.filter(l => !l.loaded || !l.img);
+      if (unloaded.length > 0) {
+        // Call preloadLayers with preserveExisting so existing Image objects are kept
+        preloadLayers(layers.map(l => ({ url: l.url, opacity: l.opacity, rotation: l.rotation, tx: l.tx, ty: l.ty, scale: l.scale })), () => {
+          // After targeted preload, ensure primary image and view are correct
+          image = layers[0] && layers[0].img ? layers[0].img : image;
+          if (onDone) onDone();
+        }, { preserveExisting: true });
+        return;
+      }
+      if (onDone) onDone();
     }
 
     function updateHash(url, theView, annotations = {}, opacity = 100, rotation = undefined) {
@@ -264,7 +564,9 @@
         const parsed = parseHash();
         finalRotation = (parsed && typeof parsed.rotation === 'number') ? parsed.rotation : 0;
       }
-      location.hash = `${viewParams}&${opacity}&${boxParams}&${arrowParams}&${url}&${finalRotation}`;
+      const newHash = `${viewParams}&${opacity}&${boxParams}&${arrowParams}&${url}&${finalRotation}`;
+      // Write the updated hash. Keep this compact in normal logs.
+      location.hash = newHash;
 
       setTimeout(() => {
         interactiveChange = false;
@@ -424,12 +726,58 @@
       );
       ctx.scale(scale, scale);
 
-      // Draw the image with opacity and rotation
-      if (image && image.width && image.height) {
-        ctx.save();
-        ctx.globalAlpha = imageOpacity;
-        drawImageWithRotation(ctx, image, imageRotationDeg);
-        ctx.restore();
+      // Draw layers if any, otherwise draw single image
+      if (layers && layers.length > 0) {
+        // Render from last to first so that layers[0] (treated as top-most) is
+        // painted last and appears on top of subsequent layers.
+        let needRetry = false;
+        for (let i = layers.length - 1; i >= 0; i--) {
+          const layer = layers[i];
+          if (!layer) continue;
+          // If layer reports loaded but img.width isn't ready yet, mark for retry
+          if (layer.loaded && layer.img && !layer.img.width) {
+            needRetry = true;
+            continue;
+          }
+          if (!layer.img || !layer.img.width) continue;
+          ctx.save();
+          // combine global opacity with layer opacity
+          const layerOpacity = (imageOpacity || 1) * ((typeof layer.opacity === 'number' ? layer.opacity : 100) / 100);
+          ctx.globalAlpha = layerOpacity;
+          // drop shadow
+          ctx.shadowColor = IMG_SHADOW_COLOR;
+          ctx.shadowBlur = IMG_SHADOW_BLUR;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = IMG_SHADOW_OFFSET_Y;
+          // compute anchor in image coords
+          const px = (typeof layer.tx === 'number' ? layer.tx : 0.5) * layer.img.width;
+          const py = (typeof layer.ty === 'number' ? layer.ty : 0.5) * layer.img.height;
+          // If embedded in an iframe, nudge layers slightly so they remain
+          // visually separable even when fully opaque. This avoids a case
+          // where stacked images obscure each other in embedded contexts.
+          const iframeNudge = (inFrame && layers.length > 1) ? ((i - (layers.length - 1) / 2) * 10) : 0;
+          ctx.translate(px, py + iframeNudge);
+          const rad = ((typeof layer.rotation === 'number' ? layer.rotation : 0) * Math.PI) / 180;
+          ctx.rotate(rad);
+          const sc = typeof layer.scale === 'number' ? layer.scale : 1;
+          ctx.scale(sc, sc);
+          // draw centered at anchor
+          ctx.drawImage(layer.img, -layer.img.width / 2, -layer.img.height / 2);
+          ctx.restore();
+        }
+        if (inFrame && needRetry) {
+          // Re-render shortly to allow image natural size to initialize
+          setTimeout(() => render(), 80);
+        }
+      } else {
+        // Fallback single image
+        if (image && image.width && image.height) {
+          console.debug('[render] drawing single image, imageRotationDeg=', imageRotationDeg, 'image.width=', image.width, 'image.height=', image.height);
+          ctx.save();
+          ctx.globalAlpha = imageOpacity;
+          drawImageWithRotation(ctx, image, imageRotationDeg);
+          ctx.restore();
+        }
       }
 
       // Draw annotations from the hash
@@ -469,6 +817,8 @@
       }
 
       ctx.restore();
+      // Update iframe status overlay (if any)
+      updateIframeStatus();
     }
 
     // ---------------------------------------------------------------------
@@ -594,12 +944,23 @@
     function drawImageWithRotation(ctx, img, deg) {
       if (!img) return;
       if (!deg || deg === 0) {
+        // apply shadow for single-image draw
+        ctx.shadowColor = IMG_SHADOW_COLOR;
+        ctx.shadowBlur = IMG_SHADOW_BLUR;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = IMG_SHADOW_OFFSET_Y;
         ctx.drawImage(img, 0, 0);
         return;
       }
+      console.debug('[drawImageWithRotation] rotating draw, deg=', deg);
       const rad = (deg * Math.PI) / 180;
       const cx = img.width / 2;
       const cy = img.height / 2;
+      // apply shadow for rotated draw
+      ctx.shadowColor = IMG_SHADOW_COLOR;
+      ctx.shadowBlur = IMG_SHADOW_BLUR;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = IMG_SHADOW_OFFSET_Y;
       ctx.translate(cx, cy);
       ctx.rotate(rad);
       ctx.drawImage(img, -cx, -cy);
@@ -651,10 +1012,19 @@
         rotateInput.value = imageRotationDeg;
         rotateInput.addEventListener('input', () => {
           imageRotationDeg = parseFloat(rotateInput.value) || 0;
-          // Update hash with rotation field
-          const parsed = parseHash();
-          const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
-          updateHash(currentUrl, view, annotations, Math.round((imageOpacity||1)*100), imageRotationDeg);
+          // If we have layers, apply rotation to the top-most layer and persist
+          if (layers && layers.length > 0) {
+            layers[0].rotation = imageRotationDeg;
+            currentUrl = layersToUrlField(layers);
+            const parsed = parseHash();
+            const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
+            updateHash(currentUrl, view, annotations, Math.round((imageOpacity||1)*100), imageRotationDeg);
+          } else {
+            // Update hash with rotation field for single-image path
+            const parsed = parseHash();
+            const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
+            updateHash(currentUrl, view, annotations, Math.round((imageOpacity||1)*100), imageRotationDeg);
+          }
           render();
         });
       }
@@ -662,9 +1032,17 @@
         rotateReset.addEventListener('click', () => {
           imageRotationDeg = 0;
           if (rotateInput) rotateInput.value = '0';
-          const parsed = parseHash();
-          const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
-          updateHash(currentUrl, view, annotations, Math.round((imageOpacity||1)*100), imageRotationDeg);
+          if (layers && layers.length > 0) {
+            layers[0].rotation = 0;
+            currentUrl = layersToUrlField(layers);
+            const parsed = parseHash();
+            const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
+            updateHash(currentUrl, view, annotations, Math.round((imageOpacity||1)*100), imageRotationDeg);
+          } else {
+            const parsed = parseHash();
+            const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
+            updateHash(currentUrl, view, annotations, Math.round((imageOpacity||1)*100), imageRotationDeg);
+          }
           render();
         });
       }
@@ -846,8 +1224,9 @@
     window.addEventListener('hashchange', () => {
       if (interactiveChange) return;
 
-      // Increment token to cancel any old animations
-      animationCancelToken++;
+  // Increment token to cancel any old animations
+  animationCancelToken++;
+  console.debug('[hashchange] handler start, location.hash=', location.hash);
 
   const parsed = parseHash();
   if (!parsed) return;
@@ -880,35 +1259,33 @@
         requestAnimationFrame(animateOpacity);
       }
 
-      if (url && url !== currentUrl) {
-        // Load new image and do two-phase fade
-        const newImg = new Image();
-        newImg.onload = () => {
-          fadeOutImage(image, FADE_OUT_DURATION, () => {
-            // Switch to new
-            image = newImg;
-            currentUrl = url;
-            if (cover) {
-              fitViewToCoverCanvas(image);
-            } else if (poster) {
-              fitViewToCanvas(image);
-            } else {
-              setViewImmediately(newView);
+      // Always apply parsed layers (merge params if same URLs)
+      const parsedLayers = parseLayersFromUrlField(url);
+      applyParsedLayers(parsedLayers, () => {
+            // After layers applied, if the hash contained a trailing rotation and
+            // we have layers, apply that rotation to the top-most layer and
+            // persist it into the serialized url field so the visual result
+            // matches the user's expectation.
+            if (typeof rotation === 'number' && layers && layers.length > 0) {
+              layers[0].rotation = rotation;
+              // update serialized currentUrl to include per-layer r= param, but DO NOT
+              // immediately write back to location.hash here because that causes a
+              // hashchange re-entry which can lead to parsed/serialized inconsistencies
+              // when token ordering/encoding differs. The rotate UI will persist this
+              // when the user interacts, and programmatic callers can decide when to
+              // persist.
+              currentUrl = layersToUrlField(layers);
             }
-            fadeInImage(image, FADE_IN_DURATION, () => {
-              render();
-            });
-          });
-        };
-        newImg.src = url;
-      } else {
-        // Same URL => possibly animate pan/zoom
-        // If we are in an iframe, the code was originally set to animate = inFrame,
-        // but you can adjust as needed
-        const animate = inFrame;
-        updateView(newView, animate, poster, cover);
+            // After layers applied, handle view/fit and rendering
+        if (cover) {
+          fitViewToCoverCanvas(layers[0] && layers[0].img ? layers[0].img : image);
+        } else if (poster) {
+          fitViewToCanvas(layers[0] && layers[0].img ? layers[0].img : image);
+        } else {
+          if (newView) updateView(newView, inFrame, poster, cover);
+        }
         render();
-      }
+      });
     });
 
     // ---------------------------------------------------------------------
@@ -963,13 +1340,37 @@
 
     const parsed = parseHash();
     if (parsed) {
-      // Apply rotation from initial hash
-      if (typeof parsed.rotation === 'number') imageRotationDeg = parsed.rotation;
-      currentUrl = parsed.url;
+  // Apply rotation from initial hash
+  if (typeof parsed.rotation === 'number') imageRotationDeg = parsed.rotation;
+  currentUrl = parsed.url;
       if (parsed.annotations && parsed.annotations.color) {
         colorInput.value = '#' + parsed.annotations.color;
       }
-      if (currentUrl) {
+      if (parsed.layers && parsed.layers.length > 0) {
+        preloadLayers(parsed.layers, () => {
+          image = layers[0] && layers[0].img ? layers[0].img : image;
+          // If the initial hash carried a rotation, apply it to the top layer so
+          // the visual state reflects the hash even when using layers.
+          if (typeof parsed.rotation === 'number' && layers && layers.length > 0) {
+            layers[0].rotation = parsed.rotation;
+          }
+          currentUrl = layersToUrlField(layers);
+          if (typeof parsed.opacity === 'number' && opacityInput) {
+            opacityInput.value = parsed.opacity;
+            imageOpacity = parsed.opacity / 100;
+          }
+          if (parsed.cover) {
+            fitViewToCoverCanvas(image);
+          } else if (parsed.poster) {
+            fitViewToCanvas(image);
+          } else if (parsed.view) {
+            setViewImmediately(parsed.view);
+          } else {
+            fitViewToCanvas(image);
+          }
+          render();
+        });
+      } else if (currentUrl) {
         image.onload = () => {
           // Set opacity from hash after image loads (works in iframe and top-level)
           if (typeof parsed.opacity === 'number' && opacityInput) {
@@ -1013,6 +1414,208 @@
     }
 
     setupInteractions();
+
+  // -----------------------------
+    // Layers UI
+    // -----------------------------
+    function renderLayersPanel() {
+      const container = document.getElementById('layers-list');
+      if (!container) return;
+      container.innerHTML = '';
+      layers.forEach((layer, idx) => {
+        const row = document.createElement('div');
+        row.style.border = '1px solid #ddd';
+        row.style.padding = '6px';
+        row.style.marginBottom = '6px';
+        row.style.background = '#fff';
+
+        const title = document.createElement('div');
+        title.style.fontSize = '0.85em';
+        title.style.marginBottom = '4px';
+        title.textContent = `${idx}: ${layer.url}`;
+        row.appendChild(title);
+
+        // opacity
+        const opLabel = document.createElement('label');
+        opLabel.textContent = 'Opacity';
+        opLabel.style.fontSize = '0.8em';
+        opLabel.style.display = 'block';
+        const opInput = document.createElement('input');
+        opInput.type = 'range';
+        opInput.min = 0; opInput.max = 100;
+        opInput.value = typeof layer.opacity === 'number' ? layer.opacity : 100;
+        opInput.addEventListener('input', () => {
+          layer.opacity = Number(opInput.value);
+          commitLayersChange();
+        });
+        opLabel.appendChild(opInput);
+        row.appendChild(opLabel);
+
+        // rotation
+        const rLabel = document.createElement('label');
+        rLabel.textContent = 'Rotation';
+        rLabel.style.fontSize = '0.8em';
+        rLabel.style.display = 'block';
+        const rInput = document.createElement('input');
+        rInput.type = 'range';
+        rInput.min = -180; rInput.max = 180;
+        rInput.value = typeof layer.rotation === 'number' ? layer.rotation : 0;
+        rInput.addEventListener('input', () => {
+          layer.rotation = Number(rInput.value);
+          // Keep rotate UI in sync with top layer if this is top
+          const rotateInput = document.getElementById('rotate');
+          if (idx === 0 && rotateInput) rotateInput.value = layer.rotation;
+          commitLayersChange();
+        });
+        rLabel.appendChild(rInput);
+        row.appendChild(rLabel);
+
+        // tx/ty/scale small inputs
+        const smallWrap = document.createElement('div');
+        smallWrap.style.display = 'flex';
+        smallWrap.style.gap = '4px';
+
+        const tx = document.createElement('input');
+        tx.type = 'number'; tx.step = '0.01'; tx.min = 0; tx.max = 1;
+        tx.title = 'Anchor X (0..1)'; tx.value = typeof layer.tx === 'number' ? layer.tx : 0.5;
+        tx.style.width = '3.5em';
+        tx.addEventListener('change', () => { layer.tx = Number(tx.value); commitLayersChange(); });
+        smallWrap.appendChild(tx);
+
+        const ty = document.createElement('input');
+        ty.type = 'number'; ty.step = '0.01'; ty.min = 0; ty.max = 1;
+        ty.title = 'Anchor Y (0..1)'; ty.value = typeof layer.ty === 'number' ? layer.ty : 0.5;
+        ty.style.width = '3.5em';
+        ty.addEventListener('change', () => { layer.ty = Number(ty.value); commitLayersChange(); });
+        smallWrap.appendChild(ty);
+
+        const sc = document.createElement('input');
+        sc.type = 'number'; sc.step = '0.05'; sc.min = 0.01; sc.max = 10;
+        sc.title = 'Scale'; sc.value = typeof layer.scale === 'number' ? layer.scale : 1;
+        sc.style.width = '3.5em';
+        sc.addEventListener('change', () => { layer.scale = Number(sc.value); commitLayersChange(); });
+        smallWrap.appendChild(sc);
+
+        row.appendChild(smallWrap);
+
+        // Controls: up, down, remove
+        const controls = document.createElement('div');
+        controls.style.marginTop = '6px';
+        const upBtn = document.createElement('button'); upBtn.textContent = '↑';
+        const downBtn = document.createElement('button'); downBtn.textContent = '↓';
+        const remBtn = document.createElement('button'); remBtn.textContent = 'Remove';
+        upBtn.addEventListener('click', () => { moveLayerUp(idx); });
+        downBtn.addEventListener('click', () => { moveLayerDown(idx); });
+        remBtn.addEventListener('click', () => { removeLayer(idx); });
+        controls.appendChild(upBtn); controls.appendChild(downBtn); controls.appendChild(remBtn);
+        row.appendChild(controls);
+
+        container.appendChild(row);
+      });
+    }
+
+    function commitLayersChange() {
+      // Serialize and persist layers into the hash, but preserve existing images
+      currentUrl = layersToUrlField(layers);
+      const parsed = parseHash();
+      const annotations = parsed ? parsed.annotations : { boxes: [], lines: [], color: 'ff0000' };
+      // Use updateHash to write the new url field; preserve rotation in explicit field
+      updateHash(currentUrl, view, annotations, Math.round((imageOpacity||1)*100), imageRotationDeg);
+      // Ensure any newly referenced layer images are loaded (preserve existing)
+      preloadLayers(layers.map(l => ({ url: l.url, opacity: l.opacity, rotation: l.rotation, tx: l.tx, ty: l.ty, scale: l.scale })), () => {
+        // After preload, re-render
+        image = layers[0] && layers[0].img ? layers[0].img : image;
+        render();
+      }, { preserveExisting: true });
+      renderLayersPanel();
+    }
+
+    function addLayer(url) {
+      if (!url) return;
+      const newLayer = { url, opacity: 100, rotation: 0, tx: 0.5, ty: 0.5, scale: 1, img: null, loaded: false };
+      // Append to top (index 0) so new layer is topmost
+      layers.unshift(newLayer);
+      commitLayersChange();
+    }
+
+    function removeLayer(idx) {
+      if (idx < 0 || idx >= layers.length) return;
+      layers.splice(idx, 1);
+      commitLayersChange();
+    }
+
+    function moveLayerUp(idx) {
+      if (idx <= 0) return;
+      const a = layers.splice(idx, 1)[0];
+      layers.splice(idx - 1, 0, a);
+      commitLayersChange();
+    }
+
+    function moveLayerDown(idx) {
+      if (idx < 0 || idx >= layers.length - 1) return;
+      const a = layers.splice(idx, 1)[0];
+      layers.splice(idx + 1, 0, a);
+      commitLayersChange();
+    }
+
+    // Wire add-layer button
+    const addBtn = document.getElementById('add-layer');
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        const input = document.getElementById('new-layer-url');
+        if (!input) return;
+        const val = input.value && input.value.trim();
+        if (val) {
+          addLayer(val);
+          input.value = '';
+        }
+      });
+    }
+
+    // Initial render of layers panel if any
+    renderLayersPanel();
+
+    // -----------------------------
+    // Iframe debug/status overlay
+    // -----------------------------
+    function ensureIframeStatus() {
+      if (!inFrame) return null;
+      let el = document.getElementById('iframe-status');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'iframe-status';
+        el.style.position = 'fixed';
+        el.style.right = '0.5em';
+        el.style.top = '0.5em';
+        el.style.background = 'rgba(0,0,0,0.7)';
+        el.style.color = '#fff';
+        el.style.padding = '6px';
+        el.style.fontSize = '11px';
+        el.style.zIndex = 9999;
+        el.style.borderRadius = '4px';
+        el.style.maxWidth = '18em';
+        el.style.whiteSpace = 'pre-wrap';
+        document.body.appendChild(el);
+      }
+      return el;
+    }
+
+    function updateIframeStatus() {
+      if (!inFrame) return;
+      const el = ensureIframeStatus();
+      if (!el) return;
+      const lines = [];
+      lines.push(`currentUrl: ${currentUrl || '<none>'}`);
+      lines.push(`Layers: ${layers ? layers.length : 0}`);
+      if (layers && layers.length) {
+        layers.forEach((l, i) => {
+          const nw = l && l.img ? (l.img.naturalWidth || l.img.width || 0) : 0;
+          const nh = l && l.img ? (l.img.naturalHeight || l.img.height || 0) : 0;
+          lines.push(`${i}: ${l.url || '<no-url>'} ${l.loaded ? '[loaded]' : '[loading]'} size=${nw}x${nh} o=${l.opacity} r=${l.rotation}`);
+        });
+      }
+      el.textContent = lines.join('\n');
+    }
 
     // ---------------------------------------------------------------------
     // ESC to Clear Annotations
