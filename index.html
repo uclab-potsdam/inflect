@@ -144,8 +144,34 @@
 
         footer a.dontinflect { color: #333;}
 
-        @media (max-width: 1000px) and (orientation: portrait) {
+        #scroll-hint {
+            position: fixed;
+            color: #000;
+            bottom: 0;
+            right: 0;
+            width: 33%;
+            height: 5vh;
+            font-size: 1.25em;
+            z-index: 5;            
+            text-align: center;            
+            opacity: 0;
+            transition: opacity .5s, color .25s;
+            display: block;            
+        }
+        
+        #scroll-hint.animated {
+            animation: bounce 2s infinite;
+            opacity: 1;
+        }
 
+        @keyframes bounce {
+            0%, 100% { transform: translateY(-0.5em); }
+            66% { transform: translateY(0em); }
+        }
+
+        @media (max-width: 1000px) and (orientation: portrait) {
+            #scroll-hint { width: 100%; height: 12vh; font-size: 4em; }
+            #scroll-hint.animated { opacity: .25; }
             body {
                 font-size: calc(1.5vw + 1.5vh);
             }
@@ -178,6 +204,8 @@
 </head>
 
 <body>
+
+<div id="scroll-hint" class="animated">↓</div>
 
 <div><iframe id="if"></iframe></div>
 
@@ -268,6 +296,11 @@
 
     document.addEventListener("scroll", (event) => {
         if (location.hostname=="localhost") sessionStorage.setItem("scrollPosition", window.scrollY);
+        if (window.scrollY > 5) {
+            document.querySelector('#scroll-hint').classList.remove('animated');
+            setTimeout(function(){ document.querySelector('#scroll-hint').remove(); },500);
+        }
+    
     });    
     window.addEventListener("beforeunload", function () {
         if (location.hostname=="localhost") sessionStorage.setItem("scrollPosition", window.scrollY);
@@ -330,6 +363,26 @@
 
     }
 
+    function scrollToNextSection() {
+        const sections = Array.from(document.querySelectorAll('main section'));
+        const target = sections.find(section => {
+            const rect = section.getBoundingClientRect();
+            return rect.top > 1;
+        });
+        console.log(target);
+        if (target) target.scrollIntoView({ behavior: 'smooth' });            
+    }
+
+    function scrollToPreviousSection() {
+        const sections = Array.from(document.querySelectorAll('main section'));
+        for (let i = sections.length - 1; i >= 0; i--) {
+            const rect = sections[i].getBoundingClientRect();
+            if (rect.bottom < -1) {
+                sections[i].scrollIntoView({ behavior: 'smooth' });
+                break;
+            }
+        }
+    }
     // scroll up when pressing Escape
     // scroll to next or previous sections using space bar or arrow keys
     document.addEventListener('keydown', function(event) {
@@ -342,15 +395,7 @@
             event.key === 'ArrowUp' ||
             event.key === ' '  // space key
         ) {
-            const sections = Array.from(document.querySelectorAll('main section'));
-            if (sections.length === 0) return;
-
-            const currentY = window.scrollY;
-            const viewportHeight = window.innerHeight;
-
-            let targetSection = null;
-
-            // Determine intended direction
+            // determine direction
             const goingDown = (
                 event.key === 'ArrowDown' ||
                 (event.key === ' ' && !event.shiftKey)
@@ -361,25 +406,10 @@
                 (event.key === ' ' && event.shiftKey)
             );
 
-            if (goingDown) {
-                targetSection = sections.find(section => {
-                    const rect = section.getBoundingClientRect();
-                    return rect.top > 1;
-                });
-            } else if (goingUp) {
-                for (let i = sections.length - 1; i >= 0; i--) {
-                    const rect = sections[i].getBoundingClientRect();
-                    if (rect.bottom < -1) {
-                        targetSection = sections[i];
-                        break;
-                    }
-                }
-            }
+            event.preventDefault();
+            if (goingDown) scrollToNextSection();
+            else if (goingUp) scrollToPreviousSection();                            
 
-            if (targetSection) {
-                event.preventDefault(); // prevent default spacebar scrolling
-                targetSection.scrollIntoView({ behavior: 'smooth' });
-            }
         }
     });
 
