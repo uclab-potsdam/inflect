@@ -1,6 +1,5 @@
 {.css(src/theme.css)}
 
-
 [](svg/#&100&&&opening.svg)
 
 <img src="img/bts_logo.svg" alt="בצלם: מסעות עקירה]" style="max-width:100px;height:auto;">
@@ -22,7 +21,7 @@
 
 {.typewriter big-pic}
 
-[](svg/#opening.svg/~princess+gazamap~home+nibal2023&0)
+[](svg/#&100&&&opening.svg@s=1.36@x=-177.72@y=-0.83@r=0/~princess+gazamap~home+nibal2023&0)
 
 זה סיפורה של אחת מהם.
 

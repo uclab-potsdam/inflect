@@ -5,7 +5,12 @@
 
 @import url('https://fonts.googleapis.com/css2?family=David+Libre:wght@400;500;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Miriam+Libre:wght@400..700&display=swap');
-
+@font-face {
+    font-family: "Levit_1950";
+    src: url("fonts/Levit_1950-BlackExtended.woff") format("woff2-variations");
+    font-style: normal;
+    font-weight: bold;
+}
 
 body {
     font-family: 'David Libre', serif;
@@ -31,6 +36,7 @@ section img {
 
 strong { font-weight: 500; }
 
+h1, h2, h3 { font-family: Levit_1950, sans-serif; font-feature-settings: 'calt' off;}
 h1 { font-size: 2.4em; font-weight: 200; margin-bottom: 0;}
 h2 { font-size: 1.8em; }
 h3 { font-size: 1.4em; }
@@ -49,6 +55,15 @@ section p{
     padding: .4em .8em .4em;
     border-right: 8px solid #FA5F5F;
     margin: 0;
+}
+
+section:first-child h2{
+    font-size: 1.5em;
+    margin-bottom: 0;
+}
+
+section:first-child h1{
+    line-height: 0.5em;
 }
 
 section.testimony {

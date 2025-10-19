@@ -443,6 +443,13 @@ function buildLayerList(){
 
 function toggleLayerVisibility(el, show, opts){
   if (!el) return;
+  // If this element is explicitly marked as an exception-visible, never hide it
+  try { if (!show && el.classList && el.classList.contains('inflect-exception-visible')) return; } catch(e){}
+  // If this element corresponds to a parent (has direct children), do not hide the parent
+  try {
+    const key = getKeyForElement(el);
+    if (!show && key && getDirectChildrenKeys(key).length > 0) return;
+  } catch(e){}
   const animate = !(opts && opts.animate === false);
   if (animate) {
     return animateLayerVisibility(el, show);
@@ -477,6 +484,13 @@ function toggleLayerVisibility(el, show, opts){
 const __fadeCancels = new WeakMap();
 function animateLayerVisibility(el, show, duration = FADE_DURATION){
   if (!el) return;
+  // If this element maps to a parent node with direct children, do not animate it;
+  // children will be animated individually. Avoid setting parent opacity which
+  // would affect child rendering.
+  try {
+    const key = getKeyForElement(el);
+    if (!show && key && getDirectChildrenKeys(key).length > 0) return Promise.resolve();
+  } catch(e){}
   // if element is marked as an exception visible, don't animate hiding it or toggling
   if (el.classList && el.classList.contains('inflect-exception-visible')) {
     if (show) {
@@ -498,8 +512,11 @@ function animateLayerVisibility(el, show, duration = FADE_DURATION){
   const computedDisplay = window.getComputedStyle(el).display;
   // show: ensure element is displayed and fade to opacity 1
   if (show) {
-    // make element visible before starting fade
-    el.style.display = '';
+  // make element visible before starting fade. For SVG elements there may
+  // be an explicit display="none" attribute; remove it and set an inline
+  // CSS display so the element becomes visible.
+  try { el.removeAttribute && el.removeAttribute('display'); } catch(e){}
+  el.style.display = 'inline';
     el.style.visibility = '';
     // ensure starting opacity 0
     el.style.transition = 'none';
@@ -559,11 +576,14 @@ function animateLayerVisibility(el, show, duration = FADE_DURATION){
         el.style.pointerEvents = 'none';
         // ensure opacity remains 0
         try { el.style.opacity = '0'; } catch(e){}
+  // avoid setting SVG display attribute; rely on inline styles only
       } else {
         el.style.display = 'none';
+  // avoid setting SVG display attribute; rely on inline styles only
       }
     } catch(e) {
       el.style.display = 'none';
+      try { el.setAttribute && el.setAttribute('display', 'none'); } catch(e){}
     }
     __fadeCancels.delete(el);
     resolve();
@@ -581,11 +601,14 @@ function animateLayerVisibility(el, show, duration = FADE_DURATION){
       if (key && getDirectChildrenKeys(key).length > 0) {
         el.style.pointerEvents = 'none';
         try { el.style.opacity = '0'; } catch(e){}
+  // avoid setting SVG display attribute; rely on inline styles only
       } else {
         el.style.display = 'none';
+  // avoid setting SVG display attribute; rely on inline styles only
       }
     } catch(e) {
       el.style.display = 'none';
+      try { el.setAttribute && el.setAttribute('display', 'none'); } catch(e){}
     }
     resolve();
   });
@@ -762,18 +785,22 @@ function updateHashFromLayerList(){
   const vis = collectVisibilityFromList();
   const token = buildUrlField(parsed.url, parsed.params, vis);
   // we need to preserve original 6-field style when present; if not, just write #token
-  // mark that this hash write was initiated by the UI so hashchange handler
-  // can ignore the immediate re-application (which would cancel animations).
-  try { window.__suppressHashChangeApply = true; } catch(e){}
-  if (!location.hash || !location.hash.includes('&')) {
-    location.hash = '#'+token;
-  } else {
-    // attempt to replace the url-field (5th field) in the 6-field format
-    const parts = location.hash.slice(1).split('&');
-    while (parts.length < 6) parts.push('');
-    parts[4] = token;
-    location.hash = '#'+parts.join('&');
-  }
+  // Debounce writing the hash so ongoing animations are not cancelled by an
+  // immediate hashchange handler. We still mark the write as originating
+  // locally so the next hashchange is ignored.
+  try { if (__hashWriteTimeout) clearTimeout(__hashWriteTimeout); } catch(e){}
+  __hashWriteTimeout = setTimeout(() => {
+    try { window.__suppressHashChangeApply = true; } catch(e){}
+    if (!location.hash || !location.hash.includes('&')) {
+      location.hash = '#'+token;
+    } else {
+      const parts = location.hash.slice(1).split('&');
+      while (parts.length < 6) parts.push('');
+      parts[4] = token;
+      location.hash = '#'+parts.join('&');
+    }
+    __hashWriteTimeout = null;
+  }, 260);
 }
 
 function dumpDiagnostics(){
@@ -981,6 +1008,8 @@ let currentUrl = '';
 // animations. Use this flag to skip the next hashchange apply when the change
 // originated locally.
 window.__suppressHashChangeApply = false;
+// debounced hash write to avoid immediate reapplication during animations
+let __hashWriteTimeout = null;
 
 // Public: accept messy hrefs like parent does
 window.acceptViewerHash = function(raw){
