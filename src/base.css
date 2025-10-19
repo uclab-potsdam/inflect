@@ -51,7 +51,7 @@ iframe {
     width: 67vw;
     height: 100vh;
     border: 0;
-    background: #fff;
+    background: transparent;
 }
 
 section {
