@@ -2,5 +2,10 @@
   "name": "inflect",
   "version": "0.0.0",
   "private": true,
-  "type": "commonjs"
+  "type": "commonjs",
+  "devDependencies": {
+    "pixelmatch": "^5.3.0",
+    "pngjs": "^6.0.0",
+    "puppeteer": "^20.8.0"
+  }
 }
