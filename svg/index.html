@@ -361,17 +361,50 @@ function applyVisibilityFromVis(vis){
   const shows = rawShows.map(resolveToken);
   // Sync in-memory exceptions with parsed vis.show so parsed state wins
   showExceptions = new Set(shows);
-  for (const [key, el] of layerKeyMap.entries()){
-    let shouldHide = false;
-    if (hides.length) {
-      shouldHide = hides.some(h => key === h || key.startsWith(h));
-    } else {
-      shouldHide = false; // no hide tokens -> show all
+  // Build sets for quick lookup
+  const hideSet = new Set();
+  const showSet = new Set();
+  for (const h of hides) {
+    for (const k of layerKeyMap.keys()){
+      if (k === h || k.startsWith(h + '/')) hideSet.add(k);
     }
-    // if a show exception exists for this exact key or a matching show token, always show
-    const hasException = showExceptions.has(key) || shows.some(s => key === s || key.startsWith(s));
-    toggleLayerVisibility(el, hasException ? true : !shouldHide);
+    // also hide the parent itself if it's a key
+    if (layerKeyMap.has(h)) hideSet.add(h);
   }
+  for (const s of shows) {
+    for (const k of layerKeyMap.keys()){
+      if (k === s || k.startsWith(s + '/')) showSet.add(k);
+    }
+    if (layerKeyMap.has(s)) showSet.add(s);
+  }
+
+  // detect parents that are hidden but have a shown descendant
+  const parentsWithExceptions = new Set();
+  for (const h of hides){
+    for (const s of shows){
+      if (s === h) continue;
+      if (String(s).startsWith(String(h) + '/')) parentsWithExceptions.add(h);
+    }
+  }
+
+  // Apply initial visibility: default visible unless hidden, but show parents that have exceptions
+  for (const [key, el] of layerKeyMap.entries()){
+    if (showExceptions.has(key) || showSet.has(key)) { toggleLayerVisibility(el, true); continue; }
+    if (parentsWithExceptions.has(key)) { toggleLayerVisibility(el, true); continue; }
+    if (hideSet.has(key)) toggleLayerVisibility(el, false);
+    else toggleLayerVisibility(el, true);
+  }
+
+  // For each parent with exceptions, hide its direct children except the ones explicitly shown
+  parentsWithExceptions.forEach(parentKey => {
+    const children = getDirectChildrenKeys(parentKey);
+    children.forEach(childKey => {
+      const childEl = layerKeyMap.get(childKey);
+      if (!childEl) return;
+      if (showSet.has(childKey) || showExceptions.has(childKey)) toggleLayerVisibility(childEl, true);
+      else toggleLayerVisibility(childEl, false);
+    });
+  });
   // refresh checkboxes
   refreshLayerListCheckboxes();
 }
