@@ -170,12 +170,15 @@ let svgEl = null; // the embedded svg root
 let wrapperG = null; // group we apply transforms to
 let bbox = null;
 // animation timing (ms) for fades; make configurable
-const FADE_DURATION = 1200;
+// Use a longer duration and a soft cubic-bezier to produce buttery transitions
+const FADE_DURATION = 1800;
+const SOFT_EASE = 'cubic-bezier(0.22,1,0.36,1)';
 let state = { tx:0, ty:0, scale:1, rotation:0 };
 let isDragging=false, dragStart=null, dragStartState=null;
  let pendingVis = null; // visibility instructions to apply after load
 let layerKeyMap = new Map();
 let showExceptions = new Set(); // keys explicitly shown despite ancestor hide
+let defaultSvgParams = null; // captured after load to represent the 'fit' defaults
 
 function getDirectChildrenKeys(parentKey){
   const res = [];
@@ -228,6 +231,9 @@ async function loadSVG(url){
     rotateInput.value = 0;
     zoomInput.value = Math.round(state.scale*100);
     render();
+  // Capture the default params (scale/tx/ty/rotation) after fitting so
+  // missing hash params can animate toward these defaults.
+  try { defaultSvgParams = { s: state.scale, x: state.tx, y: state.ty, r: state.rotation }; } catch(e){}
     setStatus('ready');
     window.viewerReady = true;
   // build layer list UI so user can show/hide layers
@@ -524,7 +530,7 @@ function animateLayerVisibility(el, show, duration = FADE_DURATION){
     // force layout
     void el.getBoundingClientRect();
     // then transition to 1
-    el.style.transition = `opacity ${duration}ms ease`; 
+  el.style.transition = `opacity ${duration}ms ${SOFT_EASE}`; 
     let finished = false;
     const onEnd = (ev) => {
       if (ev && ev.propertyName !== 'opacity') return;
@@ -552,7 +558,7 @@ function animateLayerVisibility(el, show, duration = FADE_DURATION){
   }
 
   // hide: fade to 0 then set display none
-  el.style.transition = `opacity ${duration}ms ease`;
+  el.style.transition = `opacity ${duration}ms ${SOFT_EASE}`;
   // ensure starting opacity is 1
   if (!el.style.opacity) {
     // if no inline opacity, set to computed value or 1
@@ -873,10 +879,41 @@ function tweenProps(from, to, duration = 400, onUpdate){
   const keys = Object.keys(to);
   let rafId = null;
   let cancelled = false;
+  // build a cubic-bezier easing function (approximation via Newton-Raphson)
+  const bezier = (function(){
+    function cubicBezier(p1x,p1y,p2x,p2y){
+      const cx = 3 * p1x, bx = 3 * (p2x - p1x) - cx, ax = 1 - cx - bx;
+      const cy = 3 * p1y, by = 3 * (p2y - p1y) - cy, ay = 1 - cy - by;
+      function sampleCurveX(t){ return ((ax * t + bx) * t + cx) * t; }
+      function sampleCurveY(t){ return ((ay * t + by) * t + cy) * t; }
+      function sampleCurveDerivativeX(t){ return (3 * ax * t + 2 * bx) * t + cx; }
+      function solveCurveX(x){
+        let t2 = x;
+        for (let i = 0; i < 8; i++){
+          const x2 = sampleCurveX(t2) - x;
+          const d = sampleCurveDerivativeX(t2);
+          if (Math.abs(x2) < 1e-6) return t2;
+          if (Math.abs(d) < 1e-6) break;
+          t2 = t2 - x2 / d;
+        }
+        // fallback to bisection
+        let t0 = 0, t1 = 1; t2 = x;
+        while (t0 < t1){
+          const x2 = sampleCurveX(t2);
+          if (Math.abs(x2 - x) < 1e-6) return t2;
+          if (x > x2) t0 = t2; else t1 = t2;
+          t2 = (t1 - t0) * 0.5 + t0;
+        }
+        return t2;
+      }
+      return function(x){ return sampleCurveY(solveCurveX(x)); };
+    }
+    return cubicBezier(0.22, 1, 0.36, 1);
+  })();
+
   function step(now){
     const t = Math.min(1, (now - start) / duration);
-    // ease in-out cubic
-    const eased = t<0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
+    const eased = bezier(t);
     const cur = {};
     keys.forEach(k => {
       const a = typeof from[k]==='number' ? from[k] : 0;
@@ -897,7 +934,7 @@ function tweenProps(from, to, duration = 400, onUpdate){
 }
 
 // animate to target params (s, x, y, r)
-function animateTo(params, duration = 450){
+function animateTo(params, duration = 900){
   if (!params) return Promise.resolve();
   const target = {
     scale: typeof params.s === 'number' ? params.s : state.scale,
@@ -919,6 +956,18 @@ function animateTo(params, duration = 450){
     // resolve after duration (plus tiny buffer)
     setTimeout(() => { resolve(); }, duration + 20);
   });
+}
+
+// Merge provided params with captured defaults so missing fields animate to defaults
+function mergeWithDefaults(params){
+  const defs = defaultSvgParams || { s: state.scale, x: state.tx, y: state.ty, r: state.rotation };
+  const p = params && typeof params === 'object' ? params : {};
+  return {
+    s: (typeof p.s === 'number') ? p.s : defs.s,
+    x: (typeof p.x === 'number') ? p.x : defs.x,
+    y: (typeof p.y === 'number') ? p.y : defs.y,
+    r: (typeof p.r === 'number') ? p.r : defs.r
+  };
 }
 
 // interaction
@@ -1052,8 +1101,10 @@ function startViewer(){
     return loadSVG(url).then(() => {
       try {
         if (parsed.params) {
-              // animate into the requested params rather than snapping
-              animateTo(parsed.params, 500).catch(()=>{});
+              // animate into the requested params rather than snapping. Merge
+              // missing fields with captured defaults so unspecified values
+              // animate toward the default fit-to-container state.
+              animateTo(mergeWithDefaults(parsed.params), 900).catch(()=>{});
             }
       } catch (e) {
         console.warn('Applying params failed', e);
@@ -1092,8 +1143,8 @@ window.addEventListener('hashchange', ()=>{
     return;
   }
   // if same URL but params changed, animate to new params
-    if (parsed.url === currentUrl) {
-    if (parsed.params) animateTo(parsed.params, 400).catch(()=>{});
+  if (parsed.url === currentUrl) {
+  if (parsed.params) animateTo(mergeWithDefaults(parsed.params), 800).catch(()=>{});
     if (parsed.vis) {
       if (!svgEl) { pendingVis = parsed.vis; }
       else { try { applyVisibilityFromVis(parsed.vis, { animate: true }); } catch(e){} }
