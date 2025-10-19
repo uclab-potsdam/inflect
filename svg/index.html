@@ -61,8 +61,18 @@ function parseUrlField(urlField) {
     let m;
     while ((m = re.exec(visPart)) !== null) {
       const sym = m[1]; const name = decodeURIComponent(m[2]);
-      if (sym === '+') vis.show.push(name);
-      else if (sym === '~') vis.hide.push(name);
+        // resolve short label (no slash) to full hierarchical key if unique
+        let resolved = name;
+        if (!name.includes('/')){
+          // find keys whose last segment matches name
+          const matches = [];
+          for (const k of layerKeyMap.keys()){
+            if (String(k).split('/').pop() === name) matches.push(k);
+          }
+          if (matches.length === 1) resolved = matches[0];
+        }
+        if (sym === '+') vis.show.push(resolved);
+        else if (sym === '~') vis.hide.push(resolved);
     }
   }
   const parts = base.split('@').map(s => s.trim()).filter(Boolean);
@@ -83,11 +93,42 @@ function buildUrlField(url, params, vis){
   let token = url || '';
   if (params) for (const k of Object.keys(params)) token += `@${k}=${encodeURIComponent(String(params[k]))}`;
   // Hide-only semantics: only serialize hidden layer keys as ~key
-  if (vis){
-    let seg = '';
-    if (vis.show && vis.show.length) vis.show.forEach(s => { seg += `+${encodeURIComponent(String(s))}`; });
-    if (vis.hide && vis.hide.length) vis.hide.forEach(h => { seg += `~${encodeURIComponent(String(h))}`; });
-    if (seg) token += '/' + seg;
+    if (vis) {
+      let seg = '';
+      // helper to pick a short label if unique (last segment), otherwise use full key
+      function shortOrFull(k) {
+        if (!k) return k;
+        const last = String(k).split('/').pop();
+        // check uniqueness among layerKeyMap keys' last segments
+        let count = 0;
+        for (const kk of layerKeyMap.keys()) if ((String(kk).split('/').pop()) === last) count++;
+        return count === 1 ? last : k;
+      }
+      // attempt to compress pattern: if vis.hide contains all direct children of a parent
+      // except one child which is in vis.show, prefer serializing ~parent and +child
+      let hideList = (vis.hide || []).slice();
+      let showList = (vis.show || []).slice();
+      try {
+        // build a set for quick lookup
+        const hideSet = new Set(hideList);
+        for (const parentKey of Array.from(layerKeyMap.keys())){
+          const children = getDirectChildrenKeys(parentKey);
+          if (children.length < 2) continue;
+          // find which children are hidden and which are shown
+          const hiddenChildren = children.filter(c => hideSet.has(c));
+          const shownChildren = children.filter(c => showList.includes(c));
+          if (hiddenChildren.length === children.length - 1 && shownChildren.length === 1){
+            // compress: remove hiddenChildren from hideList, add parentKey to hideList
+            hideList = hideList.filter(h => !hiddenChildren.includes(h));
+            hideList.push(parentKey);
+            // ensure the shown child stays in showList as full key
+          }
+        }
+      } catch(e) { /* ignore compression failures */ }
+
+      if (showList && showList.length) showList.forEach(s => { seg += `+${encodeURIComponent(String(shortOrFull(s)))}`; });
+      if (hideList && hideList.length) hideList.forEach(h => { seg += `~${encodeURIComponent(String(shortOrFull(h)))}`; });
+      if (seg) token += '/' + seg;
   }
   return token;
 }
@@ -261,7 +302,10 @@ function buildLayerList(){
       refreshLayerListCheckboxes();
       updateHashFromLayerList();
     });
-    const span = document.createElement('span'); span.textContent = key;
+  const span = document.createElement('span');
+  // display only the local label (omit parent prefix) for readability
+  const displayLabel = parentKey ? baseKey : baseKey;
+  span.textContent = displayLabel;
     label.appendChild(cb); label.appendChild(span);
     li.appendChild(label);
     // if element has element children, show nested list
@@ -300,11 +344,23 @@ function toggleLayerVisibility(el, show){
 // apply vis object { show:[], hide:[] } to the SVG layers (matching by id/data-name/prefix)
 function applyVisibilityFromVis(vis){
   if (!svgEl) return;
-  // Hide-only semantics: if vis.hide is empty/absent -> show all layers.
-  // If vis.hide contains keys, hide any layer matching those keys (exact or prefix);
-  // all other layers should be shown.
-  const hides = (vis && Array.isArray(vis.hide)) ? vis.hide : [];
-  const shows = (vis && Array.isArray(vis.show)) ? vis.show : [];
+  // Resolve short vis tokens (like 'princess') against layerKeyMap by last-segment
+  const rawHides = (vis && Array.isArray(vis.hide)) ? vis.hide.slice() : [];
+  const rawShows = (vis && Array.isArray(vis.show)) ? vis.show.slice() : [];
+  const resolveToken = (tok) => {
+    if (!tok) return tok;
+    if (String(tok).includes('/')) return tok;
+    // find keys whose last segment matches tok
+    const matches = [];
+    for (const k of layerKeyMap.keys()){
+      if (String(k).split('/').pop() === tok) matches.push(k);
+    }
+    return matches.length === 1 ? matches[0] : tok;
+  };
+  const hides = rawHides.map(resolveToken);
+  const shows = rawShows.map(resolveToken);
+  // Sync in-memory exceptions with parsed vis.show so parsed state wins
+  showExceptions = new Set(shows);
   for (const [key, el] of layerKeyMap.entries()){
     let shouldHide = false;
     if (hides.length) {
