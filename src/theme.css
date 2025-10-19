@@ -11,6 +11,12 @@
     font-style: normal;
     font-weight: bold;
 }
+@font-face {
+    font-family: "Heb_hand";
+    src: url("fonts/GveretLevinAlefAlefAlef-Regular.woff2") format("woff2-variations");
+    font-style: normal;
+    font-weight: regular;
+}
 
 html, body {
     font-family: 'David Libre', serif;
@@ -68,6 +74,7 @@ section:first-child h1{
 
 section.testimony {
     margin-right: 0;
+    font-family: "Heb_hand";
 }
 
 section.testimony p{
