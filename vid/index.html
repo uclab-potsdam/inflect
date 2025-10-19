@@ -10,11 +10,12 @@
       padding: 0;
       width: 100%;
       height: 100%;
-      background: #111;
+      background: #333;
       color: #fff;
       font-family: sans-serif;
     }
     #container {
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -47,14 +48,87 @@
       padding: 0.3em 1em;
     }
   </style>
+  <style>
+    /* Preloader overlay styling: a simple grey frame that matches iframe size/position */
+    #preloader{
+      position: absolute;
+      left: 0; top: 0;
+      width: 0; height: 0;
+      display: none;
+      pointer-events: none;
+      box-sizing: border-box;
+      background: rgba(200,200,200,0.06);
+      border: 1px solid rgba(255,255,255,0.06);
+      transition: opacity 360ms cubic-bezier(.22,.9,.32,1);
+      opacity: 0;
+      border-radius: 2px;
+    }
+    #preloader.visible { opacity: 1; display: block; }
+  </style>
+  <style>
+    /* embedded mode hides controls and timeline and makes background transparent */
+    .embedded #controls, .embedded #timeline-container { display: none !important; }
+    .embedded #container { height: 100%; }
+    .embedded body, .embedded html { background: transparent !important; }
+    /* Dark embed modifier: applies a darker chrome and iframe overlay */
+    .embed-dark #controls, .embed-dark #timeline-container { background: rgba(0,0,0,0.35); }
+    .embed-dark #provider-indicator { color: #ddd; }
+    .embed-dark #yt-iframe { box-shadow: 0 8px 30px rgba(0,0,0,0.6); }
+  </style>
 </head>
 <body>
+<!-- detect if embedded and add class; set transparent background -->
+<script>
+  try {
+    if (window.top && window.top !== window.self) {
+      document.documentElement.classList.add('embedded');
+      document.documentElement.style.background = 'transparent';
+      document.body.style.background = 'transparent';
+    }
+    // Respect explicit URL parameter to force dark embed mode when embedding.
+    // If embedder sets ?dark=0 we disable; ?dark=1 forces dark.
+    try {
+      const sp = new URLSearchParams(location.search || '');
+      const darkParam = sp.get('dark') || sp.get('embedDark');
+      if (darkParam === '1' || darkParam === 'true') {
+        document.documentElement.classList.add('embed-dark');
+        try { localStorage.setItem('vid.embedDark','1'); } catch(e){}
+      } else if (darkParam === '0' || darkParam === 'false') {
+        document.documentElement.classList.remove('embed-dark');
+        try { localStorage.setItem('vid.embedDark','0'); } catch(e){}
+      }
+    } catch(e){}
+  } catch(e) {
+    try { document.documentElement.classList.add('embedded'); document.documentElement.style.background = 'transparent'; document.body.style.background = 'transparent'; } catch(e){}
+  }
+</script>
   <div id="container">
     <iframe id="yt-iframe" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    <!-- Preloader overlay: a simple grey frame that appears over the iframe while loading -->
+    <div id="preloader" aria-hidden="true"></div>
     <div id="controls">
       <input id="video-url" type="text" placeholder="Paste YouTube URL...">
       <button id="load-url">Load</button>
+      <button id="reset-size" title="Reset iframe size">Reset size</button>
       <button id="play-pause" disabled>Play</button>
+      <label style="margin-left:1em;font-size:0.95em;">
+        <input type="checkbox" id="autoplay-toggle"> Autoplay
+      </label>
+      <label style="margin-left:0.6em;font-size:0.95em;">
+        <input type="checkbox" id="dark-embed-toggle"> Dark embed
+      </label>
+      <span id="provider-indicator" style="margin-left:0.8em;font-weight:600">Provider: —</span>
+    </div>
+    <div id="timeline-container" style="width:80vw;max-width:960px;margin:2em 0 0 0;">
+      <div style="display:flex;justify-content:space-between;font-size:0.9em;margin-bottom:0.2em;">
+        <span>Start: <span id="start-time">0:00</span></span>
+        <span>End: <span id="end-time">0:00</span></span>
+      </div>
+      <div id="timeline" style="position:relative;height:24px;background:#222;border-radius:12px;cursor:pointer;">
+        <div id="play-span" style="position:absolute;height:100%;background:#4caf50;border-radius:12px;opacity:0.5;"></div>
+        <div id="start-handle" style="position:absolute;width:16px;height:24px;background:#fff;border-radius:8px;top:0;left:0;cursor:ew-resize;"></div>
+        <div id="end-handle" style="position:absolute;width:16px;height:24px;background:#fff;border-radius:8px;top:0;left:calc(100% - 16px);cursor:ew-resize;"></div>
+      </div>
     </div>
   </div>
   <script src="https://www.youtube.com/iframe_api"></script>
@@ -63,26 +137,162 @@
     const urlInput = document.getElementById('video-url');
     const loadBtn = document.getElementById('load-url');
     const playPauseBtn = document.getElementById('play-pause');
-    let ytPlayer = null;
-    let ytReady = false;
-    let pendingId = null;
+  let ytPlayer = null;
+  let ytReady = false;
+  let pendingId = null;
+  const autoplayToggle = document.getElementById('autoplay-toggle');
+    const darkEmbedToggle = document.getElementById('dark-embed-toggle');
+    // initialize dark embed state from localStorage. Default to dark mode
+    try {
+      const saved = localStorage.getItem('vid.embedDark');
+      if (saved === '0') {
+        // explicitly disabled
+        document.documentElement.classList.remove('embed-dark');
+        if (darkEmbedToggle) darkEmbedToggle.checked = false;
+      } else if (saved === '1') {
+        document.documentElement.classList.add('embed-dark');
+        if (darkEmbedToggle) darkEmbedToggle.checked = true;
+      } else {
+        // no preference saved: default to dark embed
+        document.documentElement.classList.add('embed-dark');
+        if (darkEmbedToggle) darkEmbedToggle.checked = true;
+      }
+    } catch(e){}
+    if (darkEmbedToggle) darkEmbedToggle.addEventListener('change', () => {
+      try {
+        if (darkEmbedToggle.checked) {
+          document.documentElement.classList.add('embed-dark');
+          localStorage.setItem('vid.embedDark','1');
+        } else {
+          document.documentElement.classList.remove('embed-dark');
+          localStorage.removeItem('vid.embedDark');
+        }
+      } catch(e){}
+    });
 
     function getYouTubeId(url) {
       if (/^[\w-]{11}$/.test(url)) return url;
       const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([\w-]{11})/);
       return match ? match[1] : null;
     }
-    function setHash(id) {
-      if (id && location.hash.slice(1) !== id) location.hash = id;
+    function getTikTokId(url){
+      if (!url) return null;
+      // examples:
+      // https://www.tiktok.com/@user/video/7289954627687058695
+      // https://vm.tiktok.com/xxxxx/
+      const m1 = url.match(/tiktok\.com\/(?:@[^\/]+\/video|v)\/(\d+)/i);
+      if (m1 && m1[1]) return m1[1];
+      const m2 = url.match(/tiktok\.com\/[^\/]+\/video\/(\d+)/i);
+      if (m2 && m2[1]) return m2[1];
+      const m3 = url.match(/(?:vm\.tiktok\.com|m\.tiktok\.com)\/([A-Za-z0-9_-]+)/i);
+      if (m3 && m3[1]) return m3[1];
+      return null;
+    }
+    let lastHash = '';
+    // Only update hash if user initiated (drag or Load button)
+    function setHash(id, start = null, end = null, userInitiated = false) {
+      if (!userInitiated) return;
+      let hash = id || '';
+      if (start !== null && end !== null) {
+        hash += `,${Math.round(start)},${Math.round(end)}`;
+      }
+      if (autoplayToggle && autoplayToggle.checked) {
+        hash += ',auto';
+      }
+      if (hash && location.hash.slice(1) !== hash) {
+        lastHash = hash;
+        location.hash = hash;
+        setTimeout(handleHashOrLoad, 0);
+      }
+      // Set autoplay toggle from hash
+      if (autoplayToggle) {
+        autoplayToggle.checked = (location.hash.split(',').includes('auto'));
+      }
     }
     function loadYouTube(id) {
+      // show preloader while iframe navigates
+      showPreloader();
+      // Use YouTube embed URL
       ytIframe.src = `https://www.youtube.com/embed/${id}?enablejsapi=1&origin=${location.origin}`;
+      // mark as a YouTube embed
+      ytIframe.dataset.provider = 'youtube';
+      // restore default YouTube-ish iframe sizing
+      ytIframe.style.width = '';
+      ytIframe.style.height = '';
+      ytIframe.style.maxWidth = '';
+      ytIframe.style.maxHeight = '';
+      if (playPauseBtn) playPauseBtn.disabled = false;
+      const providerEl = document.getElementById('provider-indicator'); if (providerEl) providerEl.textContent = 'Provider: YouTube';
+    }
+    function loadTikTok(id){
+      // show preloader while iframe navigates
+      showPreloader();
+      // TikTok embed URL v2. Support autoplay when requested by appending ?autoplay=1
+      const auto = (arguments.length > 1 && arguments[1]) ? true : false;
+      const src = `https://www.tiktok.com/embed/v2/${id}` + (auto ? '?autoplay=1' : '');
+      ytIframe.src = src;
+      ytIframe.dataset.provider = 'tiktok';
+      // disable timeline/controls since we cannot reliably control TikTok playback via JS
+      if (playPauseBtn) playPauseBtn.disabled = true;
+      // visually mark the iframe as a TikTok embed
+      ytIframe.setAttribute('scrolling', 'no');
+      const providerEl = document.getElementById('provider-indicator'); if (providerEl) providerEl.textContent = 'Provider: TikTok';
+      // Reset iframe to a portrait / mobile-friendly size (TikTok default)
+      try {
+        ytIframe.style.width = '360px';
+        ytIframe.style.height = '640px';
+        ytIframe.style.maxWidth = '360px';
+        ytIframe.style.maxHeight = '640px';
+      } catch(e){}
+    }
+
+    // Preloader control: show/hide an animated outline while iframe content loads
+    let __preloaderTimeout = null;
+    function showPreloader(){
+      try {
+        const p = document.getElementById('preloader');
+        if (!p || !ytIframe) return;
+        // compute iframe position relative to container
+        const iframeRect = ytIframe.getBoundingClientRect();
+        const containerRect = document.getElementById('container').getBoundingClientRect();
+        const left = iframeRect.left - containerRect.left;
+        const top = iframeRect.top - containerRect.top;
+        p.style.left = left + 'px'; p.style.top = top + 'px';
+        p.style.width = iframeRect.width + 'px'; p.style.height = iframeRect.height + 'px';
+        // show with fade
+        p.style.display = 'block';
+        // force reflow then set visible
+        void p.offsetWidth;
+        p.classList.add('visible');
+        if (__preloaderTimeout) { clearTimeout(__preloaderTimeout); __preloaderTimeout = null; }
+        __preloaderTimeout = setTimeout(() => { hidePreloader(); }, 8000);
+      } catch(e){}
+      attachIframeLoadHandler();
+    }
+    function hidePreloader(){
+      try {
+        const p = document.getElementById('preloader'); if (!p) return;
+        p.classList.remove('visible');
+        setTimeout(() => { try { p.style.display = 'none'; p.style.left='0'; p.style.top='0'; p.style.width='0'; p.style.height='0'; } catch(e){} }, 400);
+        if (__preloaderTimeout) { clearTimeout(__preloaderTimeout); __preloaderTimeout = null; }
+      } catch(e){}
+    }
+
+    // helper: attach a one-time iframe load listener to hide preloader
+    let __iframeLoadHandler = null;
+    function attachIframeLoadHandler(){
+      try {
+        if (__iframeLoadHandler) return;
+        __iframeLoadHandler = function(){ hidePreloader(); try { ytIframe.removeEventListener('load', __iframeLoadHandler); } catch(e){} __iframeLoadHandler = null; };
+        ytIframe.addEventListener('load', __iframeLoadHandler);
+      } catch(e){}
     }
     function createPlayer(id) {
       ytPlayer = new YT.Player('yt-iframe', {
         events: {
           'onReady': function() {
             ytReady = true;
+            try { hidePreloader(); } catch(e){}
             playPauseBtn.disabled = false;
             if (pendingId && pendingId !== id) {
               ytPlayer.loadVideoById(pendingId);
@@ -109,40 +319,106 @@
     }
     function handleLoad() {
       const url = urlInput.value.trim();
-      const id = getYouTubeId(url);
-      if (!id) {
-        alert('Invalid YouTube URL or ID');
+      const ytId = getYouTubeId(url);
+      const ttId = getTikTokId(url);
+      if (ttId) {
+        // For TikTok embeds we store the id in the hash as t:ID to avoid
+        // colliding with YouTube 11-char ids. Example hash: t:72899...
+        setHash(`t:${ttId}`, null, null, true);
+        loadTikTok(ttId, !!autoplayToggle && autoplayToggle.checked);
         return;
       }
-      setHash(id);
-      loadYouTube(id);
-      setupPlayer(id);
+      if (ytId) {
+        setHash(ytId, startSec, endSec, true);
+        loadYouTube(ytId);
+        setupPlayer(ytId);
+        return;
+      }
+      alert('Invalid YouTube or TikTok URL/ID');
+    }
+
+    // Update hash when autoplay toggle is changed
+    if (autoplayToggle) {
+      autoplayToggle.addEventListener('change', () => {
+        const url = urlInput.value.trim();
+        const id = getYouTubeId(url);
+        if (id) setHash(id, startSec, endSec, true);
+      });
     }
     loadBtn.addEventListener('click', handleLoad);
     urlInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') handleLoad();
     });
+    const resetSizeBtn = document.getElementById('reset-size');
+    if (resetSizeBtn) {
+      resetSizeBtn.addEventListener('click', () => {
+        // clear inline sizes to restore CSS defaults
+        try { ytIframe.style.width = ''; ytIframe.style.height = ''; ytIframe.style.maxWidth = ''; ytIframe.style.maxHeight = ''; } catch(e){}
+      });
+    }
     playPauseBtn.addEventListener('click', () => {
       if (!ytPlayer || typeof ytPlayer.getPlayerState !== 'function') return;
       const state = ytPlayer.getPlayerState();
       if (state !== 1) ytPlayer.playVideo();
       else ytPlayer.pauseVideo();
     });
-    function handleHashOrLoad(id) {
-      if (id && id.length === 11) {
+    function parseHash() {
+      // #id,start,end
+      const hash = location.hash.slice(1);
+      const parts = hash.split(',');
+      const raw = parts[0] || null;
+      // Return the raw token so callers can interpret provider prefixes like t:ID
+      const id = raw;
+      const start = parts[1] ? parseInt(parts[1], 10) : null;
+      const end = parts[2] ? parseInt(parts[2], 10) : null;
+      const auto = parts.includes('auto');
+      return { id, start, end, auto };
+    }
+    function handleHashOrLoad() {
+        const { id, start, end, auto } = parseHash();
+        if (autoplayToggle) {
+            autoplayToggle.checked = !!auto;
+        }
+        if (!id) return;
+        // support TikTok ids encoded by prefix t:ID in the hash
+        if (String(id).startsWith('t:')){
+          const tt = String(id).slice(2);
+          urlInput.value = `https://www.tiktok.com/@user/video/${tt}`;
+          loadTikTok(tt, !!autoplayToggle && autoplayToggle.checked);
+          // no timeline controls for TikTok
+          return;
+        }
         urlInput.value = `https://youtu.be/${id}`;
         loadYouTube(id);
         setupPlayer(id);
-      }
-    }
-    window.addEventListener('hashchange', () => {
-      const id = location.hash.slice(1);
-      handleHashOrLoad(id);
-    });
-    window.addEventListener('DOMContentLoaded', () => {
-      const id = location.hash.slice(1);
-      handleHashOrLoad(id);
-    });
+
+        // Wait for player ready and duration, then set handles and play
+        let tries = 0;
+        function trySetupTimelineAndAutoplay() {
+            if (ytPlayer && ytReady && typeof ytPlayer.getDuration === 'function') {
+            const dur = ytPlayer.getDuration();
+            if (dur && !isNaN(dur)) {
+                // Clamp start/end to duration
+                let s = (typeof start === 'number' && !isNaN(start)) ? Math.max(0, Math.min(start, dur)) : 0;
+                let e = (typeof end === 'number' && !isNaN(end)) ? Math.max(0, Math.min(end, dur)) : dur;
+                if (e <= s) e = Math.min(s + 1, dur);
+                startSec = s;
+                endSec = e;
+                updateTimelineUI();
+                if (ytPlayer && ytPlayer.seekTo) ytPlayer.seekTo(startSec, true);
+                if (auto && ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
+                return;
+            }
+            }
+            if (tries < 40) {
+            tries++;
+            setTimeout(trySetupTimelineAndAutoplay, 100);
+            }
+        }
+        trySetupTimelineAndAutoplay();
+        }
+    window.addEventListener('hashchange', handleHashOrLoad);
+    window.addEventListener('DOMContentLoaded', handleHashOrLoad);
     // YouTube API ready handler
     window.onYouTubeIframeAPIReady = function() {
       if (pendingId) {
@@ -150,6 +426,151 @@
         pendingId = null;
       }
     };
+
+    // --- Timeline logic ---
+    const timeline = document.getElementById('timeline');
+    const playSpan = document.getElementById('play-span');
+    const startHandle = document.getElementById('start-handle');
+    const endHandle = document.getElementById('end-handle');
+    const startTimeLabel = document.getElementById('start-time');
+    const endTimeLabel = document.getElementById('end-time');
+
+    let duration = 0;
+    let startSec = 0;
+    let endSec = 0;
+    let dragging = null; // 'start' | 'end' | null
+
+    function formatTime(sec) {
+      sec = Math.max(0, Math.round(sec));
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function updateTimelineUI() {
+  const width = timeline.offsetWidth;
+  const safeStart = Math.max(0, Math.min(startSec, duration));
+  const safeEnd = Math.max(0, Math.min(endSec, duration));
+  const startX = (duration ? (safeStart / duration) * width : 0);
+  const endX = (duration ? (safeEnd / duration) * width : width);
+  startHandle.style.left = `${Math.max(0, Math.min(width-16, startX-8))}px`;
+  endHandle.style.left = `${Math.max(0, Math.min(width-16, endX-8))}px`;
+  playSpan.style.left = `${Math.min(startX, endX)}px`;
+  playSpan.style.width = `${Math.abs(endX - startX)}px`;
+  startTimeLabel.textContent = formatTime(safeStart);
+  endTimeLabel.textContent = formatTime(safeEnd);
+    }
+
+    function setDuration(dur) {
+      duration = dur;
+      if (isNaN(duration) || duration <= 0) duration = 1;
+  // Only set duration and update UI; do not touch handles here
+  updateTimelineUI();
+    }
+
+    function onPlayerReadyForTimeline() {
+      if (ytPlayer && typeof ytPlayer.getDuration === 'function') {
+        // Wait until duration is available (sometimes 0 at first)
+        let tries = 0;
+        function trySet() {
+          const dur = ytPlayer.getDuration();
+          if (dur && dur > 0) {
+            setDuration(dur);
+          } else if (tries < 10) {
+            tries++;
+            setTimeout(trySet, 200);
+          }
+        }
+        trySet();
+      }
+    }
+
+    // Drag logic
+    function onTimelineDown(e) {
+      const rect = timeline.getBoundingClientRect();
+      const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+      const width = rect.width;
+      const startX = (startSec / duration) * width;
+      const endX = (endSec / duration) * width;
+      if (Math.abs(x - startX) < 16) dragging = 'start';
+      else if (Math.abs(x - endX) < 16) dragging = 'end';
+      else {
+        // Clicked between handles: move nearest
+        dragging = (Math.abs(x - startX) < Math.abs(x - endX)) ? 'start' : 'end';
+      }
+      onTimelineMove(e);
+    }
+    function onTimelineMove(e) {
+      if (!dragging) return;
+      const rect = timeline.getBoundingClientRect();
+      const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+      const width = rect.width;
+      let sec = Math.max(0, Math.min(duration, (x / width) * duration));
+      if (dragging === 'start') {
+        startSec = Math.min(sec, endSec-1);
+      } else if (dragging === 'end') {
+        endSec = Math.max(sec, startSec+1);
+      }
+      updateTimelineUI();
+      // Seek video to handle position while dragging
+      if (ytPlayer && ytPlayer.seekTo) {
+        ytPlayer.seekTo(dragging === 'start' ? startSec : endSec, true);
+      }
+      // Update hash with new start/end only if user is dragging
+      const { id } = parseHash();
+      setHash(id, startSec, endSec, true);
+    }
+    function onTimelineUp() {
+      dragging = null;
+    }
+    startHandle.addEventListener('mousedown', e => { dragging = 'start'; e.preventDefault(); });
+    endHandle.addEventListener('mousedown', e => { dragging = 'end'; e.preventDefault(); });
+    timeline.addEventListener('mousedown', onTimelineDown);
+    window.addEventListener('mousemove', onTimelineMove);
+    window.addEventListener('mouseup', onTimelineUp);
+    // Touch events
+    startHandle.addEventListener('touchstart', e => { dragging = 'start'; e.preventDefault(); });
+    endHandle.addEventListener('touchstart', e => { dragging = 'end'; e.preventDefault(); });
+    timeline.addEventListener('touchstart', onTimelineDown);
+    window.addEventListener('touchmove', onTimelineMove);
+    window.addEventListener('touchend', onTimelineUp);
+
+    // When player is ready, set duration and update UI
+    const origOnReady = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = function() {
+      if (pendingId) {
+        createPlayer(pendingId);
+        pendingId = null;
+      }
+      setTimeout(onPlayerReadyForTimeline, 500); // Wait for player to init
+      if (typeof origOnReady === 'function') origOnReady();
+    };
+
+    // When video changes, update duration
+    function updateDurationOnLoad() {
+      // Wait for duration to be available, then set handles
+      let tries = 0;
+      function trySet() {
+        if (ytPlayer && typeof ytPlayer.getDuration === 'function') {
+          const dur = ytPlayer.getDuration();
+          if (dur && dur > 0) {
+            setDuration(dur);
+          } else if (tries < 10) {
+            tries++;
+            setTimeout(trySet, 200);
+          }
+        }
+      }
+      trySet();
+    }
+    // Hook into video load
+    const origSetupPlayer = setupPlayer;
+    setupPlayer = function(id) {
+      origSetupPlayer(id);
+      updateDurationOnLoad();
+    };
+
+  // Initial UI: do nothing, will be set on video load
   </script>
 </body>
 </html>
