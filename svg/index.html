@@ -1,0 +1,710 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Inflect SVG Viewer</title>
+<style>
+  html,body{height:100%;margin:0;background:#111;color:#fff;font-family:Helvetica,Arial,sans-serif}
+  #app{position:relative;height:100vh;overflow:hidden}
+  #canvas{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#222}
+  #controls{position:absolute;right:8px;top:8px;background:rgba(255,255,255,0.06);padding:8px;border-radius:6px;color:#fff;font-size:13px}
+  #controls label{display:block;margin-bottom:6px;font-size:12px}
+  #controls input[type=range]{width:140px}
+  #status{position:absolute;left:8px;top:8px;background:rgba(0,0,0,0.5);padding:6px 8px;border-radius:6px;font-size:12px}
+  /* when embedded in an iframe we hide the UI chrome */
+  .embedded #controls, .embedded #status{ display:none !important; }
+  /* layer list inside controls */
+  #layerList{ max-height:200px; overflow:auto; margin-top:6px; font-size:13px }
+  #layerList label{ display:flex; align-items:center; gap:8px; margin:4px 0 }
+  svg{max-width:100%;max-height:100%;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="canvas"><div id="svgContainer"></div></div>
+  <div id="controls">
+    <label>Rotate <input id="rotate" type="range" min="-180" max="180" value="0"></label>
+    <label>Zoom <input id="zoom" type="range" min="10" max="500" value="100"></label>
+    <button id="reset">Reset</button>
+    <div style="margin-top:8px;font-weight:600">Layers</div>
+    <div id="layerList" aria-live="polite"></div>
+    <button id="diagToggle" style="margin-top:8px">Diagnostics</button>
+    <pre id="diagPanel" style="display:none;white-space:pre-wrap;max-height:200px;overflow:auto;background:rgba(0,0,0,0.3);padding:8px;margin-top:8px;font-size:12px"></pre>
+  </div>
+  <div id="status">loading...</div>
+</div>
+<script>
+// detect if running inside an iframe and toggle embedded UI
+try {
+  if (window.top && window.top !== window.self) {
+    document.documentElement.classList.add('embedded');
+  }
+} catch(e) {
+  // cross-origin top access may throw; assume embedded in that case
+  try { document.documentElement.classList.add('embedded'); } catch(e){}
+}
+
+// Simple inflect-style hash parser: fields separated by & with url in 5th slot.
+// Parse hash and tolerate a url token that may include @param pairs: url@k=v@k2=v2
+function parseUrlField(urlField) {
+  if (!urlField) return { url: '', params: {}, vis: { show: [], hide: [] } };
+  // support optional trailing visibility tokens after a slash, e.g. 'file.svg/~layer+other'
+  let base = String(urlField);
+  let vis = { show: [], hide: [] };
+  const slashIdx = base.indexOf('/');
+  if (slashIdx !== -1) {
+    const visPart = base.slice(slashIdx + 1);
+    base = base.slice(0, slashIdx);
+    // tokens start with + or ~; capture sequences like +name, ~name
+    const re = /([+~])([^+~\/]+)/g;
+    let m;
+    while ((m = re.exec(visPart)) !== null) {
+      const sym = m[1]; const name = decodeURIComponent(m[2]);
+      if (sym === '+') vis.show.push(name);
+      else if (sym === '~') vis.hide.push(name);
+    }
+  }
+  const parts = base.split('@').map(s => s.trim()).filter(Boolean);
+  const url = parts[0] || '';
+  const params = {};
+  parts.slice(1).forEach(p => {
+    const eq = p.indexOf('=');
+    if (eq === -1) return;
+    const k = p.slice(0, eq);
+    const v = p.slice(eq+1);
+    if (!k) return;
+    params[k] = isNaN(Number(v)) ? v : Number(v);
+  });
+  return { url, params, vis };
+}
+
+function buildUrlField(url, params, vis){
+  let token = url || '';
+  if (params) for (const k of Object.keys(params)) token += `@${k}=${encodeURIComponent(String(params[k]))}`;
+  // Hide-only semantics: only serialize hidden layer keys as ~key
+  if (vis){
+    let seg = '';
+    if (vis.show && vis.show.length) vis.show.forEach(s => { seg += `+${encodeURIComponent(String(s))}`; });
+    if (vis.hide && vis.hide.length) vis.hide.forEach(h => { seg += `~${encodeURIComponent(String(h))}`; });
+    if (seg) token += '/' + seg;
+  }
+  return token;
+}
+
+function parseHash(){
+  const hash = location.hash.slice(1);
+  if (!hash) return { url: '', params: {}, view: null, rotation:0 };
+  // If the hash is a bare path like 'opening.svg' or '/svg/opening.svg', accept it directly
+  if (!hash.includes('&') && (hash.indexOf('.svg') !== -1 || hash.startsWith('/') || /^\w[\w\-\.]*\.svg$/i.test(hash))) {
+    const parsed = parseUrlField(hash);
+    return { url: parsed.url, params: parsed.params || {}, view: null, rotation: (parsed.params && parsed.params.r) || 0, vis: parsed.vis || { show: [], hide: [] } };
+  }
+  const parts = hash.split('&');
+  let rawUrlField = parts[4] || '';
+  // tolerant shift
+  if (!rawUrlField && parts.length>=5 && parts[3] && (parts[3].includes('.svg')||parts[3].startsWith('svg/'))) {
+    rawUrlField = parts[3];
+  }
+  const parsed = parseUrlField(rawUrlField);
+  let rotation = 0;
+  if (parts[5] && !isNaN(parseFloat(parts[5]))) rotation = parseFloat(parts[5]);
+  // rotation may also be in params
+  if (parsed.params && typeof parsed.params.r === 'number') rotation = parsed.params.r;
+  return { url: parsed.url, params: parsed.params || {}, view: null, rotation, vis: parsed.vis || { show: [], hide: [] } };
+}
+function layersToUrlField(u){ return u || ''; }
+
+let svgContainer = document.getElementById('svgContainer');
+let status = document.getElementById('status');
+let rotateInput = document.getElementById('rotate');
+let zoomInput = document.getElementById('zoom');
+let resetBtn = document.getElementById('reset');
+
+let svgEl = null; // the embedded svg root
+let wrapperG = null; // group we apply transforms to
+let bbox = null;
+let state = { tx:0, ty:0, scale:1, rotation:0 };
+let isDragging=false, dragStart=null, dragStartState=null;
+ let pendingVis = null; // visibility instructions to apply after load
+let layerKeyMap = new Map();
+let showExceptions = new Set(); // keys explicitly shown despite ancestor hide
+
+function getDirectChildrenKeys(parentKey){
+  const res = [];
+  const prefix = parentKey + '/';
+  for (const k of layerKeyMap.keys()){
+    if (!k.startsWith(prefix)) continue;
+    const rest = k.slice(prefix.length);
+    if (rest.indexOf('/') === -1) res.push(k);
+  }
+  return res;
+}
+
+function setStatus(s){ status.textContent = s; }
+
+async function loadSVG(url){
+  if (!url) { setStatus('no url'); return; }
+  try {
+    setStatus('loading '+url);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('fetch failed '+res.status);
+    const text = await res.text();
+    svgContainer.innerHTML = text;
+    svgEl = svgContainer.querySelector('svg');
+    if (!svgEl) throw new Error('no <svg> in file');
+    // ensure width/height viewBox exists
+    if (!svgEl.getAttribute('viewBox')) {
+      const w = svgEl.getAttribute('width')||svgEl.clientWidth||300;
+      const h = svgEl.getAttribute('height')||svgEl.clientHeight||150;
+      svgEl.setAttribute('viewBox','0 0 '+w+' '+h);
+    }
+    // we will manipulate the SVG using CSS transforms on the svg element
+    // ensure the svg is positioned absolutely inside the container so CSS
+    // translate/scale/rotate behaves in pixel coordinates
+    svgEl.style.position = 'absolute';
+    svgEl.style.left = '0';
+    svgEl.style.top = '0';
+    svgEl.style.transformOrigin = '0 0';
+    // compute bbox after a tick and derive initial fit values
+    await new Promise(r => setTimeout(r,20));
+    try { bbox = svgEl.getBBox(); } catch(e) { bbox = { x:0,y:0,width:svgEl.clientWidth||300,height:svgEl.clientHeight||150 }; }
+    fitToContainer();
+    // leave rotation/scale as default; caller may override via params
+    rotateInput.value = 0;
+    zoomInput.value = Math.round(state.scale*100);
+    render();
+    setStatus('ready');
+    window.viewerReady = true;
+  // build layer list UI so user can show/hide layers
+  try { buildLayerList(); } catch(e) { console.warn('build layer list failed', e); }
+  // apply any pending visibility instructions now that layers exist
+  try { if (pendingVis) { applyVisibilityFromVis(pendingVis); pendingVis = null; } } catch(e) { console.warn('apply pending vis failed', e); }
+  } catch (e) {
+    console.error(e);
+    setStatus('error');
+    window.viewerReady = false;
+  }
+}
+
+// animate opacity values for a set of elements (obj map name->elem)
+// build a simple layer list UI from top-level svg children
+function buildLayerList(){
+  if (!svgEl) return;
+  const layerList = document.getElementById('layerList');
+  if (!layerList) return;
+  layerList.innerHTML = '';
+
+  // exclude non-visual/definition tags and elements defined under <defs>
+  const excluded = new Set([
+    'SCRIPT','STYLE','DEFS','METADATA','TITLE','PATTERN',
+    'LINEARGRADIENT','RADIALGRADIENT','CLIPPATH','MASK','FILTER','MARKER','SYMBOL','VIEW','FONT'
+  ]);
+
+  function getLabel(el, idx){
+    return el.id || el.getAttribute('data-name') || `${el.tagName.toLowerCase()}_${idx}`;
+  }
+
+  function makeNode(el, idx, parentKey){
+    const li = document.createElement('div');
+    li.style.marginLeft = '0px';
+    const label = document.createElement('label');
+    label.style.display = 'flex'; label.style.alignItems = 'center'; label.style.gap = '8px';
+    const cb = document.createElement('input'); cb.type = 'checkbox';
+    const computed = window.getComputedStyle(el);
+    cb.checked = !(computed.display === 'none' || computed.visibility === 'hidden');
+    // compute a stable key and ensure uniqueness
+    const baseKey = getLabel(el, idx);
+    let key = parentKey ? `${parentKey}/${baseKey}` : baseKey;
+    // ensure uniqueness
+    let uniqueKey = key; let suffix = 1;
+    while (layerKeyMap.has(uniqueKey)) { uniqueKey = key + '_' + (suffix++); }
+    key = uniqueKey;
+    cb.dataset.layerKey = key;
+    label.dataset.layerKey = key;
+    layerKeyMap.set(key, el);
+    cb.addEventListener('change', () => { toggleLayerVisibility(el, cb.checked); updateHashFromLayerList(); refreshLayerListCheckboxes(); });
+    // allow clicking the label when checkbox is disabled to create a show-exception
+    label.addEventListener('click', (e) => {
+      // only intercept when the input is currently disabled (i.e., ancestor controls it)
+      if (!cb.disabled) return;
+      e.preventDefault(); e.stopPropagation();
+      const key = cb.dataset.layerKey;
+      if (!key) return;
+      const parentParts = key.split('/').slice(0, -1);
+      const parentKey = parentParts.length ? parentParts.join('/') : null;
+      // toggle exception
+      if (showExceptions.has(key)) {
+        showExceptions.delete(key);
+        // reapply visibility from parsed vis (which may hide parent again)
+        try { applyVisibilityFromVis(parseHash().vis || { hide: [], show: [] }); } catch(e){}
+      } else {
+        showExceptions.add(key);
+        // if parent exists and is currently hidden by vis, reveal parent and hide siblings
+        if (parentKey && layerKeyMap.has(parentKey)){
+          const parentEl = layerKeyMap.get(parentKey);
+          // show parent element so child can be rendered
+          toggleLayerVisibility(parentEl, true);
+          // hide all direct children except the exception
+          const children = getDirectChildrenKeys(parentKey);
+          children.forEach(childKey => {
+            const childEl = layerKeyMap.get(childKey);
+            if (!childEl) return;
+            if (childKey === key) toggleLayerVisibility(childEl, true);
+            else toggleLayerVisibility(childEl, false);
+          });
+        } else {
+          // no parent: just show this layer
+          toggleLayerVisibility(el, true);
+        }
+      }
+      refreshLayerListCheckboxes();
+      updateHashFromLayerList();
+    });
+    const span = document.createElement('span'); span.textContent = key;
+    label.appendChild(cb); label.appendChild(span);
+    li.appendChild(label);
+    // if element has element children, show nested list
+    const childElems = Array.from(el.children).filter(c => c.nodeType===1 && !excluded.has((c.tagName||'').toUpperCase()) && !c.closest('defs'));
+    if (childElems.length > 0){
+      const container = document.createElement('div');
+      container.style.marginLeft = '12px';
+      childElems.forEach((c, ci) => {
+        container.appendChild(makeNode(c, ci, key));
+      });
+      li.appendChild(container);
+    }
+    return li;
+  }
+
+  const topChildren = Array.from(svgEl.children).filter(c => c.nodeType===1 && !excluded.has((c.tagName||'').toUpperCase()) && !c.closest('defs'));
+  layerKeyMap.clear();
+  topChildren.forEach((el, idx) => {
+    layerList.appendChild(makeNode(el, idx, null));
+  });
+  // enforce parent/child checkbox disabled state after building
+  refreshLayerListCheckboxes();
+}
+
+function toggleLayerVisibility(el, show){
+  if (!el) return;
+  // toggle for the element and leave child elements unchanged (they inherit)
+  if (show) {
+    el.style.display = '';
+    el.style.visibility = '';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+// apply vis object { show:[], hide:[] } to the SVG layers (matching by id/data-name/prefix)
+function applyVisibilityFromVis(vis){
+  if (!svgEl) return;
+  // Hide-only semantics: if vis.hide is empty/absent -> show all layers.
+  // If vis.hide contains keys, hide any layer matching those keys (exact or prefix);
+  // all other layers should be shown.
+  const hides = (vis && Array.isArray(vis.hide)) ? vis.hide : [];
+  const shows = (vis && Array.isArray(vis.show)) ? vis.show : [];
+  for (const [key, el] of layerKeyMap.entries()){
+    let shouldHide = false;
+    if (hides.length) {
+      shouldHide = hides.some(h => key === h || key.startsWith(h));
+    } else {
+      shouldHide = false; // no hide tokens -> show all
+    }
+    // if a show exception exists for this exact key or a matching show token, always show
+    const hasException = showExceptions.has(key) || shows.some(s => key === s || key.startsWith(s));
+    toggleLayerVisibility(el, hasException ? true : !shouldHide);
+  }
+  // refresh checkboxes
+  refreshLayerListCheckboxes();
+}
+
+function refreshLayerListCheckboxes(){
+  const layerList = document.getElementById('layerList'); if (!layerList) return;
+  // traverse labels and update checkboxes based on element's computed visibility
+  const inputs = Array.from(layerList.querySelectorAll('input[type=checkbox]'));
+  // build a map key -> input for ancestor lookups
+  const inputMap = new Map();
+  inputs.forEach(cb => { if (cb.dataset && cb.dataset.layerKey) inputMap.set(cb.dataset.layerKey, cb); });
+
+  // first, set each checkbox to reflect the element's computed visibility and enable it
+  inputs.forEach(cb => {
+    const key = cb.dataset.layerKey;
+    if (!key) return;
+    const el = layerKeyMap.get(key);
+    if (!el) return;
+    const computed = window.getComputedStyle(el);
+    cb.checked = !(computed.display === 'none' || computed.visibility === 'hidden');
+    cb.disabled = false;
+  });
+
+  // then, for each checkbox, if any ancestor parent checkbox exists and is unchecked,
+  // mark this checkbox as checked and disabled to indicate it's controlled by the parent
+  inputs.forEach(cb => {
+    const key = cb.dataset.layerKey; if (!key) return;
+    // walk up the key path
+    const parts = key.split('/');
+    for (let i = parts.length - 1; i > 0; i--) {
+      const ancestorKey = parts.slice(0, i).join('/');
+      const ancestorInput = inputMap.get(ancestorKey);
+      if (ancestorInput) {
+        if (!ancestorInput.checked) {
+          // parent is unchecked -> child should appear checked but disabled
+          cb.checked = true;
+          cb.disabled = true;
+        }
+        break; // stop at nearest ancestor found
+      }
+    }
+  });
+
+  // now compute indeterminate state for parents: if a parent has some direct children
+  // that are shown as exceptions (or mixed), mark the parent.indeterminate = true
+  for (const [key, ancestorInput] of inputMap.entries()){
+    const children = getDirectChildrenKeys(key);
+    if (!children.length) { ancestorInput.indeterminate = false; continue; }
+    let exceptions = 0, visible = 0, hidden = 0;
+    children.forEach(childKey => {
+      const cb = inputMap.get(childKey);
+      if (!cb) return;
+      if (cb.disabled && showExceptions.has(childKey)) exceptions++;
+      if (cb.checked) visible++; else hidden++;
+    });
+    // parent is indeterminate if some children are exceptions or mixed visibility
+    ancestorInput.indeterminate = (exceptions>0) || (visible>0 && hidden>0);
+  }
+}
+
+function findElementByLabel(name){
+  // prefer layerKeyMap lookup
+  if (layerKeyMap.has(name)) return layerKeyMap.get(name);
+  // fallback: prefix match
+  for (const [k, el] of layerKeyMap.entries()){
+    if (k === name || k.startsWith(name)) return el;
+  }
+  return null;
+}
+
+function collectVisibilityFromList(){
+  const layerList = document.getElementById('layerList'); if (!layerList) return { show:[], hide:[] };
+  // Hide-only: collect only the keys that are currently unchecked (i.e., hidden)
+  const res = { hide: [], show: [] };
+  const inputs = Array.from(layerList.querySelectorAll('input[type=checkbox]'));
+  inputs.forEach(cb => {
+    const key = cb.dataset.layerKey; if (!key) return;
+    if (!cb.checked) res.hide.push(key);
+  });
+  // include explicit exceptions
+  for (const k of showExceptions) res.show.push(k);
+  return res;
+}
+
+function updateHashFromLayerList(){
+  // read existing parsed hash to preserve params
+  const parsed = parseHash();
+  const vis = collectVisibilityFromList();
+  const token = buildUrlField(parsed.url, parsed.params, vis);
+  // we need to preserve original 6-field style when present; if not, just write #token
+  if (!location.hash || !location.hash.includes('&')) {
+    location.hash = '#'+token;
+  } else {
+    // attempt to replace the url-field (5th field) in the 6-field format
+    const parts = location.hash.slice(1).split('&');
+    while (parts.length < 6) parts.push('');
+    parts[4] = token;
+    location.hash = '#'+parts.join('&');
+  }
+}
+
+function dumpDiagnostics(){
+  const diag = document.getElementById('diagPanel'); if (!diag) return;
+  const parsed = parseHash();
+  const lines = [];
+  lines.push('location.hash: ' + location.hash);
+  lines.push('parsed: ' + JSON.stringify(parsed));
+  lines.push('pendingVis: ' + JSON.stringify(pendingVis));
+  lines.push('layerKeyMap keys:');
+  for (const k of layerKeyMap.keys()) lines.push('  - ' + k);
+  // checkbox states
+  const layerList = document.getElementById('layerList');
+  if (layerList){
+    const inputs = Array.from(layerList.querySelectorAll('input[type=checkbox]'));
+    inputs.forEach(cb => { lines.push(`cb ${cb.dataset.layerKey} => ${cb.checked}`); });
+  }
+  diag.textContent = lines.join('\n');
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  const dt = document.getElementById('diagToggle');
+  const dp = document.getElementById('diagPanel');
+  if (dt && dp){
+    dt.addEventListener('click', ()=>{
+      dp.style.display = dp.style.display === 'none' ? 'block' : 'none';
+      if (dp.style.display === 'block') dumpDiagnostics();
+    });
+  }
+});
+
+function fitToContainer(){
+  if (!svgEl || !bbox) return;
+  const containerRect = svgContainer.getBoundingClientRect();
+  const cw = containerRect.width || window.innerWidth;
+  const ch = containerRect.height || window.innerHeight;
+  // compute scale to fit bbox inside container
+  const sx = cw / bbox.width; const sy = ch / bbox.height;
+  const s = Math.min(sx, sy) * 0.9; // leave margins
+  state.scale = s || 1;
+  // center in pixel coordinates: desired center point in container
+  const cx = bbox.x + bbox.width/2;
+  const cy = bbox.y + bbox.height/2;
+  // compute tx/ty so that scaled svg's center maps to container center
+  state.tx = (cw/2) - cx * state.scale;
+  state.ty = (ch/2) - cy * state.scale;
+}
+
+function render(){
+  if (!svgEl || !bbox) return;
+  // We'll compute a CSS transform that applies translate(tx,ty) in pixels,
+  // then scale around the top-left (we set transform-origin to 0 0 on load),
+  // and then rotate around the center of the bbox by translating to center,
+  // rotating, and translating back.
+  const cx = bbox.x + bbox.width/2;
+  const cy = bbox.y + bbox.height/2;
+  // rotation around center: translate(cx,cy) rotate(...) translate(-cx,-cy)
+  const translatePart = `translate(${Math.round(state.tx)}px, ${Math.round(state.ty)}px)`;
+  const scalePart = `scale(${state.scale})`;
+  const rotatePart = `translate(${cx}px, ${cy}px) rotate(${state.rotation}deg) translate(${-cx}px, ${-cy}px)`;
+  // Compose: translate (pixel pan) -> translate to center & rotate -> scale
+  svgEl.style.transform = `${translatePart} ${rotatePart} ${scalePart}`;
+}
+
+// simple tweening helper for numeric state transitions
+let __svg_tween_cancel = null;
+function tweenProps(from, to, duration = 400, onUpdate){
+  if (__svg_tween_cancel) __svg_tween_cancel();
+  const start = performance.now();
+  const keys = Object.keys(to);
+  let rafId = null;
+  let cancelled = false;
+  function step(now){
+    const t = Math.min(1, (now - start) / duration);
+    // ease in-out cubic
+    const eased = t<0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
+    const cur = {};
+    keys.forEach(k => {
+      const a = typeof from[k]==='number' ? from[k] : 0;
+      const b = typeof to[k]==='number' ? to[k] : a;
+      cur[k] = a + (b - a) * eased;
+    });
+    try { onUpdate(cur); } catch(e){}
+    if (t < 1 && !cancelled) rafId = requestAnimationFrame(step);
+    else {
+      // final commit
+      try { onUpdate(Object.assign({}, to)); } catch(e){}
+      __svg_tween_cancel = null;
+    }
+  }
+  rafId = requestAnimationFrame(step);
+  __svg_tween_cancel = () => { cancelled = true; if (rafId) cancelAnimationFrame(rafId); __svg_tween_cancel = null; };
+  return __svg_tween_cancel;
+}
+
+// animate to target params (s, x, y, r)
+function animateTo(params, duration = 450){
+  if (!params) return Promise.resolve();
+  const target = {
+    scale: typeof params.s === 'number' ? params.s : state.scale,
+    tx: typeof params.x === 'number' ? params.x : state.tx,
+    ty: typeof params.y === 'number' ? params.y : state.ty,
+    rotation: typeof params.r === 'number' ? params.r : state.rotation
+  };
+  return new Promise(resolve => {
+    tweenProps({ scale: state.scale, tx: state.tx, ty: state.ty, rotation: state.rotation },
+               { scale: target.scale, tx: target.tx, ty: target.ty, rotation: target.rotation },
+               duration,
+               (cur) => {
+                 state.scale = cur.scale; state.tx = cur.tx; state.ty = cur.ty; state.rotation = cur.rotation;
+                 // update UI controls during animation
+                 try { rotateInput.value = Math.round(state.rotation); } catch(e){}
+                 try { zoomInput.value = Math.round(state.scale*100); } catch(e){}
+                 render();
+               });
+    // resolve after duration (plus tiny buffer)
+    setTimeout(() => { resolve(); }, duration + 20);
+  });
+}
+
+// interaction
+svgContainer.addEventListener('mousedown', (e)=>{
+  isDragging=true;
+  dragStart=[e.clientX,e.clientY];
+  // store current pixel tx/ty
+  dragStartState={tx:state.tx,ty:state.ty};
+  svgContainer.style.cursor='grabbing';
+});
+window.addEventListener('mouseup', ()=>{ if (isDragging){ isDragging=false; svgContainer.style.cursor=''; commitHash(); }});
+window.addEventListener('mousemove', (e)=>{
+  if (!isDragging) return;
+  const dx = (e.clientX - dragStart[0]);
+  const dy = (e.clientY - dragStart[1]);
+  // dragStartState stored pixel tx/ty
+  state.tx = dragStartState.tx + dx;
+  state.ty = dragStartState.ty + dy;
+  render();
+});
+
+// wheel zoom centered at mouse
+svgContainer.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  const delta = -e.deltaY;
+  const factor = delta>0?1.1:0.9;
+  // compute mouse pos relative to svg container
+  const rect = svgContainer.getBoundingClientRect();
+  const mx = e.clientX - rect.left; const my = e.clientY - rect.top;
+  // Compute SVG-space point under mouse before zoom: (svgX, svgY) = (mx - tx)/scale, (my - ty)/scale
+  const beforeX = (mx - state.tx) / state.scale;
+  const beforeY = (my - state.ty) / state.scale;
+  // apply zoom
+  const newScale = state.scale * factor;
+  // after scale, compute new tx/ty so the before point maps to same screen position
+  state.tx = mx - beforeX * newScale;
+  state.ty = my - beforeY * newScale;
+  state.scale = newScale;
+  zoomInput.value = Math.round(state.scale*100);
+  render();
+});
+
+rotateInput.addEventListener('input', ()=>{
+  state.rotation = Number(rotateInput.value)||0;
+  render();
+});
+
+zoomInput.addEventListener('input', ()=>{
+  const newScale = Number(zoomInput.value)/100;
+  if (!isNaN(newScale)) state.scale = newScale;
+  render();
+});
+
+resetBtn.addEventListener('click', ()=>{
+  fitToContainer(); state.rotation=0; rotateInput.value=0; zoomInput.value=Math.round(state.scale*100); render(); commitHash();
+});
+
+// Hash management: only write final state on interaction end or reset
+let hashTimeout = null;
+function commitHash(){
+  const url = currentUrl || '';
+  const rot = Math.round(state.rotation||0);
+  const parsed = parseHash();
+  const annotations = (parsed && parsed.annotations) ? parsed.annotations : { boxes:[], lines:[], color:'ff0000' };
+  // Use same 6-field format: view&opacity&boxes&lines&url&rotation
+  const viewParam = '';
+  const opacity = 100;
+  // Serialize params into url token
+  function buildUrlToken(url, params) {
+    let token = url || '';
+    for (const k of Object.keys(params || {})) {
+      token += `@${k}=${encodeURIComponent(String(params[k]))}`;
+    }
+    return token;
+  }
+  const params = { s: Math.round(state.scale*100)/100, x: Math.round(state.tx*100)/100, y: Math.round(state.ty*100)/100, r: rot };
+  const token = buildUrlToken(url, params);
+  const newHash = `${viewParam}&${opacity}&&&${token}&${rot}`;
+  // write hash
+  location.hash = newHash;
+}
+
+let currentUrl = '';
+
+// Public: accept messy hrefs like parent does
+window.acceptViewerHash = function(raw){
+  try{
+    if (!raw || typeof raw !== 'string') return false;
+    const s = raw.trim();
+    const ampIdx = s.indexOf('&&&');
+    if (ampIdx !== -1) {
+      const after = s.slice(ampIdx+3);
+      const token = after.split('&')[0] || '';
+      if (!token) return false;
+      location.hash = '#&&&'+token;
+      return true;
+    }
+  const urlMatch = s.match(/(https?:\/\/[^#\s]+|\/[^#\s]+|[^#\s]+\.svg)/i);
+    if (urlMatch && urlMatch[0]){
+      let url = urlMatch[0];
+      try{ const u = new URL(url, location.origin); url = u.pathname + (u.search||''); } catch(e){}
+      location.hash = '#'+url; return true;
+    }
+    return false;
+  } catch(e){ return false; }
+}
+
+// Initial load (guarded startup to tolerate injected scripts that may throw)
+function startViewer(){
+  try {
+    const parsed = parseHash();
+    let url = parsed.url || '';
+    // Only load if an explicit .svg filename is present in the hash
+    if (!url || url.indexOf('.svg') === -1) {
+      setStatus('waiting for #file.svg');
+      window.viewerReady = false;
+      return Promise.resolve();
+    }
+    currentUrl = url;
+    // Apply params if present (scale/tx/ty/rotation) after load
+    // queue visibility to apply after load if present
+    if (parsed.vis) pendingVis = parsed.vis;
+    return loadSVG(url).then(() => {
+      try {
+        if (parsed.params) {
+              // animate into the requested params rather than snapping
+              animateTo(parsed.params, 500).catch(()=>{});
+            }
+      } catch (e) {
+        console.warn('Applying params failed', e);
+      }
+    }).catch(e => {
+      console.warn('Initial load failed', e);
+      pendingVis = null;
+    });
+  } catch (e) {
+    console.warn('startViewer caught', e);
+    return Promise.resolve();
+  }
+}
+
+// Global non-fatal error handler: log but don't let injected scripts abort viewer startup
+window.addEventListener('error', (ev) => {
+  // Keep default behavior but ensure it's logged to console for tests
+  try { console.warn('PAGE ERROR (non-fatal):', ev && ev.message ? ev.message : ev); } catch(e){}
+  // do not call ev.preventDefault() so other handlers can run; we only avoid throwing here
+});
+
+// Kick off startup asynchronously (guarded)
+setTimeout(() => { startViewer(); }, 0);
+
+// respond to external hash changes
+window.addEventListener('hashchange', ()=>{
+  const parsed = parseHash();
+  if (!parsed) return;
+  // if URL changed, load new svg immediately
+  if (parsed.url && parsed.url !== currentUrl) {
+    currentUrl = parsed.url;
+    loadSVG(currentUrl);
+    return;
+  }
+  // if same URL but params changed, animate to new params
+  if (parsed.url === currentUrl) {
+    if (parsed.params) animateTo(parsed.params, 400).catch(()=>{});
+    if (parsed.vis) {
+      if (!svgEl) { pendingVis = parsed.vis; }
+      else { try { applyVisibilityFromVis(parsed.vis); } catch(e){} }
+    }
+  }
+});
+
+window.viewerReady = false;
+</script>
+</body>
+</html>
