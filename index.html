@@ -7,8 +7,8 @@
     <title>!nflect · Modulating Visualizations to Tell Stories with Data</title>
     <meta property="og:url" content="https://uclab.fh-potsdam.de/inflect/">
     <meta property="og:title" content="B'tselem / Displacement Journeys: Nibal Al-Hessi">
-    <meta property="og:description" content="Web-based framework for inflections that bridge data exploration and storytelling">
-    <meta property="og:image" content="https://uclab.fh-potsdam.de/inflect/img/cover.png">
+    <meta property="og:description" content="the reality of millions in Gaza, told through the journey of one woman.">
+    <meta property="og:image" content="img/cover.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
@@ -19,6 +19,22 @@
         /* Layout is controlled by external CSS files: base.css is always loaded.
            Per-page theme files can be requested from Markdown via a marker; the
            JS below will detect and load them dynamically. */
+
+        /* Ensure the iframe itself uses a transparent background and fades
+           smoothly without revealing an abrupt color behind it. */
+        #if {
+            background: transparent;
+            transition: opacity 0.4s ease;
+            opacity: 0; /* default to hidden until first frame shown */
+            border: none;
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+          /* We will adjust only the transparency (alpha) of the body's
+              background during iframe fades via inline styles. Avoid making a
+              permanent change to the default background color here. */
     </style>
 </head>
 
@@ -37,10 +53,20 @@
 
     
 
-    // Fade in once the iframe finishes loading
-    iframe.addEventListener('load', () => {
-      iframe.style.opacity = '1';
-    });
+    // Ensure iframe prefers a transparent background and allow transparency
+    iframe.setAttribute('allowtransparency', 'true');
+    iframe.setAttribute('frameborder', '0');
+    iframe.style.background = 'transparent';
+
+    // No body background modifications: fades should affect only the iframe
+    // opacity. Keeping the code minimal and non-invasive avoids changing the
+    // default body color under any circumstances.
+
+        // Fade in once the iframe finishes loading. We only change the iframe's
+        // opacity; do not modify the body's background or any other color.
+        iframe.addEventListener('load', () => {
+            iframe.style.opacity = '1';
+        });
 
     // Function to fetch and render the markdown
     async function renderMarkdown() {
@@ -252,6 +278,8 @@
                     iframe.src = newHref;
                 } else {
                     if (iframe.style.opacity !== '0') {
+                        // Only fade the iframe itself to transparent; do not touch
+                        // the body's background color.
                         iframe.style.opacity = '0';
                         setTimeout(() => {
                             iframe.src = newHref;

@@ -12,12 +12,12 @@
     font-weight: bold;
 }
 
-body {
+html, body {
     font-family: 'David Libre', serif;
     direction: rtl;
     font-weight: 250;
     font-size: calc(1vw + 1vh);
-    background: #333;
+    background-color: #333;
     margin: 0;
     padding: 0;
 }
@@ -212,7 +212,7 @@ iframe {
     height: 100vh;
     width: 100vw;
     position: fixed;
-    background-color: #333;
+    background-color: transparent;
     border: 0;
     margin: 0;
     padding: 0;
