@@ -1,7 +1,7 @@
 {.css(src/theme.css)}
 
 
-[](svg/#&100&&&opening.svg@s=0.92@x=44.11@y=8.61@r=0&0)
+[](svg/#&100&&&opening.svg)
 
 <img src="img/bts_logo.svg" alt="בצלם: מסעות עקירה]" style="max-width:100px;height:auto;">
 
@@ -13,7 +13,7 @@
 
 {.typewriter big-pic}
 
-[](svg/#&100&&&opening.svg@s=1.36@x=-177.72@y=-0.83@r=0/+gazamap~opening&0)
+[](svg/#&100&&&opening.svg@s=1.36@x=-177.72@y=-0.83@r=0/~princess+gazamap~home~nibal2023&0)
 
 לאורך השנתיים האחרונות, נאלצו תושבי עזה לעקור שוב ושוב ממקומם בהישמע לצווי הפינוי של הצבא הישראלי. פעם אחר פעם הם ניסו לבסס מחדש את חייהם, לעתים קרובות ללא סיכוי ממשי למצוא מחסה בטוח או להשיג גישה למזון, מים ושירותים בסיסיים במקומות שאליהם נעקרו. 
 
@@ -22,25 +22,25 @@
 
 {.typewriter big-pic}
 
-[](svg/#opening.svg/+nibal2023~princess~home)
+[](svg/#opening.svg/~princess+gazamap~home+nibal2023&0)
 
 זה סיפורה של אחת מהם.
 
 
 {.testimony}
-[](svg/#&100&&&opening.svg@s=1.43@x=-746.62@y=-359.61@r=0/~opening+nibal2023)
+[](svg/#&100&&&opening.svg@s=1.43@x=-746.62@y=-359.61@r=0/~princess~gazamap~home+nibal2023&0)
 
 שמי ניבאל אל-הסי. אני בת 25. עד שהתחילה המתקפה הישראלית, גרתי בג׳אבליא עם בעלי, אחמד וביתנו התינוקת ריתא. 
 
 
 {.testimony}
-[](svg/#&100&&&opening.svg@s=1.43@x=-262.62@y=-452.61@r=0/+home~opening&0)
+[](svg/#&100&&&opening.svg@s=1.43@x=-262.62@y=-452.61@r=0/~princess~gazamap+home~nibal2023&0)
 
 גדלתי בג׳אבליא עם 9 אחים ושתי אחיות. למשפחה שלי היה בניין בן 4 קומות. היינו מאושרים בו.
 
 
 {.testimony}
-[](svg/#&100&&&opening.svg@s=1.43@x=47.38@y=57.39@r=0/+princess~opening&0)
+[](svg/#&100&&&opening.svg@s=1.43@x=47.38@y=57.39@r=0/+princess~gazamap~home~nibal2023&0)
 
 אני הבת הצעירה במשפחה, ותמיד כולם פינקו אותי. מאז שאני צעירה הייתה לי תשוקה לחיים ואהבתי לחקור וללמוד. הייתי תלמידה טובה בבית הספר, והיו לי ציונים טובים במיוחד באנגלית. השפה הייתה תחביב שלי, חלמתי ללמוד אותה.
 

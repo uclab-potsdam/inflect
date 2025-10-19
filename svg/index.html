@@ -19,6 +19,10 @@
   #layerList label{ display:flex; align-items:center; gap:8px; margin:4px 0 }
   svg{max-width:100%;max-height:100%;}
 </style>
+<style>
+  /* Force an exception child to remain visible without transitions to avoid flicker */
+  .inflect-exception-visible { opacity: 1 !important; visibility: visible !important; transition: none !important; }
+</style>
 </head>
 <body>
 <div id="app">
@@ -165,6 +169,8 @@ let resetBtn = document.getElementById('reset');
 let svgEl = null; // the embedded svg root
 let wrapperG = null; // group we apply transforms to
 let bbox = null;
+// animation timing (ms) for fades; make configurable
+const FADE_DURATION = 1200;
 let state = { tx:0, ty:0, scale:1, rotation:0 };
 let isDragging=false, dragStart=null, dragStartState=null;
  let pendingVis = null; // visibility instructions to apply after load
@@ -180,6 +186,13 @@ function getDirectChildrenKeys(parentKey){
     if (rest.indexOf('/') === -1) res.push(k);
   }
   return res;
+}
+
+function getKeyForElement(el){
+  for (const [k, v] of layerKeyMap.entries()){
+    if (v === el) return k;
+  }
+  return null;
 }
 
 function setStatus(s){ status.textContent = s; }
@@ -220,7 +233,8 @@ async function loadSVG(url){
   // build layer list UI so user can show/hide layers
   try { buildLayerList(); } catch(e) { console.warn('build layer list failed', e); }
   // apply any pending visibility instructions now that layers exist
-  try { if (pendingVis) { applyVisibilityFromVis(pendingVis); pendingVis = null; } } catch(e) { console.warn('apply pending vis failed', e); }
+  try { if (pendingVis) { applyVisibilityFromVis(pendingVis, { animate: false }); pendingVis = null; } } catch(e) { console.warn('apply pending vis failed', e); }
+    try { window.layerKeyMap = layerKeyMap; } catch(e){}
   } catch (e) {
     console.error(e);
     setStatus('error');
@@ -264,7 +278,59 @@ function buildLayerList(){
     cb.dataset.layerKey = key;
     label.dataset.layerKey = key;
     layerKeyMap.set(key, el);
-  cb.addEventListener('change', () => { toggleLayerVisibility(el, cb.checked, { animate: true }); updateHashFromLayerList(); refreshLayerListCheckboxes(); });
+  cb.addEventListener('change', () => {
+    const key = cb.dataset.layerKey;
+    if (!key) { toggleLayerVisibility(el, cb.checked, { animate: true }); updateHashFromLayerList(); refreshLayerListCheckboxes(); return; }
+    // If this node has direct children, and the user is unchecking it, but some
+    // direct children are marked as showExceptions (should remain visible), then
+    // avoid hiding the parent element (which may cause children to blink). Instead
+    // hide only the siblings while preserving the exception child immediately.
+    const direct = getDirectChildrenKeys(key);
+    if (direct.length > 0 && cb.checked === false) {
+      // detect if any direct child is in showExceptions OR currently visible
+      const exceptions = direct.filter(dk => showExceptions.has(dk));
+      const visibleChildren = direct.filter(dk => {
+        const el = layerKeyMap.get(dk);
+        if (!el) return false;
+        const cs = window.getComputedStyle(el);
+        const op = parseFloat(cs.opacity || '1');
+        return cs.display !== 'none' && cs.visibility !== 'hidden' && op > 0;
+      });
+      if (exceptions.length > 0 || visibleChildren.length > 0) {
+        // keep parent visible
+        toggleLayerVisibility(el, true, { animate: false });
+        // ensure checkbox shows unchecked state (user intent) while parent remains visible
+        try { cb.checked = false; } catch(e){}
+        // for each child: if it's an exception, ensure visible immediately; else fade out
+        const fadePromises = [];
+        direct.forEach(childKey => {
+          const childEl = layerKeyMap.get(childKey);
+          if (!childEl) return;
+          if (showExceptions.has(childKey) || visibleChildren.includes(childKey)) {
+            // protect exception child
+            if (childEl.classList) childEl.classList.add('inflect-exception-visible');
+            toggleLayerVisibility(childEl, true, { animate: false });
+            const prev = __fadeCancels.get(childEl); if (prev) prev();
+          } else {
+            fadePromises.push(animateLayerVisibility(childEl, false));
+          }
+        });
+        Promise.all(fadePromises).then(() => {
+          // ensure non-exception children are hidden
+          direct.forEach(childKey => {
+            if (showExceptions.has(childKey)) return;
+            const childEl = layerKeyMap.get(childKey);
+            if (!childEl) return;
+            toggleLayerVisibility(childEl, false, { animate: false });
+          });
+          refreshLayerListCheckboxes(); updateHashFromLayerList();
+        }).catch(() => { refreshLayerListCheckboxes(); updateHashFromLayerList(); });
+        return;
+      }
+    }
+    // default behavior: toggle element visibility directly
+    toggleLayerVisibility(el, cb.checked, { animate: true }); updateHashFromLayerList(); refreshLayerListCheckboxes();
+  });
     // allow clicking the label when checkbox is disabled to create a show-exception
     label.addEventListener('click', (e) => {
       // only intercept when the input is currently disabled (i.e., ancestor controls it)
@@ -277,8 +343,11 @@ function buildLayerList(){
       // toggle exception
       if (showExceptions.has(key)) {
         showExceptions.delete(key);
+        // remove exception-visible marker
+        const excOld = layerKeyMap.get(key);
+        if (excOld && excOld.classList) excOld.classList.remove('inflect-exception-visible');
         // reapply visibility from parsed vis (which may hide parent again)
-        try { applyVisibilityFromVis(parseHash().vis || { hide: [], show: [] }); } catch(e){}
+        try { applyVisibilityFromVis(parseHash().vis || { hide: [], show: [] }, { animate: false }); } catch(e){}
       } else {
         showExceptions.add(key);
         // if parent exists and is currently hidden by vis, reveal parent and hide siblings
@@ -286,8 +355,20 @@ function buildLayerList(){
           const parentEl = layerKeyMap.get(parentKey);
           // show parent element immediately so child can be rendered (no animation)
           toggleLayerVisibility(parentEl, true, { animate: false });
+          // Ensure the exception child is visible immediately (no animation) so it
+          // doesn't flicker while we manipulate the parent/other siblings.
+          const excEl = layerKeyMap.get(key);
+          if (excEl) {
+            // mark as exception-visible to protect from animation/hide
+            if (excEl.classList) excEl.classList.add('inflect-exception-visible');
+            // show immediately with no transition
+            toggleLayerVisibility(excEl, true, { animate: false });
+            try { excEl.style.transition = 'none'; excEl.style.opacity = '1'; } catch(e){}
+            // cancel any pending fade on this element
+            const prev = __fadeCancels.get(excEl); if (prev) prev();
+          }
           // fade out siblings first (animate), then once faded set their display none and
-          // animate in the exception child to avoid blink.
+          // keep the exception child visible (no animate in) to avoid blink.
           const children = getDirectChildrenKeys(parentKey);
           const fadeOutPromises = [];
           children.forEach(childKey => {
@@ -306,9 +387,9 @@ function buildLayerList(){
               // ensure hidden immediately (no animation)
               toggleLayerVisibility(childEl, false, { animate: false });
             });
-            // now animate in the exception child
-            const excEl = layerKeyMap.get(key);
-            if (excEl) toggleLayerVisibility(excEl, true, { animate: true });
+            // ensure the exception child remains visible (no animation)
+            const excEl2 = layerKeyMap.get(key);
+            if (excEl2) toggleLayerVisibility(excEl2, true, { animate: false });
             // finally update hash/UI
             refreshLayerListCheckboxes(); updateHashFromLayerList();
           }).catch(() => {
@@ -319,7 +400,7 @@ function buildLayerList(){
               if (childKey === key) return;
               toggleLayerVisibility(childEl, false, { animate: false });
             });
-            const excEl = layerKeyMap.get(key); if (excEl) toggleLayerVisibility(excEl, true, { animate: true });
+            const excEl3 = layerKeyMap.get(key); if (excEl3) toggleLayerVisibility(excEl3, true, { animate: false });
             refreshLayerListCheckboxes(); updateHashFromLayerList();
           });
         } else {
@@ -356,6 +437,8 @@ function buildLayerList(){
   });
   // enforce parent/child checkbox disabled state after building
   refreshLayerListCheckboxes();
+  // expose for debugging/tests
+  try { window.layerKeyMap = layerKeyMap; } catch(e){}
 }
 
 function toggleLayerVisibility(el, show, opts){
@@ -371,17 +454,42 @@ function toggleLayerVisibility(el, show, opts){
       el.style.display = '';
       el.style.visibility = '';
     } else {
-      el.style.transition = '';
-      el.style.opacity = '';
-      el.style.display = 'none';
+      // If this is a parent (has children), don't remove it — children will be hidden individually.
+      try {
+        const key = getKeyForElement(el);
+        if (key && getDirectChildrenKeys(key).length > 0) {
+          // leave parent visible but non-interactive; children control visibility
+          el.style.pointerEvents = 'none';
+          // do not set opacity/display so children remain rendered
+        } else {
+          el.style.transition = '';
+          el.style.opacity = '';
+          el.style.display = 'none';
+        }
+      } catch(e) {
+        el.style.display = 'none';
+      }
     }
   }
 }
 
 // animate opacity for an element when showing/hiding
 const __fadeCancels = new WeakMap();
-function animateLayerVisibility(el, show, duration = 500){
+function animateLayerVisibility(el, show, duration = FADE_DURATION){
   if (!el) return;
+  // if element is marked as an exception visible, don't animate hiding it or toggling
+  if (el.classList && el.classList.contains('inflect-exception-visible')) {
+    if (show) {
+      // ensure visible immediately
+      el.style.transition = '';
+      el.style.opacity = '';
+      el.style.display = '';
+      el.style.visibility = '';
+    } else {
+      // do not hide exception-marked elements
+      return Promise.resolve();
+    }
+  }
   return new Promise((resolve) => {
   // cancel previous transition if any
   const prevCancel = __fadeCancels.get(el);
@@ -442,7 +550,21 @@ function animateLayerVisibility(el, show, duration = 500){
     el.removeEventListener('transitionend', onEndHide);
     el.style.transition = '';
     el.style.opacity = '';
-    el.style.display = 'none';
+    // If this element is a parent with direct children, avoid removing it
+    // from layout (display:none) because that would hide its children
+    // momentarily. Instead keep it in the DOM but make it non-interactive.
+    try {
+      const key = getKeyForElement(el);
+      if (key && getDirectChildrenKeys(key).length > 0) {
+        el.style.pointerEvents = 'none';
+        // ensure opacity remains 0
+        try { el.style.opacity = '0'; } catch(e){}
+      } else {
+        el.style.display = 'none';
+      }
+    } catch(e) {
+      el.style.display = 'none';
+    }
     __fadeCancels.delete(el);
     resolve();
   };
@@ -454,14 +576,25 @@ function animateLayerVisibility(el, show, duration = 500){
     __fadeCancels.delete(el);
     el.style.transition = '';
     el.style.opacity = '';
-    el.style.display = 'none';
+    try {
+      const key = getKeyForElement(el);
+      if (key && getDirectChildrenKeys(key).length > 0) {
+        el.style.pointerEvents = 'none';
+        try { el.style.opacity = '0'; } catch(e){}
+      } else {
+        el.style.display = 'none';
+      }
+    } catch(e) {
+      el.style.display = 'none';
+    }
     resolve();
   });
   });
 }
 
 // apply vis object { show:[], hide:[] } to the SVG layers (matching by id/data-name/prefix)
-function applyVisibilityFromVis(vis){
+function applyVisibilityFromVis(vis, opts){
+  const animateGlobally = opts && opts.animate === true;
   if (!svgEl) return;
   // Resolve short vis tokens (like 'princess') against layerKeyMap by last-segment
   const rawHides = (vis && Array.isArray(vis.hide)) ? vis.hide.slice() : [];
@@ -522,7 +655,7 @@ function applyVisibilityFromVis(vis){
     else if (parentsWithExceptions.has(key)) visible = true;
     else if (hideSet.has(key)) visible = false;
     else visible = true;
-    toggleLayerVisibility(el, visible, { animate: false });
+    toggleLayerVisibility(el, visible, { animate: animateGlobally ? true : false });
     // update corresponding checkbox immediately if present
     try { const cb = document.querySelector(`input[data-layer-key="${key}"]`); if (cb) cb.checked = Boolean(visible); } catch(e){}
   }
@@ -534,7 +667,7 @@ function applyVisibilityFromVis(vis){
       const childEl = layerKeyMap.get(childKey);
       if (!childEl) return;
       const vis = (showSet.has(childKey) || showExceptions.has(childKey));
-      toggleLayerVisibility(childEl, vis);
+      toggleLayerVisibility(childEl, vis, { animate: animateGlobally ? true : false });
       try { const cb = document.querySelector(`input[data-layer-key="${childKey}"]`); if (cb) cb.checked = Boolean(vis); } catch(e){}
     });
   });
@@ -629,6 +762,9 @@ function updateHashFromLayerList(){
   const vis = collectVisibilityFromList();
   const token = buildUrlField(parsed.url, parsed.params, vis);
   // we need to preserve original 6-field style when present; if not, just write #token
+  // mark that this hash write was initiated by the UI so hashchange handler
+  // can ignore the immediate re-application (which would cancel animations).
+  try { window.__suppressHashChangeApply = true; } catch(e){}
   if (!location.hash || !location.hash.includes('&')) {
     location.hash = '#'+token;
   } else {
@@ -840,6 +976,12 @@ function commitHash(){
 
 let currentUrl = '';
 
+// When we write location.hash from a UI interaction, the browser fires a hashchange
+// event which can re-apply visibility programmatically and cancel in-progress
+// animations. Use this flag to skip the next hashchange apply when the change
+// originated locally.
+window.__suppressHashChangeApply = false;
+
 // Public: accept messy hrefs like parent does
 window.acceptViewerHash = function(raw){
   try{
@@ -909,6 +1051,9 @@ setTimeout(() => { startViewer(); }, 0);
 
 // respond to external hash changes
 window.addEventListener('hashchange', ()=>{
+  // If this hashchange was caused by our own UI write, skip re-applying
+  // visibility/state to avoid cancelling user-initiated animations.
+  if (window.__suppressHashChangeApply) { window.__suppressHashChangeApply = false; return; }
   const parsed = parseHash();
   if (!parsed) return;
   // if URL changed, load new svg immediately
@@ -918,11 +1063,11 @@ window.addEventListener('hashchange', ()=>{
     return;
   }
   // if same URL but params changed, animate to new params
-  if (parsed.url === currentUrl) {
+    if (parsed.url === currentUrl) {
     if (parsed.params) animateTo(parsed.params, 400).catch(()=>{});
     if (parsed.vis) {
       if (!svgEl) { pendingVis = parsed.vis; }
-      else { try { applyVisibilityFromVis(parsed.vis); } catch(e){} }
+      else { try { applyVisibilityFromVis(parsed.vis, { animate: true }); } catch(e){} }
     }
   }
 });
