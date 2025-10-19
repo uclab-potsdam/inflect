@@ -210,6 +210,22 @@
 
             initializeObservers();
 
+                // After rendering and wiring observers, if there's a `.jump-here`
+                // element present in the rendered markdown and the URL does not
+                // contain an explicit hash target, scroll smoothly to it. This
+                // prefers explicit #anchor navigation if the user provided one.
+                try {
+                    const hasExplicitHash = (window.location.hash || '').length > 1;
+                    if (!hasExplicitHash) {
+                        const jumpEl = document.querySelector('main .jump-here');
+                        if (jumpEl) {
+                            jumpEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    }
+                } catch (e) {
+                    // swallow — best-effort only
+                }
+
                 // (typewriter functionality removed)
 
             // return to old position
