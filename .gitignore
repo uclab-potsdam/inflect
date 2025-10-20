@@ -2,3 +2,4 @@
 .DS_Store
 /.vscode
 img/tests/
+node_modules/
