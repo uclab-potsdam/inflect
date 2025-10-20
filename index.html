@@ -82,19 +82,19 @@
             const response = await fetch(file + ".md"); 
             let text = await response.text();
 
-            // --- Per-page CSS marker parsing ---
-            function extractPageCssMarker(t) {
-                // YAML front matter: look for css: path
+            // --- Per-page front-matter and CSS marker parsing ---
+            // Extract YAML front-matter keys `css` and `body-class` (simple, line-based)
+            function extractFrontMatter(t) {
                 const fmRe = /^\s*---\n([\s\S]*?)\n---\s*\n?/;
                 const fm = t.match(fmRe);
                 if (fm) {
                     const body = fm[1];
                     const cssMatch = body.match(/^\s*css:\s*(.+)\s*$/m);
-                    if (cssMatch) {
-                        const path = cssMatch[1].trim().replace(/^['\"]|['\"]$/g, '');
-                        t = t.replace(fmRe, '');
-                        return { text: t, css: path };
-                    }
+                    const bcMatch = body.match(/^\s*body-class:\s*(.+)\s*$/m);
+                    const cssPath = cssMatch ? cssMatch[1].trim().replace(/^['\"]|['\"]$/g, '') : null;
+                    const bodyClass = bcMatch ? bcMatch[1].trim().replace(/^['\"]|['\"]$/g, '') : null;
+                    t = t.replace(fmRe, '');
+                    return { text: t, css: cssPath, bodyClass };
                 }
 
                 // Single-line marker: {.css(src/path.css)} or {.css src/path.css}
@@ -103,10 +103,10 @@
                 if (m) {
                     const path = (m[1] || m[2] || '').trim().replace(/^['\"]|['\"]$/g, '');
                     t = t.replace(markerRe, '');
-                    return { text: t, css: path };
+                    return { text: t, css: path, bodyClass: null };
                 }
 
-                return { text: t, css: null };
+                return { text: t, css: null, bodyClass: null };
             }
 
             function isSafeCssPath(p) {
@@ -130,15 +130,17 @@
                 document.head.appendChild(link);
             }
 
-            const extracted = extractPageCssMarker(text);
+            const extracted = extractFrontMatter(text);
             text = extracted.text;
             // Defer applying the page CSS until after render so it overrides base.
             const pageCssPath = extracted.css;
+            const fmBodyClass = extracted.bodyClass;
             // --- end per-page CSS marker parsing ---
 
                         // Detect and strip a leading body-class marker from the raw markdown before we wrap sections
                         // e.g. a file starting with `{.ltr}` should set body classes, not produce an empty section.
-                        let pageBodyClasses = null;
+                        // Prefer body-class from YAML front-matter if present, otherwise accept the inline `{.cls}` marker.
+                        let pageBodyClasses = fmBodyClass || null;
                         // accept marker followed by either a blank line or just a single newline
                         const rawBodyMarkerRe = /^\s*\{\.([A-Za-z0-9_\- ]+)\}\s*(?:\r?\n){1,2}/;
                         const rawBm = text.match(rawBodyMarkerRe);
@@ -396,6 +398,110 @@
                 }
             });
         }, { threshold: 0.25 });
+
+        // If the page requests `body.snap`, enable page-centering snap behavior.
+        // This magnetizes sections to the center of the viewport and installs
+        // wheel/keyboard handlers to flip between sections.
+        if (document.body.classList && document.body.classList.contains('snap')) {
+            const scroller = document.querySelector('main') || document.scrollingElement || document.documentElement;
+
+            // Helper to compute the index of the section closest to scroller center
+            function _snapCurrentIndex() {
+                const secs = Array.from(scroller.querySelectorAll('section'));
+                if (!secs.length) return 0;
+                const viewCenter = (scroller.clientHeight || window.innerHeight) / 2;
+                const scrollTop = scroller.scrollTop || 0;
+                let best = 0, bestDist = Infinity;
+                secs.forEach((s, i) => {
+                    const secCenter = s.offsetTop + s.offsetHeight / 2;
+                    const d = Math.abs(secCenter - (scrollTop + viewCenter));
+                    if (d < bestDist) { bestDist = d; best = i; }
+                });
+                return best;
+            }
+
+            function _snapToSection(sec, smooth = true) {
+                try {
+                    const top = Math.max(0, sec.offsetTop - Math.round((scroller.clientHeight - sec.offsetHeight) / 2));
+                    // suppress wheel/key handlers while programmatic scroll animates
+                    window.__snapSuppressUntil = Date.now() + 700;
+                    if (scroller === document.scrollingElement || scroller === document.documentElement) {
+                        window.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+                    } else {
+                        scroller.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+                    }
+                } catch (e) { /* swallow */ }
+            }
+
+            // Observe sections within the scroller
+            const snapObserver = new IntersectionObserver((entries) => {
+                entries.forEach(en => {
+                    if (en.isIntersecting) {
+                        try {
+                            const sec = en.target;
+                            if ((Date.now() || 0) > (window.__snapSuppressUntil || 0)) {
+                                _snapToSection(sec, true);
+                            }
+                        } catch (e) {}
+                    }
+                });
+            }, { root: scroller, threshold: 0.55 });
+
+            // Attach snap observer to each section
+            try {
+                const _secs = Array.from(scroller.querySelectorAll('section'));
+                _secs.forEach(s => snapObserver.observe(s));
+            } catch(e) { /* swallow */ }
+
+            // Non-passive wheel listener to intercept and flip pages — attach to scroller
+            try {
+                scroller.addEventListener('wheel', (ev) => {
+                    try {
+                        if (Date.now() < (window.__snapSuppressUntil || 0)) return;
+                        // ignore tiny deltas (accidental touchpad jitter)
+                        if (Math.abs(ev.deltaY) < 8) return;
+                        // If event originated inside an element that should not snap (e.g. maps), skip
+                        const path = ev.composedPath && ev.composedPath();
+                        for (const node of (path || [])) {
+                            if (!node || !node.nodeType) continue;
+                            const el = node;
+                            if (el.classList && (el.classList.contains('no-snap') || el.closest && el.closest('.no-snap'))) return;
+                        }
+
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        const secs = Array.from(scroller.querySelectorAll('section'));
+                        if (!secs.length) return;
+                        const idx = _snapCurrentIndex();
+                        const nextIdx = ev.deltaY > 0 ? Math.min(secs.length - 1, idx + 1) : Math.max(0, idx - 1);
+                        if (nextIdx !== idx) _snapToSection(secs[nextIdx], true);
+                    } catch(e) { /* swallow */ }
+                }, { passive: false, capture: true });
+            } catch(e) { /* swallow */ }
+
+            // Keyboard navigation for snapping (remain on document)
+            document.addEventListener('keydown', (ev) => {
+                try {
+                    if (Date.now() < (window.__snapSuppressUntil || 0)) return;
+                    if (!['ArrowDown','PageDown',' ','ArrowUp','PageUp'].includes(ev.key)) return;
+                    // Ignore when focus is on an input/textarea/select
+                    const tag = (document.activeElement && document.activeElement.tagName || '').toLowerCase();
+                    if (['input','textarea','select'].includes(tag)) return;
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    const secs = Array.from(scroller.querySelectorAll('section'));
+                    if (!secs.length) return;
+                    const idx = _snapCurrentIndex();
+                    if (ev.key === 'ArrowDown' || ev.key === 'PageDown' || ev.key === ' ') {
+                        const next = Math.min(secs.length - 1, idx + 1);
+                        if (next !== idx) _snapToSection(secs[next], true);
+                    } else if (ev.key === 'ArrowUp' || ev.key === 'PageUp') {
+                        const prev = Math.max(0, idx - 1);
+                        if (prev !== idx) _snapToSection(secs[prev], true);
+                    }
+                } catch(e) { /* swallow */ }
+            }, true);
+        }
 
         // Add observer to all links and attach click handlers to inflection links
         const inflectLinks = document.querySelectorAll('a');
