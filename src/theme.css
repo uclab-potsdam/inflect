@@ -52,9 +52,12 @@ h2, h3, h4 { font-weight: 500; }
 section {
     /* theme: color, text-shadow */
     color: #fff;
-    text-shadow: 0px 4px 3px rgba(0,0,0,0.4),
-                0px 8px 13px rgba(0,0,0,0.1),
-                0px 18px 23px rgba(0,0,0,0.1);
+    /* stronger multi-layer shadow for improved contrast against bright iframe content */
+    text-shadow: 0 1px 0 rgba(0,0,0,0.85),   /* tight dark outline */
+                 0 2px 4px rgba(0,0,0,0.55),  /* soft drop shadow */
+                 0 6px 16px rgba(0,0,0,0.35);
+    /* small stroke fallback for WebKit browsers to further improve separation */
+    -webkit-text-stroke: 0.6px rgba(0,0,0,0.6);
 }
 
 section p{
@@ -119,6 +122,12 @@ section:first-of-type img:last-of-type{
 p {
     font-size: 1.25em;
     line-height: 1.5em;
+}
+
+/* Ensure headings and other prominent text also get the stronger shadow */
+h1, h2, h3, h4, p, .typewriter, section.testimony p {
+    text-shadow: 0 1px 0 rgba(0,0,0,0.85), 0 2px 4px rgba(0,0,0,0.55), 0 6px 16px rgba(0,0,0,0.35);
+    -webkit-text-stroke: 0.4px rgba(0,0,0,0.55);
 }
 
 a {
