@@ -28,11 +28,10 @@
 <div id="app">
   <div id="canvas"><div id="svgContainer"></div></div>
   <div id="controls">
-    <button id="reset">Reset</button>
+    <button id="reset">Reset view</button>
     <div style="margin-top:8px;font-weight:600">Layers</div>
     <div id="layerList" aria-live="polite"></div>
-    <button id="diagToggle" style="margin-top:8px">Diagnostics</button>
-    <pre id="diagPanel" style="display:none;white-space:pre-wrap;max-height:200px;overflow:auto;background:rgba(0,0,0,0.3);padding:8px;margin-top:8px;font-size:12px"></pre>
+  <button id="copyLink" style="margin-top:8px">Copy link</button>
   </div>
   <div id="status">loading...</div>
 </div>
@@ -142,26 +141,80 @@ function buildUrlField(url, params, vis){
 }
 
 function parseHash(){
-  const hash = location.hash.slice(1);
-  if (!hash) return { url: '', params: {}, view: null };
-  // If the hash is a bare path like 'opening.svg' or '/svg/opening.svg', accept it directly
-  if (!hash.includes('&') && (hash.indexOf('.svg') !== -1 || hash.startsWith('/') || /^\w[\w\-\.]*\.svg$/i.test(hash))) {
-    const parsed = parseUrlField(hash);
-  return { url: parsed.url, params: parsed.params || {}, view: null, vis: parsed.vis || { show: [], hide: [] } };
+  const raw = location.hash.slice(1).trim();
+  if (!raw) return { url: '', params: {}, view: null };
+  // New compact format: filename/x,y,zoom/layers
+  // filename may be a path containing .svg; layers is optional (encoded after a slash)
+  const compactRe = /^(?<file>[^\/,]+\.svg|\/[^\/,]+\.svg|[^\/,]+\.svg)\/(?<xyzoom>[\d\-\.]+,[\d\-\.]+,[\d\-\.]+)(?:\/(?<layers>.*))?$/i;
+  const m = raw.match(compactRe);
+  if (m && m.groups && m.groups.file){
+    const file = m.groups.file;
+    const xyzoom = m.groups.xyzoom || '';
+    const layers = m.groups.layers || '';
+    const parts = xyzoom.split(',').map(Number);
+    const x = !isNaN(parts[0]) ? parts[0] : null;
+    const y = !isNaN(parts[1]) ? parts[1] : null;
+    const s = !isNaN(parts[2]) ? parts[2] : null;
+    // parse layers section which follows same +/~ tokens optionally
+    const vis = { show: [], hide: [] };
+    if (layers) {
+      const re = /([+~])([^+~\/]+)/g;
+      let mm;
+      while ((mm = re.exec(layers)) !== null){
+        const sym = mm[1]; const name = decodeURIComponent(mm[2]);
+        if (sym === '+') vis.show.push(name); else vis.hide.push(name);
+      }
+    }
+    const params = {};
+    if (s !== null) params.s = s;
+    if (x !== null) params.x = x;
+    if (y !== null) params.y = y;
+    return { url: file, params: params, view: null, vis: vis };
   }
-  const parts = hash.split('&');
+
+  // backward compatibility: old ampersand-separated format
+  if (!raw.includes('&') && (raw.indexOf('.svg') !== -1 || raw.startsWith('/') || /^\w[\w\-\.]*\.svg$/i.test(raw))) {
+    const parsed = parseUrlField(raw);
+    return { url: parsed.url, params: parsed.params || {}, view: null, vis: parsed.vis || { show: [], hide: [] } };
+  }
+  const parts = raw.split('&');
   let rawUrlField = parts[4] || '';
   // tolerant shift
   if (!rawUrlField && parts.length>=5 && parts[3] && (parts[3].includes('.svg')||parts[3].startsWith('svg/'))) {
     rawUrlField = parts[3];
   }
   const parsed = parseUrlField(rawUrlField);
-  // legacy tolerant parsing: ignore any trailing rotation value — rotation is
-  // intentionally unsupported by this viewer. We still return parsed.params
-  // so callers may inspect s/x/y values if present.
   return { url: parsed.url, params: parsed.params || {}, view: null, vis: parsed.vis || { show: [], hide: [] } };
 }
 function layersToUrlField(u){ return u || ''; }
+
+function buildCompactHash(file, params, vis){
+  // params: { x, y, s }
+  const x = (params && typeof params.x === 'number') ? Math.round(params.x) : 0;
+  const y = (params && typeof params.y === 'number') ? Math.round(params.y) : 0;
+  const s = (params && typeof params.s === 'number') ? (Math.round(params.s*100)/100) : 1;
+  // If params match the default canonical view (0,0,1), omit them from the hash
+  let token = String(file || '');
+  const paramsAreDefault = (x === 0 && y === 0 && (Math.abs(s - 1) < 1e-6));
+  if (!paramsAreDefault) token += `/${x},${y},${s}`;
+  // append visibility tokens after either the params (if present) or the filename
+  if (vis && ((Array.isArray(vis.show) && vis.show.length) || (Array.isArray(vis.hide) && vis.hide.length))){
+    let seg = '';
+    // When serializing layer keys into the compact hash, only include the
+    // local label (last path segment) to keep tokens short and avoid
+    // exposing group prefixes. If the short label is non-unique the
+    // parser will resolve it against available keys on load.
+    function shortLabel(k){
+      if (!k) return k;
+      const s = String(k).split('/').pop();
+      return s;
+    }
+    if (vis.show && vis.show.length) vis.show.forEach(item => seg += `+${encodeURIComponent(String(shortLabel(item)))}`);
+    else if (vis.hide && vis.hide.length) vis.hide.forEach(item => seg += `~${encodeURIComponent(String(shortLabel(item)))}`);
+    if (seg) token += `/${seg}`;
+  }
+  return token;
+}
 
 let svgContainer = document.getElementById('svgContainer');
 let status = document.getElementById('status');
@@ -328,17 +381,10 @@ function buildLayerList(){
         const parsed = parseHash();
         parsed.vis = parsed.vis || { show: [], hide: [] };
         parsed.vis.show = (parsed.vis.show || []).filter(s => String(s) !== String(key));
-        // write new token into the hash (preserve 6-field format)
-        const token = buildUrlField(parsed.url, parsed.params, parsed.vis);
+        // write new token into the hash using compact format
+        const token = buildCompactHash(parsed.url, parsed.params, parsed.vis);
   suppressHashFor(120);
-        if (!location.hash || !location.hash.includes('&')) {
-          location.hash = '#'+token;
-        } else {
-          const parts = location.hash.slice(1).split('&');
-          while (parts.length < 6) parts.push('');
-          parts[4] = token;
-          location.hash = '#'+parts.join('&');
-        }
+        location.hash = '#'+token;
         // apply new visibility immediately so UI updates without waiting for hashchange
         try { applyVisibilityFromVis(parsed.vis || { hide: [], show: [] }, { animate: true }); } catch(e){}
       } catch(e) {
@@ -419,20 +465,11 @@ function buildLayerList(){
   suppressHashFor(120);
         // Clear in-memory exceptions
         showExceptions.clear();
-        // remove vis token from the hash while preserving params/url in 6-field style
+        // remove vis token by writing compact hash without vis
         const parsed = parseHash();
         parsed.vis = { show: [], hide: [] };
-        const token = buildUrlField(parsed.url, parsed.params, parsed.vis);
-        if (!location.hash || !location.hash.includes('&')) {
-          // If the original hash was the bare token form, write only the url/params (no /vis)
-          location.hash = '#'+(parsed.url || '');
-        } else {
-          const parts = location.hash.slice(1).split('&');
-          while (parts.length < 6) parts.push('');
-          // set the url token but omit any /+ or /~ suffix by writing parsed.url@params
-          parts[4] = buildUrlField(parsed.url, parsed.params, { show: [], hide: [] });
-          location.hash = '#'+parts.join('&');
-        }
+        const token = buildCompactHash(parsed.url, parsed.params, parsed.vis);
+        location.hash = '#'+token;
         // Reapply parsed visibility (which is now empty) so UI updates
         try { applyVisibilityFromVis({ show: [], hide: [] }, { animate: true }); } catch(e){}
         refreshLayerListCheckboxes();
@@ -445,15 +482,8 @@ function buildLayerList(){
       // update the hash token similarly to updateHashFromLayerList but using our vis
   suppressHashFor(120);
       const parsed = parseHash();
-      const token = buildUrlField(parsed.url, parsed.params, vis);
-      if (!location.hash || !location.hash.includes('&')) {
-        location.hash = '#'+token;
-      } else {
-        const parts = location.hash.slice(1).split('&');
-        while (parts.length < 6) parts.push('');
-        parts[4] = token;
-        location.hash = '#'+parts.join('&');
-      }
+      const token = buildCompactHash(parsed.url, parsed.params, vis);
+      location.hash = '#'+token;
       // Refresh UI to reflect new visibility
       refreshLayerListCheckboxes();
     });
@@ -1014,7 +1044,7 @@ function updateHashFromLayerList(){
   // read existing parsed hash to preserve params
   const parsed = parseHash();
   const vis = collectVisibilityFromList();
-  const token = buildUrlField(parsed.url, parsed.params, vis);
+  const token = buildCompactHash(parsed.url || '', parsed.params || {}, vis);
   // we need to preserve original 6-field style when present; if not, just write #token
   // Debounce writing the hash so ongoing animations are not cancelled by an
   // immediate hashchange handler. We still mark the write as originating
@@ -1022,43 +1052,40 @@ function updateHashFromLayerList(){
   try { if (__hashWriteTimeout) clearTimeout(__hashWriteTimeout); } catch(e){}
   __hashWriteTimeout = setTimeout(() => {
   suppressHashFor(120);
-    if (!location.hash || !location.hash.includes('&')) {
-      location.hash = '#'+token;
-    } else {
-      const parts = location.hash.slice(1).split('&');
-      while (parts.length < 6) parts.push('');
-      parts[4] = token;
-      location.hash = '#'+parts.join('&');
-    }
+    // Write the new compact token directly
+    location.hash = '#'+token;
     __hashWriteTimeout = null;
   }, 260);
 }
 
-function dumpDiagnostics(){
-  const diag = document.getElementById('diagPanel'); if (!diag) return;
-  const parsed = parseHash();
-  const lines = [];
-  lines.push('location.hash: ' + location.hash);
-  lines.push('parsed: ' + JSON.stringify(parsed));
-  lines.push('pendingVis: ' + JSON.stringify(pendingVis));
-  lines.push('layerKeyMap keys:');
-  for (const k of layerKeyMap.keys()) lines.push('  - ' + k);
-  // checkbox states
-  const layerList = document.getElementById('layerList');
-  if (layerList){
-    const inputs = Array.from(layerList.querySelectorAll('input[type=checkbox]'));
-    inputs.forEach(cb => { lines.push(`cb ${cb.dataset.layerKey} => ${cb.checked}`); });
-  }
-  diag.textContent = lines.join('\n');
-}
-
 document.addEventListener('DOMContentLoaded', ()=>{
-  const dt = document.getElementById('diagToggle');
-  const dp = document.getElementById('diagPanel');
-  if (dt && dp){
-    dt.addEventListener('click', ()=>{
-      dp.style.display = dp.style.display === 'none' ? 'block' : 'none';
-      if (dp.style.display === 'block') dumpDiagnostics();
+  const cp = document.getElementById('copyLink');
+  if (cp) {
+    cp.addEventListener('click', (ev) => {
+      try {
+        // If a hash is already present in the URL, copy it exactly (prefixed
+        // by the relative 'svg/' path). This ensures we don't re-serialize or
+        // modify the current hash when the user wants an exact link.
+        let text = '';
+        if (location && location.hash && location.hash.length > 1) {
+          text = `svg/${location.hash}`;
+        } else {
+          const url = currentUrl || '';
+          const params = { s: Math.round(state.scale*100)/100, x: Math.round(state.tx*100)/100, y: Math.round(state.ty*100)/100 };
+          const vis = collectVisibilityFromList();
+          const token = buildCompactHash(url, params, vis);
+          text = `svg/#${token}`;
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(()=> setStatus('link copied'))
+            .catch(() => { throw new Error('clipboard failed'); });
+        } else {
+          // fallback
+          const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); setStatus('link copied');
+        }
+      } catch(e){
+        try { setStatus('copy failed'); } catch(e){}
+      }
     });
   }
 });
@@ -1284,12 +1311,23 @@ svgContainer.addEventListener('wheel', (e)=>{
   state.ty = (rect.height/2) - cy * state.scale;
   render();
   try { setStatus(`wheel view ${JSON.stringify({topLeft:view.topLeft,bottomRight:view.bottomRight,scale:state.scale})}`); } catch(e){}
+  // persist new view/scale to the hash after user stops zooming
+  try { scheduleViewHashWrite(100); } catch(e){}
 },{ passive: false });
 
 // rotate/zoom input controls removed per user preference
 
 resetBtn.addEventListener('click', ()=>{
-  fitToContainer(); /* UI sliders removed */ render(); commitHash();
+  // Animate back to the captured defaults (fit-to-container) then remove view params
+  const parsed = parseHash();
+  const defs = defaultSvgParams || { s: state.scale, x: state.tx, y: state.ty };
+  // animateTo will merge with defaults, but we call with explicit defaults here
+  animateTo({ s: defs.s, x: defs.x, y: defs.y }, 700).catch(()=>{}).then(() => {
+    // After animation, write a compact hash that preserves url and visibility but omits view params
+    try { suppressHashFor(120); } catch(e){}
+    const token = buildCompactHash(parsed.url || '', {}, parsed.vis || { show: [], hide: [] });
+    location.hash = '#'+token;
+  });
 });
 
 // Hash management: only write final state on interaction end or reset
@@ -1310,14 +1348,10 @@ function commitHash(){
     return token;
   }
   const params = { s: Math.round(state.scale*100)/100, x: Math.round(state.tx*100)/100, y: Math.round(state.ty*100)/100 };
-  const token = buildUrlToken(url, params);
-  // keep the legacy 6-field slot empty (rotation unsupported)
-  const newHash = `${viewParam}&${opacity}&&&${token}&`;
-  // write hash. Mark this write as originating locally so the hashchange
-  // handler does not re-apply state and interfere with ongoing interactions
+  const token = buildCompactHash(url, params, parsed.vis || { show: [], hide: [] });
   suppressHashFor(120);
-  console.debug('commitHash: writing hash', newHash);
-  location.hash = newHash;
+  console.debug('commitHash: writing compact hash', token);
+  location.hash = '#'+token;
 }
 
 let currentUrl = '';
@@ -1330,6 +1364,15 @@ try { window.__suppressHashChangeUntil = 0; } catch(e){}
 function suppressHashFor(ms){ try { window.__suppressHashChangeUntil = Date.now() + (ms || 120); } catch(e){} }
 // debounced hash write to avoid immediate reapplication during animations
 let __hashWriteTimeout = null;
+let __viewHashTimeout = null;
+
+function scheduleViewHashWrite(delay = 100){
+  try { if (__viewHashTimeout) clearTimeout(__viewHashTimeout); } catch(e){}
+  __viewHashTimeout = setTimeout(() => {
+    try { commitHash(); } catch(e){}
+    __viewHashTimeout = null;
+  }, delay);
+}
 
 // Public: accept messy hrefs like parent does
 window.acceptViewerHash = function(raw){
@@ -1341,14 +1384,21 @@ window.acceptViewerHash = function(raw){
       const after = s.slice(ampIdx+3);
       const token = after.split('&')[0] || '';
       if (!token) return false;
-      location.hash = '#&&&'+token;
+      // parse the legacy token into parsed fields and re-emit in compact form
+      const parsed = parseHash.call({ location: { hash: '#'+token } }) || parseHash();
+      const params = parsed.params || { s: state.scale, x: state.tx, y: state.ty };
+      const compact = buildCompactHash(parsed.url || token, params, parsed.vis || { show: [], hide: [] });
+      location.hash = '#'+compact;
       return true;
     }
   const urlMatch = s.match(/(https?:\/\/[^#\s]+|\/[^#\s]+|[^#\s]+\.svg)/i);
     if (urlMatch && urlMatch[0]){
       let url = urlMatch[0];
       try{ const u = new URL(url, location.origin); url = u.pathname + (u.search||''); } catch(e){}
-      location.hash = '#'+url; return true;
+      // emit compact hash using current view/state
+      const params = { s: state.scale, x: Math.round(state.tx), y: Math.round(state.ty) };
+      const compact = buildCompactHash(url, params, { show: [], hide: [] });
+      location.hash = '#'+compact; return true;
     }
     return false;
   } catch(e){ return false; }
