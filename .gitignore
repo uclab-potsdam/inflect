@@ -2,15 +2,24 @@
 .DS_Store
 /.vscode
 
-# Ignore generated and test artifacts
-/img/tests/
-/img/tests/*
+# Ignore common test directories and files
+**/test/
+**/tests/
+**/__tests__/
 
-# Node modules and logs
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# JS/TS test file patterns
+*.spec.js
+*.spec.ts
+*.test.js
+*.test.ts
 
-# OS temp files
-.DS_Store
+# Jest/npm artifacts
+/coverage/
+/node_modules/
+
+# Python test artefacts
+__pycache__/
+*.py[cod]
+
+# Repository-specific test folder
+img/tests/
