@@ -580,7 +580,24 @@ function toggleLayerVisibility(el, show, opts){
     const key = getKeyForElement(el);
     if (!show && key && getDirectChildrenKeys(key).length > 0) return;
   } catch(e){}
+  // Determine current computed visibility so we can avoid re-animating
+  // elements whose visible state already matches the requested state.
+  function isCurrentlyVisible(element){
+    try {
+      const cs = window.getComputedStyle(element);
+      const op = parseFloat(cs.opacity || '1');
+      return cs.display !== 'none' && cs.visibility !== 'hidden' && op > 0.001;
+    } catch(e) { return true; }
+  }
   const animate = !(opts && opts.animate === false);
+  const currentlyVisible = isCurrentlyVisible(el);
+  // If the element is already in the desired visibility state, skip animation.
+  if (currentlyVisible && show) {
+    return animate ? Promise.resolve() : undefined;
+  }
+  if (!currentlyVisible && !show) {
+    return animate ? Promise.resolve() : undefined;
+  }
   if (animate) {
     return animateLayerVisibility(el, show);
   } else {
