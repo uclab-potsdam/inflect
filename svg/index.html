@@ -28,8 +28,6 @@
 <div id="app">
   <div id="canvas"><div id="svgContainer"></div></div>
   <div id="controls">
-    <label>Rotate <input id="rotate" type="range" min="-180" max="180" value="0"></label>
-    <label>Zoom <input id="zoom" type="range" min="10" max="500" value="100"></label>
     <button id="reset">Reset</button>
     <div style="margin-top:8px;font-weight:600">Layers</div>
     <div id="layerList" aria-live="polite"></div>
@@ -145,11 +143,11 @@ function buildUrlField(url, params, vis){
 
 function parseHash(){
   const hash = location.hash.slice(1);
-  if (!hash) return { url: '', params: {}, view: null, rotation:0 };
+  if (!hash) return { url: '', params: {}, view: null };
   // If the hash is a bare path like 'opening.svg' or '/svg/opening.svg', accept it directly
   if (!hash.includes('&') && (hash.indexOf('.svg') !== -1 || hash.startsWith('/') || /^\w[\w\-\.]*\.svg$/i.test(hash))) {
     const parsed = parseUrlField(hash);
-    return { url: parsed.url, params: parsed.params || {}, view: null, rotation: (parsed.params && parsed.params.r) || 0, vis: parsed.vis || { show: [], hide: [] } };
+  return { url: parsed.url, params: parsed.params || {}, view: null, vis: parsed.vis || { show: [], hide: [] } };
   }
   const parts = hash.split('&');
   let rawUrlField = parts[4] || '';
@@ -158,18 +156,15 @@ function parseHash(){
     rawUrlField = parts[3];
   }
   const parsed = parseUrlField(rawUrlField);
-  let rotation = 0;
-  if (parts[5] && !isNaN(parseFloat(parts[5]))) rotation = parseFloat(parts[5]);
-  // rotation may also be in params
-  if (parsed.params && typeof parsed.params.r === 'number') rotation = parsed.params.r;
-  return { url: parsed.url, params: parsed.params || {}, view: null, rotation, vis: parsed.vis || { show: [], hide: [] } };
+  // legacy tolerant parsing: ignore any trailing rotation value — rotation is
+  // intentionally unsupported by this viewer. We still return parsed.params
+  // so callers may inspect s/x/y values if present.
+  return { url: parsed.url, params: parsed.params || {}, view: null, vis: parsed.vis || { show: [], hide: [] } };
 }
 function layersToUrlField(u){ return u || ''; }
 
 let svgContainer = document.getElementById('svgContainer');
 let status = document.getElementById('status');
-let rotateInput = document.getElementById('rotate');
-let zoomInput = document.getElementById('zoom');
 let resetBtn = document.getElementById('reset');
 
 let svgEl = null; // the embedded svg root
@@ -179,7 +174,8 @@ let bbox = null;
 // Use a longer duration and a soft cubic-bezier to produce buttery transitions
 const FADE_DURATION = 1800;
 const SOFT_EASE = 'cubic-bezier(0.22,1,0.36,1)';
-let state = { tx:0, ty:0, scale:1, rotation:0 };
+let state = { tx:0, ty:0, scale:1 };
+let view = null; // { topLeft:[x,y], bottomRight:[x,y] } in svg coords
 let isDragging=false, dragStart=null, dragStartState=null;
  let pendingVis = null; // visibility instructions to apply after load
 let layerKeyMap = new Map();
@@ -222,24 +218,24 @@ async function loadSVG(url){
       const h = svgEl.getAttribute('height')||svgEl.clientHeight||150;
       svgEl.setAttribute('viewBox','0 0 '+w+' '+h);
     }
-    // we will manipulate the SVG using CSS transforms on the svg element
-    // ensure the svg is positioned absolutely inside the container so CSS
-    // translate/scale/rotate behaves in pixel coordinates
-    svgEl.style.position = 'absolute';
-    svgEl.style.left = '0';
-    svgEl.style.top = '0';
-    svgEl.style.transformOrigin = '0 0';
+  // we will manipulate the SVG using CSS transforms on the svg element
+  // Keep the svg in the document flow (not absolute) so its container has
+  // a layout size. The transform-origin should be top-left (0 0).
+  try { svgContainer.style.position = svgContainer.style.position || 'relative'; } catch(e){}
+  svgEl.style.display = svgEl.style.display || 'block';
+  svgEl.style.maxWidth = svgEl.style.maxWidth || '100%';
+  svgEl.style.maxHeight = svgEl.style.maxHeight || '100%';
+  svgEl.style.transformOrigin = '0 0';
     // compute bbox after a tick and derive initial fit values
     await new Promise(r => setTimeout(r,20));
     try { bbox = svgEl.getBBox(); } catch(e) { bbox = { x:0,y:0,width:svgEl.clientWidth||300,height:svgEl.clientHeight||150 }; }
     fitToContainer();
-    // leave rotation/scale as default; caller may override via params
-    rotateInput.value = 0;
-    zoomInput.value = Math.round(state.scale*100);
+  // leave scale as default; caller may override via params
+  // UI sliders removed — keep internal state but do not update controls
     render();
-  // Capture the default params (scale/tx/ty/rotation) after fitting so
+  // Capture the default params (scale/tx/ty) after fitting so
   // missing hash params can animate toward these defaults.
-  try { defaultSvgParams = { s: state.scale, x: state.tx, y: state.ty, r: state.rotation }; } catch(e){}
+  try { defaultSvgParams = { s: state.scale, x: state.tx, y: state.ty }; } catch(e){}
     setStatus('ready');
     window.viewerReady = true;
   // build layer list UI so user can show/hide layers
@@ -334,7 +330,7 @@ function buildLayerList(){
         parsed.vis.show = (parsed.vis.show || []).filter(s => String(s) !== String(key));
         // write new token into the hash (preserve 6-field format)
         const token = buildUrlField(parsed.url, parsed.params, parsed.vis);
-        try { window.__suppressHashChangeApply = true; } catch(e){}
+  suppressHashFor(120);
         if (!location.hash || !location.hash.includes('&')) {
           location.hash = '#'+token;
         } else {
@@ -420,7 +416,7 @@ function buildLayerList(){
       // a reset: clear any visibility tokens from the hash and clear exceptions
       // so the default SVG visibility is restored.
       if (!parentKey) {
-        try { window.__suppressHashChangeApply = true; } catch(e){}
+  suppressHashFor(120);
         // Clear in-memory exceptions
         showExceptions.clear();
         // remove vis token from the hash while preserving params/url in 6-field style
@@ -447,7 +443,7 @@ function buildLayerList(){
       const vis = { show: [theKey], hide: [] };
       try { applyVisibilityFromVis(vis, { animate: true }); } catch(e){ console.warn('applyVisibilityFromVis failed', e); }
       // update the hash token similarly to updateHashFromLayerList but using our vis
-      try { window.__suppressHashChangeApply = true; } catch(e){}
+  suppressHashFor(120);
       const parsed = parseHash();
       const token = buildUrlField(parsed.url, parsed.params, vis);
       if (!location.hash || !location.hash.includes('&')) {
@@ -1008,7 +1004,7 @@ function updateHashFromLayerList(){
   // locally so the next hashchange is ignored.
   try { if (__hashWriteTimeout) clearTimeout(__hashWriteTimeout); } catch(e){}
   __hashWriteTimeout = setTimeout(() => {
-    try { window.__suppressHashChangeApply = true; } catch(e){}
+  suppressHashFor(120);
     if (!location.hash || !location.hash.includes('&')) {
       location.hash = '#'+token;
     } else {
@@ -1055,14 +1051,26 @@ function fitToContainer(){
   const containerRect = svgContainer.getBoundingClientRect();
   const cw = containerRect.width || window.innerWidth;
   const ch = containerRect.height || window.innerHeight;
-  // compute scale to fit bbox inside container
+  // compute a "view" in svg coords that fits the bbox inside the container
+  // This mirrors the image viewer logic: determine a scale then derive the
+  // visible svg rect (view) so that panning/zooming can operate in svg coords.
   const sx = cw / bbox.width; const sy = ch / bbox.height;
   const s = Math.min(sx, sy) * 0.9; // leave margins
+  // display size of the bbox when scaled
+  const displayWidth = bbox.width * s;
+  const displayHeight = bbox.height * s;
+  const offsetX = (cw - displayWidth) / 2;
+  const offsetY = (ch - displayHeight) / 2;
+  // view.topLeft such that the bbox is centered with margins
+  const topLeftX = bbox.x - (offsetX / s);
+  const topLeftY = bbox.y - (offsetY / s);
+  const viewWidth = cw / s;
+  const viewHeight = ch / s;
+  view = { topLeft: [ topLeftX, topLeftY ], bottomRight: [ topLeftX + viewWidth, topLeftY + viewHeight ] };
+  // derive state.scale/tx/ty from view so render() can continue to use state
   state.scale = s || 1;
-  // center in pixel coordinates: desired center point in container
-  const cx = bbox.x + bbox.width/2;
-  const cy = bbox.y + bbox.height/2;
-  // compute tx/ty so that scaled svg's center maps to container center
+  const cx = view.topLeft[0] + (view.bottomRight[0] - view.topLeft[0]) / 2;
+  const cy = view.topLeft[1] + (view.bottomRight[1] - view.topLeft[1]) / 2;
   state.tx = (cw/2) - cx * state.scale;
   state.ty = (ch/2) - cy * state.scale;
 }
@@ -1075,12 +1083,10 @@ function render(){
   // rotating, and translating back.
   const cx = bbox.x + bbox.width/2;
   const cy = bbox.y + bbox.height/2;
-  // rotation around center: translate(cx,cy) rotate(...) translate(-cx,-cy)
+  // Compose: translate (pixel pan) -> scale
   const translatePart = `translate(${Math.round(state.tx)}px, ${Math.round(state.ty)}px)`;
   const scalePart = `scale(${state.scale})`;
-  const rotatePart = `translate(${cx}px, ${cy}px) rotate(${state.rotation}deg) translate(${-cx}px, ${-cy}px)`;
-  // Compose: translate (pixel pan) -> translate to center & rotate -> scale
-  svgEl.style.transform = `${translatePart} ${rotatePart} ${scalePart}`;
+  svgEl.style.transform = `${translatePart} ${scalePart}`;
 }
 
 // simple tweening helper for numeric state transitions
@@ -1152,17 +1158,18 @@ function animateTo(params, duration = 900){
     scale: typeof params.s === 'number' ? params.s : state.scale,
     tx: typeof params.x === 'number' ? params.x : state.tx,
     ty: typeof params.y === 'number' ? params.y : state.ty,
-    rotation: typeof params.r === 'number' ? params.r : state.rotation
+    // rotation intentionally omitted (viewer is pan/zoom-only)
   };
   return new Promise(resolve => {
-    tweenProps({ scale: state.scale, tx: state.tx, ty: state.ty, rotation: state.rotation },
-               { scale: target.scale, tx: target.tx, ty: target.ty, rotation: target.rotation },
+    tweenProps({ scale: state.scale, tx: state.tx, ty: state.ty },
+               { scale: target.scale, tx: target.tx, ty: target.ty },
                duration,
                (cur) => {
-                 state.scale = cur.scale; state.tx = cur.tx; state.ty = cur.ty; state.rotation = cur.rotation;
+                 state.scale = cur.scale; state.tx = cur.tx; state.ty = cur.ty;
                  // update UI controls during animation
-                 try { rotateInput.value = Math.round(state.rotation); } catch(e){}
-                 try { zoomInput.value = Math.round(state.scale*100); } catch(e){}
+                 // UI sliders removed — internal state updated but controls absent
+                 // Keep view consistent with state for subsequent interactions
+                 try { syncViewFromState(); } catch(e){}
                  render();
                });
     // resolve after duration (plus tiny buffer)
@@ -1172,110 +1179,109 @@ function animateTo(params, duration = 900){
 
 // Merge provided params with captured defaults so missing fields animate to defaults
 function mergeWithDefaults(params){
-  const defs = defaultSvgParams || { s: state.scale, x: state.tx, y: state.ty, r: state.rotation };
+  const defs = defaultSvgParams || { s: state.scale, x: state.tx, y: state.ty };
   const p = params && typeof params === 'object' ? params : {};
   return {
     s: (typeof p.s === 'number') ? p.s : defs.s,
     x: (typeof p.x === 'number') ? p.x : defs.x,
-    y: (typeof p.y === 'number') ? p.y : defs.y,
-    r: (typeof p.r === 'number') ? p.r : defs.r
+    y: (typeof p.y === 'number') ? p.y : defs.y
   };
 }
 
+// Keep `view` consistent with `state` so interactions operate in svg coords.
+function syncViewFromState(){
+  if (!svgContainer || !bbox) return;
+  try {
+    const rect = svgContainer.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const viewWidth = rect.width / state.scale;
+    const viewHeight = rect.height / state.scale;
+    const cx = (rect.width/2 - state.tx) / state.scale;
+    const cy = (rect.height/2 - state.ty) / state.scale;
+    view = { topLeft: [ cx - viewWidth/2, cy - viewHeight/2 ], bottomRight: [ cx + viewWidth/2, cy + viewHeight/2 ] };
+  } catch(e) { /* ignore sync errors */ }
+}
+
 // interaction
+// Drag-to-pan using `view` in SVG coords (mirrors img/index.html behavior)
 svgContainer.addEventListener('mousedown', (e)=>{
+  // ensure view exists (defensive): if the viewer wasn't fit yet, initialize it
+  if (!view) try { fitToContainer(); } catch(e){}
   isDragging=true;
-  dragStart=[e.clientX,e.clientY];
-  // store current pixel tx/ty
-  dragStartState={tx:state.tx,ty:state.ty};
-  svgContainer.style.cursor='grabbing';
+  const rect = svgContainer.getBoundingClientRect();
+  const x = (e.clientX - rect.left);
+  const y = (e.clientY - rect.top);
+  dragStart = [x, y];
+  svgContainer.style.cursor = 'grabbing';
+  try { setStatus('drag:start'); } catch(e){}
 });
 window.addEventListener('mouseup', ()=>{ if (isDragging){ isDragging=false; svgContainer.style.cursor=''; commitHash(); }});
 window.addEventListener('mousemove', (e)=>{
-  if (!isDragging) return;
-  const dx = (e.clientX - dragStart[0]);
-  const dy = (e.clientY - dragStart[1]);
-  // dragStartState stored pixel tx/ty
-  state.tx = dragStartState.tx + dx;
-  state.ty = dragStartState.ty + dy;
+  if (!isDragging || !view) return;
+  const rect = svgContainer.getBoundingClientRect();
+  const x = (e.clientX - rect.left);
+  const y = (e.clientY - rect.top);
+  const dx = x - dragStart[0];
+  const dy = y - dragStart[1];
+  const vw = (view.bottomRight[0] - view.topLeft[0]);
+  const vh = (view.bottomRight[1] - view.topLeft[1]);
+  // convert pixel delta to svg coord delta
+  const svgDx = (dx * vw) / rect.width;
+  const svgDy = (dy * vh) / rect.height;
+  view.topLeft[0] -= svgDx; view.topLeft[1] -= svgDy;
+  view.bottomRight[0] -= svgDx; view.bottomRight[1] -= svgDy;
+  // update state from view (derive scale/tx/ty for render)
+  const cw = rect.width; const ch = rect.height;
+  state.scale = cw / (view.bottomRight[0] - view.topLeft[0]);
+  const cx = view.topLeft[0] + (view.bottomRight[0] - view.topLeft[0]) / 2;
+  const cy = view.topLeft[1] + (view.bottomRight[1] - view.topLeft[1]) / 2;
+  state.tx = (cw/2) - cx * state.scale;
+  state.ty = (ch/2) - cy * state.scale;
+  dragStart = [x, y];
   render();
+  try { setStatus(`drag view ${JSON.stringify({topLeft:view.topLeft,bottomRight:view.bottomRight})}`); } catch(e){}
 });
 
 // wheel zoom centered at mouse
+// Wheel-based zoom that updates `view` (mirrors img/index.html behavior)
 svgContainer.addEventListener('wheel', (e)=>{
+  if (!view) try { fitToContainer(); } catch(e){}
+  if (!view) return;
   e.preventDefault();
-  const delta = -e.deltaY;
-  const factor = delta>0?1.1:0.9;
-  // compute mouse pos relative to svg container
   const rect = svgContainer.getBoundingClientRect();
-  const mx = e.clientX - rect.left; const my = e.clientY - rect.top;
-  // Compute SVG-space point under mouse before zoom: (svgX, svgY) = (mx - tx)/scale, (my - ty)/scale
-  const beforeX = (mx - state.tx) / state.scale;
-  const beforeY = (my - state.ty) / state.scale;
-  // apply zoom
-  const newScale = state.scale * factor;
-  // after scale, compute new tx/ty so the before point maps to same screen position
-  state.tx = mx - beforeX * newScale;
-  state.ty = my - beforeY * newScale;
-  state.scale = newScale;
-  zoomInput.value = Math.round(state.scale*100);
+  if (!rect.width || !rect.height) return;
+  const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+  const pointerX = (e.clientX - rect.left) / rect.width;
+  const pointerY = (e.clientY - rect.top) / rect.height;
+  const centerX = view.topLeft[0] + pointerX * (view.bottomRight[0] - view.topLeft[0]);
+  const centerY = view.topLeft[1] + pointerY * (view.bottomRight[1] - view.topLeft[1]);
+  const vw = (view.bottomRight[0] - view.topLeft[0]) * zoomFactor;
+  const vh = (view.bottomRight[1] - view.topLeft[1]) * zoomFactor;
+  view.topLeft = [ Math.floor(centerX - vw * pointerX), Math.floor(centerY - vh * pointerY) ];
+  view.bottomRight = [ Math.floor(centerX + vw * (1 - pointerX)), Math.floor(centerY + vh * (1 - pointerY)) ];
+  // derive state from view so existing render/commit logic uses current values
+  state.scale = rect.width / (view.bottomRight[0] - view.topLeft[0]);
+  const cx = view.topLeft[0] + (view.bottomRight[0] - view.topLeft[0]) / 2;
+  const cy = view.topLeft[1] + (view.bottomRight[1] - view.topLeft[1]) / 2;
+  state.tx = (rect.width/2) - cx * state.scale;
+  state.ty = (rect.height/2) - cy * state.scale;
   render();
-});
+  try { setStatus(`wheel view ${JSON.stringify({topLeft:view.topLeft,bottomRight:view.bottomRight,scale:state.scale})}`); } catch(e){}
+},{ passive: false });
 
-rotateInput.addEventListener('input', ()=>{
-  state.rotation = Number(rotateInput.value)||0;
-  render();
-});
-
-zoomInput.addEventListener('input', ()=>{
-  const newScale = Number(zoomInput.value)/100;
-  if (!isNaN(newScale)) state.scale = newScale;
-  render();
-});
+// rotate/zoom input controls removed per user preference
 
 resetBtn.addEventListener('click', ()=>{
-  // If we captured defaultSvgParams after load, animate to those defaults.
-  if (defaultSvgParams) {
-    animateTo(defaultSvgParams, 700).then(() => {
-      // ensure UI reflects final state
-      rotateInput.value = Math.round(state.rotation||0);
-      zoomInput.value = Math.round(state.scale*100);
-      render();
-      // After resetting the view, remove view params from the hash but
-      // preserve any layer visibility tokens (+ / ~). Build a token with
-      // empty params and the merged vis state and write it into the hash.
-      try { const parsed = parseHash();
-        const parsedVis = (parsed && parsed.vis) ? { show: (parsed.vis.show||[]).slice(), hide: (parsed.vis.hide||[]).slice() } : { show: [], hide: [] };
-        for (const s of Array.from(showExceptions || [])) { if (!parsedVis.show.includes(s)) parsedVis.show.push(s); }
-        const token = buildUrlField(parsed.url, {}, parsedVis);
-        try { window.__suppressHashChangeApply = true; } catch(e){}
-        if (!location.hash || !location.hash.includes('&')) {
-          location.hash = '#'+token;
-        } else {
-          const parts = location.hash.slice(1).split('&');
-          while (parts.length < 6) parts.push('');
-          parts[4] = token;
-          location.hash = '#'+parts.join('&');
-        }
-      } catch(e) { commitHash(); }
-    }).catch(() => {
-      // fallback: immediate reset
-      fitToContainer(); state.rotation=0; rotateInput.value=0; zoomInput.value=Math.round(state.scale*100); render(); commitHash();
-    });
-  } else {
-    // fallback: immediate reset
-    fitToContainer(); state.rotation=0; rotateInput.value=0; zoomInput.value=Math.round(state.scale*100); render(); commitHash();
-  }
+  fitToContainer(); /* UI sliders removed */ render(); commitHash();
 });
 
 // Hash management: only write final state on interaction end or reset
 let hashTimeout = null;
 function commitHash(){
   const url = currentUrl || '';
-  const rot = Math.round(state.rotation||0);
   const parsed = parseHash();
   const annotations = (parsed && parsed.annotations) ? parsed.annotations : { boxes:[], lines:[], color:'ff0000' };
-  // Use same 6-field format: view&opacity&boxes&lines&url&rotation
+  // Use same 6-field format for compatibility: view&opacity&boxes&lines&url&<rotation-slot>
   const viewParam = '';
   const opacity = 100;
   // Serialize params into url token
@@ -1286,22 +1292,14 @@ function commitHash(){
     }
     return token;
   }
-  const params = { s: Math.round(state.scale*100)/100, x: Math.round(state.tx*100)/100, y: Math.round(state.ty*100)/100, r: rot };
-  // Preserve existing visibility tokens when committing hash (so panning/dragging
-  // that calls commitHash does not clear +/~ tokens). Merge parsed.vis with any
-  // in-memory showExceptions.
-  const parsedVis = (parsed && parsed.vis) ? { show: (parsed.vis.show||[]).slice(), hide: (parsed.vis.hide||[]).slice() } : { show: [], hide: [] };
-  // Add current showExceptions into parsedVis.show (avoid duplicates)
-  for (const s of Array.from(showExceptions || [])) {
-    if (!parsedVis.show.includes(s)) parsedVis.show.push(s);
-  }
+  const params = { s: Math.round(state.scale*100)/100, x: Math.round(state.tx*100)/100, y: Math.round(state.ty*100)/100 };
   const token = buildUrlToken(url, params);
-  // build final token including visibility using buildUrlField to ensure
-  // short labels and compression are applied consistently
-  const finalToken = buildUrlField(url, params, parsedVis);
-  const newHash = `${viewParam}&${opacity}&&&${finalToken}&${rot}`;
-  // write hash
-  try { window.__suppressHashChangeApply = true; } catch(e){}
+  // keep the legacy 6-field slot empty (rotation unsupported)
+  const newHash = `${viewParam}&${opacity}&&&${token}&`;
+  // write hash. Mark this write as originating locally so the hashchange
+  // handler does not re-apply state and interfere with ongoing interactions
+  suppressHashFor(120);
+  console.debug('commitHash: writing hash', newHash);
   location.hash = newHash;
 }
 
@@ -1309,9 +1307,10 @@ let currentUrl = '';
 
 // When we write location.hash from a UI interaction, the browser fires a hashchange
 // event which can re-apply visibility programmatically and cancel in-progress
-// animations. Use this flag to skip the next hashchange apply when the change
-// originated locally.
-window.__suppressHashChangeApply = false;
+// animations. Use a timestamp guard so brief UI-originated writes are ignored
+// by the hashchange handler for a short window.
+try { window.__suppressHashChangeUntil = 0; } catch(e){}
+function suppressHashFor(ms){ try { window.__suppressHashChangeUntil = Date.now() + (ms || 120); } catch(e){} }
 // debounced hash write to avoid immediate reapplication during animations
 let __hashWriteTimeout = null;
 
@@ -1350,7 +1349,7 @@ function startViewer(){
       return Promise.resolve();
     }
     currentUrl = url;
-    // Apply params if present (scale/tx/ty/rotation) after load
+  // Apply params if present (scale/tx/ty) after load
     // queue visibility to apply after load if present
     if (parsed.vis) pendingVis = parsed.vis;
     return loadSVG(url).then(() => {
@@ -1359,7 +1358,7 @@ function startViewer(){
               // animate into the requested params rather than snapping. Merge
               // missing fields with captured defaults so unspecified values
               // animate toward the default fit-to-container state.
-              animateTo(mergeWithDefaults(parsed.params), 900).catch(()=>{});
+              return animateTo(mergeWithDefaults(parsed.params), 900).catch(()=>{}).then(()=>{ try { syncViewFromState(); } catch(e){} });
             }
       } catch (e) {
         console.warn('Applying params failed', e);
@@ -1388,8 +1387,8 @@ setTimeout(() => { startViewer(); }, 0);
 window.addEventListener('hashchange', ()=>{
   // If this hashchange was caused by our own UI write, skip re-applying
   // visibility/state to avoid cancelling user-initiated animations.
-  const suppressed = Boolean(window.__suppressHashChangeApply);
-  if (suppressed) { try { window.__suppressHashChangeApply = false; } catch(e) {} }
+  if (typeof window.__suppressHashChangeUntil === 'number' && Date.now() < window.__suppressHashChangeUntil) { console.debug('hashchange: suppressed by timestamp'); return; }
+  console.debug('hashchange: applying parsed hash');
   const parsed = parseHash();
   if (!parsed) return;
   // if URL changed, load new svg immediately
@@ -1400,15 +1399,10 @@ window.addEventListener('hashchange', ()=>{
   }
   // if same URL but params changed, animate to new params
   if (parsed.url === currentUrl) {
-    if (parsed.params) animateTo(mergeWithDefaults(parsed.params), 800).catch(()=>{});
-    if (!suppressed) {
-      if (parsed.vis) {
-        if (!svgEl) { pendingVis = parsed.vis; }
-        else { try { applyVisibilityFromVis(parsed.vis, { animate: true }); } catch(e){} }
-      }
-    } else {
-      // When suppressed, we intentionally skip re-applying visibility (it was
-      // already applied locally), but still allow params animation above.
+  if (parsed.params) animateTo(mergeWithDefaults(parsed.params), 800).catch(()=>{});
+    if (parsed.vis) {
+      if (!svgEl) { pendingVis = parsed.vis; }
+      else { try { applyVisibilityFromVis(parsed.vis, { animate: true }); } catch(e){} }
     }
   }
 });
