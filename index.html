@@ -235,6 +235,13 @@
             }
 
             initializeObservers();
+            // Observe sections so empty/anchor-only links inside sections are detected
+            try {
+                const secs = Array.from(document.querySelectorAll('main section'));
+                secs.forEach(s => {
+                    try { if (s.querySelector('a:not(.dontinflect)')) sectionObserver.observe(s); } catch(e){}
+                });
+            } catch(e){}
 
                 // After rendering and wiring observers, if there's a `.pin`
                 // element present in the rendered markdown and the URL does not
@@ -297,6 +304,49 @@
             }
         }
 
+        // Schedule iframe updates slightly later to allow DOM mutations (e.g. typewriter)
+        let __iframeNextTimeout = null;
+        function setIframeNext(href, delay = 60, waitForSection = true){
+            try { if (__iframeNextTimeout) clearTimeout(__iframeNextTimeout); } catch(e){}
+            __iframeNextTimeout = setTimeout(() => {
+                // Try to find the anchor in the document and its containing section
+                try {
+                    if (waitForSection) {
+                        let resolved = null;
+                        try {
+                            const targetURL = new URL(href, window.location.href).href;
+                            // Iterate anchors and normalize their href attributes to compare
+                            const as = Array.from(document.querySelectorAll('a'));
+                            for (const a of as) {
+                                const raw = a.getAttribute && a.getAttribute('href');
+                                if (!raw) continue;
+                                try {
+                                    const norm = new URL(raw, window.location.href).href;
+                                    if (norm === targetURL) { resolved = a; break; }
+                                } catch(e) { /* ignore invalid hrefs */ }
+                            }
+                            try { if (window && window.__inflectDebug) console.debug('setIframeNext resolved anchor for', href, '->', resolved); } catch(e){}
+                        } catch(e) { /* ignore */ }
+                        if (resolved) {
+                            const sec = resolved.closest && resolved.closest('section');
+                            if (sec && sec.getAttribute('data-tw-active') === '1') {
+                                // wait for typewriter:done (event), fallback to timeout
+                                let done = false;
+                                const onDone = () => { if (!done) { done = true; try { sec.removeEventListener('typewriter:done', onDone); } catch(e){}; setIframeIfPathChanged(href); __iframeNextTimeout = null; } };
+                                try { sec.addEventListener('typewriter:done', onDone); } catch(e){}
+                                try { if (window && window.__inflectDebug) console.debug('setIframeNext waiting for typewriter:done on', sec); } catch(e){}
+                                const maxWait = 1400;
+                                setTimeout(() => { if (!done) { done = true; try { sec.removeEventListener('typewriter:done', onDone); } catch(e){}; try { if (window && window.__inflectDebug) console.debug('setIframeNext timeout while waiting for', sec); } catch(e){}; setIframeIfPathChanged(href); __iframeNextTimeout = null; } }, maxWait);
+                                return;
+                            }
+                        }
+                    }
+                } catch(e) { /* swallow */ }
+                try { setIframeIfPathChanged(href); } catch(e){}
+                __iframeNextTimeout = null;
+            }, delay);
+        }
+
     // (typewriter functionality removed)
 
     // with IntersectionObserver we can check what is visible    
@@ -307,10 +357,12 @@
                 if (entry.isIntersecting) {                    
                     // Add active class only to the visible link
                     const visibleLink = entry.target;
-                    if (!visibleLink.classList.contains("dontinflect") && visibleLink.getAttribute("href") != "") {
+                        if (!visibleLink.classList.contains("dontinflect") && visibleLink.getAttribute("href") != "") {
                         visibleLink.classList.add('active');
-                        // Update iframe, ignoring just changes
-                        setIframeIfPathChanged(visibleLink.href);
+                        // Use the raw href attribute to avoid races where scripts
+                        // (e.g. the typewriter) mutate link textContent or href.
+                        const rawHref = visibleLink.getAttribute('href');
+                        try { const full = new URL(rawHref, window.location.href).href; setIframeNext(full); } catch(e){ setIframeNext(visibleLink.href); }
                         // Start any typewriter animation for the section that contains this link
                         // after the iframe has been asked to load the path. Use a short delay
                         // to allow the iframe transition to start.
@@ -324,6 +376,27 @@
             });
         });
 
+        // Also observe sections: some markdown creates empty anchors inside
+        // section blocks (e.g. `[](vid/#...)` with no link text). Empty anchors
+        // have no layout box and won't trigger the link observer. Observe
+        // sections and when a section enters view, pick its first inflection
+        // link and update the iframe accordingly.
+        const sectionObserver = new IntersectionObserver((entries) => {
+            entries.forEach(en => {
+                if (en.isIntersecting) {
+                    try {
+                        const sec = en.target;
+                        const a = sec.querySelector('a:not(.dontinflect)');
+                        if (!a) return;
+                        const raw = a.getAttribute('href') || '';
+                        if (!raw) return;
+                        try { const full = new URL(raw, window.location.href).href; setIframeNext(full); } catch(e){ setIframeNext(a.href); }
+                    } catch(e) { /* swallow */ }
+                    sectionObserver.unobserve(en.target);
+                }
+            });
+        }, { threshold: 0.25 });
+
         // Add observer to all links and attach click handlers to inflection links
         const inflectLinks = document.querySelectorAll('a');
         inflectLinks.forEach(link => {
@@ -333,12 +406,13 @@
             // external URLs as well as local paths to be handled by the iframe
             // forwarding logic. Skip empty hrefs or javascript/mailto pseudo-links.
             const isInflection = hrefAttr && !hrefAttr.toLowerCase().startsWith('javascript:') && !hrefAttr.toLowerCase().startsWith('mailto:');
-            if (isInflection) {
+                if (isInflection) {
                 // Add event listener to manually handle click
                 link.addEventListener('click', function(event) {
                     document.querySelectorAll('a').forEach(a => a.classList.remove('active'));
                     link.classList.add('active');
-                    setIframeIfPathChanged(link.href);
+                    const rawHref = link.getAttribute('href');
+                    try { const full = new URL(rawHref, window.location.href).href; setIframeNext(full); } catch(e){ setIframeNext(link.href); }
                     // (typewriter removed)
                 });
             } else {
@@ -350,7 +424,8 @@
         const firstLink = document.querySelector('main a:not(.dontinflect)');
         if (firstLink) {
             firstLink.classList.add('active');
-            setIframeIfPathChanged(firstLink.href);
+            const rawHref = firstLink.getAttribute('href');
+            try { const full = new URL(rawHref, window.location.href).href; setIframeNext(full); } catch(e){ setIframeNext(firstLink.href); }
         }
 
     }
