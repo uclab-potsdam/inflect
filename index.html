@@ -14,6 +14,7 @@
 
     <script src="src/marked.min.js"></script>
 
+    <base href="./">
     <script>
         // Ensure relative URLs resolve correctly when served from a repository subpath
         // (e.g. https://<user>.github.io/nibal/). Insert a <base> element dynamically
@@ -101,50 +102,74 @@
             const owner = 'mushon', repo = 'nibal', branch = 'main';
             const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
             let candidatePaths;
+            // Detect GitHub Pages / repo-hosted environment and prefer raw.githubusercontent
+            const origin = location.origin || ('https://' + location.host);
+            const basePath = (location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/\/[^/]*$/, '/') );
+            const isGitHubPages = location.hostname && location.hostname.endsWith('github.io') || location.pathname.startsWith('/' + repo + '/');
+
             if (file === 'README') {
-                // On GitHub Pages the README may be rendered as HTML or not
-                // available at the site-root path; try absolute and raw URLs
-                // first so we don't rely on relative resolution that may 404.
-                const origin = location.origin || ('https://' + location.host);
-                const basePath = (location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/\/[^/]*$/, '/') );
-                candidatePaths = [
-                    // raw.githubusercontent absolute (should allow CORS)
-                    rawBase + 'README.md',
-                    rawBase + 'README.html',
-                    // try origin + basePath + README.md/html
-                    origin + basePath + 'README.md',
-                    origin + basePath + 'README.html',
-                    // try site-root under repo name
-                    origin + '/' + repo + '/README.md',
-                    origin + '/' + repo + '/README.html',
-                    // local relative fallbacks
-                    './README.html',
-                    './README.md',
-                    'README.html',
-                    'README.md'
-                ];
+                if (isGitHubPages) {
+                    // On GitHub Pages prefer the raw.githubusercontent copy first to avoid
+                    // repo-relative README.md requests which often 404 on Pages.
+                    candidatePaths = [
+                        rawBase + 'README.md',
+                        rawBase + 'README.html',
+                        // local fallbacks last
+                        './README.html',
+                        './README.md',
+                        'README.html',
+                        'README.md'
+                    ];
+                } else {
+                    // Local / generic ordering for non-GitHub Pages environments
+                    candidatePaths = [
+                        rawBase + 'README.md',
+                        rawBase + 'README.html',
+                        origin + basePath + 'README.md',
+                        origin + basePath + 'README.html',
+                        origin + '/' + repo + '/README.md',
+                        origin + '/' + repo + '/README.html',
+                        './README.html',
+                        './README.md',
+                        'README.html',
+                        'README.md'
+                    ];
+                }
             } else {
-                candidatePaths = [
-                    // prefer HTML fallbacks (GitHub Pages pre-rendered)
-                    file + ".html",
-                    './' + file + ".html",
-                    'README.html',
-                    rawBase + file + '.html',
-                    rawBase + 'README.html',
-                    // then try markdown variants locally and under subpath
-                    file + ".md",
-                    './' + file + ".md",
-                    file.toUpperCase() + ".md",
-                    file.toLowerCase() + ".md",
-                    'README.md',
-                    '/' + file + '.html',
-                    '/' + file + '.md',
-                    '/' + repo + '/' + file + '.html',
-                    '/' + repo + '/' + file + '.md',
-                    rawBase + file + '.md',
-                    rawBase + 'README.md',
-                    (location.pathname.replace(/\/[^/]*$/, '') || '/') + file + '.md'
-                ];
+                if (isGitHubPages) {
+                    // For pages hosted on GitHub, prefer raw content to avoid
+                    // missing repo-relative files on the Pages host.
+                    candidatePaths = [
+                        rawBase + file + '.md',
+                        rawBase + file + '.html',
+                        rawBase + 'README.md',
+                        rawBase + 'README.html',
+                        file + '.html',
+                        './' + file + '.html',
+                        file + '.md',
+                        './' + file + '.md'
+                    ];
+                } else {
+                    candidatePaths = [
+                        file + ".html",
+                        './' + file + ".html",
+                        'README.html',
+                        rawBase + file + '.html',
+                        rawBase + 'README.html',
+                        file + ".md",
+                        './' + file + ".md",
+                        file.toUpperCase() + ".md",
+                        file.toLowerCase() + ".md",
+                        'README.md',
+                        '/' + file + '.html',
+                        '/' + file + '.md',
+                        '/' + repo + '/' + file + '.html',
+                        '/' + repo + '/' + file + '.md',
+                        rawBase + file + '.md',
+                        rawBase + 'README.md',
+                        (location.pathname.replace(/\/[^/]*$/, '') || '/') + file + '.md'
+                    ];
+                }
             }
             let response = null;
             let text = null;
@@ -164,6 +189,23 @@
                     // ignore and try next
                 }
             }
+            if (!text) {
+                console.debug('renderMarkdown: no candidate succeeded, trying raw.githubusercontent fallback');
+                try {
+                    // Final guaranteed fallback: raw.githubusercontent copy for this repo/branch
+                    const fb = rawBase + (file === 'README' ? 'README.md' : (file + '.md'));
+                    const rf = await fetch(fb, {cache: 'no-store'});
+                    if (rf && rf.ok) {
+                        text = await rf.text();
+                        console.debug('renderMarkdown: fetched fallback', fb);
+                    } else {
+                        console.debug('renderMarkdown: raw fallback not ok', fb, rf && rf.status);
+                    }
+                } catch (e) {
+                    console.debug('renderMarkdown: raw fallback fetch error', e && e.message);
+                }
+            }
+
             if (!text) {
                 console.error('renderMarkdown: failed to fetch any candidate path. Tried:', candidatePaths);
                 throw new Error('Could not fetch markdown for: ' + file + ' (checked ' + candidatePaths.join(', ') + ')');
