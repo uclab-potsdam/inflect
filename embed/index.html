@@ -29,6 +29,7 @@
   /* responsive iframe wrapper to let content drive sizing when possible */
   .embed-wrapper{display:flex;align-items:center;justify-content:center;width:100%;height:100%;position:relative;overflow:hidden}
   </style>
+  <script src="src/dompurify.min.js"></script>
 </head>
 <body>
   <div id="canvas">
@@ -189,12 +190,20 @@
   }
 
   function sanitizeAndStripAttrs(html){
-    // Very small sanitizer and attr stripper. For production use DOMPurify.
-    // Remove scripts
+    try{
+      if(window.DOMPurify && window.DOMPurify.sanitize){
+        const ALLOWED_TAGS = [
+          'a','b','i','strong','em','p','div','span','img','figure','figcaption',
+          'iframe','video','source','picture','svg','path','h1','h2','h3','h4','h5','h6',
+          'ul','ol','li','br','hr','blockquote'
+        ];
+        const ALLOWED_ATTR = ['href','src','srcset','alt','title','width','height','class','id','allow','allowfullscreen','frameborder','loading','type','media','controls','poster','muted','playsinline','style'];
+        return window.DOMPurify.sanitize(html, {ALLOWED_TAGS, ALLOWED_ATTR});
+      }
+    }catch(e){ /* fall through to fallback */ }
+    // fallback: strip scripts and inline event handlers conservatively
     html = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
-    // Remove on* attributes and style/width/height attributes from tags (esp iframes)
     html = html.replace(/\s(on[\w-]+)=(["'])(.*?)\2/gi, '');
-    html = html.replace(/\s(width|height|style)=(["'])(.*?)\2/gi, '');
     return html;
   }
 
