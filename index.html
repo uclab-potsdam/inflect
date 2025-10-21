@@ -20,16 +20,11 @@
         // so fetch('./README.md') and other relative requests use the repo root.
         (function(){
             try{
-                const path = location.pathname;
-                // If the site is hosted on a subpath (contains the repo name), use it
-                let baseHref = '/';
-                const m = path.match(/^(\/[^/]+\/[^/]+\/)$/);
-                if(m) baseHref = m[1];
-                // fallback: use directory of current path
-                if(baseHref === '/'){
-                    const dir = path.replace(/\/[^/]*$/, '/') || '/';
-                    baseHref = dir;
-                }
+                const path = location.pathname || '/';
+                // Use the current path's directory as base. This covers cases like
+                // '/nibal/' (GitHub Pages repo subpath) and nested paths.
+                let baseHref = path;
+                if(!baseHref.endsWith('/')) baseHref = baseHref.replace(/\/[^/]*$/, '/') || '/';
                 const b = document.createElement('base'); b.href = baseHref; document.head.insertBefore(b, document.head.firstChild);
             }catch(e){}
         })();
@@ -106,22 +101,24 @@
             const owner = 'mushon', repo = 'nibal', branch = 'main';
             const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
             const candidatePaths = [
-                file + ".md",
-                './' + file + ".md",
+                // prefer HTML fallbacks (GitHub Pages pre-rendered)
                 file + ".html",
                 './' + file + ".html",
+                'README.html',
+                rawBase + file + '.html',
+                rawBase + 'README.html',
+                // then try markdown variants locally and under subpath
+                file + ".md",
+                './' + file + ".md",
                 file.toUpperCase() + ".md",
                 file.toLowerCase() + ".md",
                 'README.md',
-                'README.html',
-                '/' + file + '.md',
                 '/' + file + '.html',
-                '/' + repo + '/' + file + '.md',
+                '/' + file + '.md',
                 '/' + repo + '/' + file + '.html',
+                '/' + repo + '/' + file + '.md',
                 rawBase + file + '.md',
-                rawBase + file + '.html',
                 rawBase + 'README.md',
-                rawBase + 'README.html',
                 (location.pathname.replace(/\/[^/]*$/, '') || '/') + file + '.md'
             ];
             let response = null;
@@ -131,13 +128,17 @@
                     response = await fetch(p, {cache: 'no-store'});
                     if (response && response.ok) {
                         text = await response.text();
+                        console.debug('renderMarkdown: fetched', p);
                         break;
                     }
                 } catch (e) {
                     // ignore and try next
                 }
             }
-            if (!text) throw new Error('Could not fetch markdown for: ' + file + ' (checked ' + candidatePaths.join(', ') + ')');
+            if (!text) {
+                console.error('renderMarkdown: failed to fetch any candidate path. Tried:', candidatePaths);
+                throw new Error('Could not fetch markdown for: ' + file + ' (checked ' + candidatePaths.join(', ') + ')');
+            }
 
             // --- Per-page front-matter and CSS marker parsing ---
             // Extract YAML front-matter keys `css` and `body-class` (simple, line-based)
