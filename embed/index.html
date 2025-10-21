@@ -365,7 +365,7 @@
           h = Math.round(h * scaleUp);
         }
         if(w && h){
-          // compute scale to cover the viewport
+          // compute scale to cover the viewport and final pixel sizes
           const scale = Math.max(vpW / w, vpH / h, 1);
           const contentW = Math.round(w * scale);
           const contentH = Math.round(h * scale);
@@ -381,14 +381,14 @@
           // size the actual content element to the scaled content size and center it using absolute positioning
           try{
             if(contentEl && contentEl.style){
-              // set element to its intrinsic px size and scale via transform (more robust)
+              // set final pixel size directly on the embedded element (no CSS scale)
               contentEl.style.maxWidth = 'none'; contentEl.style.maxHeight = 'none';
-              contentEl.style.width = w + 'px';
-              contentEl.style.height = h + 'px';
+              contentEl.style.width = contentW + 'px';
+              contentEl.style.height = contentH + 'px';
               contentEl.style.position = 'absolute';
-              contentEl.style.left = '50%'; contentEl.style.top = '50%';
-              contentEl.style.transformOrigin = 'center center';
-              contentEl.style.transform = 'translate(-50%,-50%) scale(' + scale + ')';
+              contentEl.style.left = '50%';
+              contentEl.style.top = '50%';
+              contentEl.style.transform = 'translate(-50%,-50%)';
             }
           }catch(e){}
           try{
@@ -415,13 +415,13 @@
         try{ if(contentEl && contentEl.nodeName && contentEl.nodeName.toLowerCase() === 'div'){ const found = contentEl.querySelector && contentEl.querySelector('iframe,video,img'); if(found) contentEl = found; } }catch(e){}
         try{
           if(contentEl && contentEl.style){
+            // set final pixel size (no CSS scale)
             contentEl.style.maxWidth = 'none'; contentEl.style.maxHeight = 'none';
-            contentEl.style.width = w + 'px';
-            contentEl.style.height = h + 'px';
+            contentEl.style.width = contentW + 'px';
+            contentEl.style.height = contentH + 'px';
             contentEl.style.position = 'absolute';
             contentEl.style.left = '50%'; contentEl.style.top = '50%';
-            contentEl.style.transformOrigin = 'center center';
-            contentEl.style.transform = 'translate(-50%,-50%) scale(' + scale + ')';
+            contentEl.style.transform = 'translate(-50%,-50%)';
           }
         }catch(e){}
         try{
