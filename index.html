@@ -103,16 +103,25 @@
             let candidatePaths;
             if (file === 'README') {
                 // On GitHub Pages the README may be rendered as HTML or not
-                // available at the site-root path; prefer raw.githubusercontent and
-                // local HTML variants to avoid 404 noise for /nibal/README.md.
+                // available at the site-root path; try absolute and raw URLs
+                // first so we don't rely on relative resolution that may 404.
+                const origin = location.origin || ('https://' + location.host);
+                const basePath = (location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/\/[^/]*$/, '/') );
                 candidatePaths = [
+                    // raw.githubusercontent absolute (should allow CORS)
                     rawBase + 'README.md',
                     rawBase + 'README.html',
-                    'README.html',
+                    // try origin + basePath + README.md/html
+                    origin + basePath + 'README.md',
+                    origin + basePath + 'README.html',
+                    // try site-root under repo name
+                    origin + '/' + repo + '/README.md',
+                    origin + '/' + repo + '/README.html',
+                    // local relative fallbacks
                     './README.html',
                     './README.md',
-                    file + '.html',
-                    file + '.md'
+                    'README.html',
+                    'README.md'
                 ];
             } else {
                 candidatePaths = [
@@ -141,13 +150,17 @@
             let text = null;
             for (const p of candidatePaths) {
                 try {
+                    console.debug('renderMarkdown: trying', p);
                     response = await fetch(p, {cache: 'no-store'});
                     if (response && response.ok) {
                         text = await response.text();
                         console.debug('renderMarkdown: fetched', p);
                         break;
+                    } else {
+                        console.debug('renderMarkdown: not ok', p, response && response.status);
                     }
                 } catch (e) {
+                    console.debug('renderMarkdown: fetch error', p, e && e.message);
                     // ignore and try next
                 }
             }
