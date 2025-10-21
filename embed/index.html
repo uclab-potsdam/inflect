@@ -1,0 +1,542 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Embed loader (floating)</title>
+  <style>
+    :root{--ui-bg:rgba(0,0,0,0.6);--ui-fg:#fff}
+    html,body{height:100%;margin:0;background:#333;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    /* Fullscreen output area */
+    #canvas{position:fixed;inset:0;background:transparent;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    #injected{position:relative;display:flex;align-items:center;justify-content:center;max-width:100%;max-height:100%;}
+    /* floating draggable centered input */
+    #floating{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9999;display:flex;flex-direction:column;align-items:stretch;gap:8px;min-width:320px}
+    #ui-handle{background:var(--ui-bg);padding:8px;border-radius:10px;color:var(--ui-fg);cursor:grab;display:flex;align-items:center;gap:8px}
+  /* avoid touch/scroll gesture interference on the drag handle */
+  #ui-handle{touch-action:none}
+    #ui-body{background:rgba(0,0,0,0.45);padding:10px;border-radius:10px;color:var(--ui-fg);display:flex;gap:8px;align-items:center}
+    input[type=text]{flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:var(--ui-fg)}
+    button{padding:8px 10px;border-radius:6px;border:0;background:#2ea44f;color:#061;font-weight:700;cursor:pointer}
+    button.secondary{background:#444;color:#fff}
+  /* size controls */
+  .size-controls{display:none;gap:6px;align-items:center}
+  .size-controls input[type=number]{width:84px;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:var(--ui-fg)}
+  .size-controls label{font-size:0.8rem;color:rgba(255,255,255,0.8)}
+    /* when embedded as full page, let injected cover viewport */
+    .cover { width:100vw; height:100vh; }
+    iframe, video { display:block; border:0; }
+  /* responsive iframe wrapper to let content drive sizing when possible */
+  .embed-wrapper{display:flex;align-items:center;justify-content:center;width:100%;height:100%;position:relative;overflow:hidden}
+  </style>
+</head>
+<body>
+  <div id="canvas">
+    <div id="injected"></div>
+  </div>
+
+  <div id="floating" role="dialog" aria-label="Embed loader">
+    <div id="ui-handle">Drag • Paste oEmbed URL</div>
+    <div id="ui-body">
+      <input id="url" type="text" placeholder="https://..." aria-label="url input">
+      <button id="load">Load</button>
+    <label style="display:flex;align-items:center;gap:6px"><input id="autoplay" type="checkbox"> autoplay</label>
+      <button id="clear" class="secondary">Clear</button>
+  <button id="cover" class="secondary" title="Toggle cover/contain">Cover</button>
+      <div id="size-controls" class="size-controls">
+        <label>W <input id="size-w" type="number" min="1"></label>
+        <label>H <input id="size-h" type="number" min="1"></label>
+        <label style="display:flex;align-items:center;gap:6px"><input id="lock-aspect" type="checkbox"> lock</label>
+        <button id="apply-size" class="secondary">Apply</button>
+        <button id="reset-size" class="secondary">Reset</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+// Fresh minimal floating oEmbed loader
+(function(){
+  const providers = [
+    {name:'YouTube', match:/youtube\.com|youtu\.be/, endpoint:'https://www.youtube.com/oembed?format=json&url='},
+    {name:'Vimeo', match:/vimeo\.com/, endpoint:'https://vimeo.com/api/oembed.json?url='},
+    {name:'TikTok', match:/tiktok\.com/, endpoint:'https://www.tiktok.com/oembed?url='},
+    {name:'Twitter', match:/twitter\.com|x\.com/, endpoint:'https://publish.twitter.com/oembed?url='},
+    // Facebook often needs tokens or proxy; include but may fail
+    {name:'Facebook', match:/facebook\.com|fb\.watch/, endpoint:'https://www.facebook.com/plugins/post/oembed.json/?url='}
+  ];
+
+  const canvas = document.getElementById('canvas');
+  const injected = document.getElementById('injected');
+  const floating = document.getElementById('floating');
+  const handle = document.getElementById('ui-handle');
+  const urlIn = document.getElementById('url');
+  const loadBtn = document.getElementById('load');
+  const clearBtn = document.getElementById('clear');
+  const coverBtn = document.getElementById('cover');
+
+  // default to contain (show full video without cropping)
+  let coverMode = false; // default: contain
+  let lastData = null;
+  // size control elements
+  const sizeControls = document.getElementById('size-controls');
+  const sizeW = document.getElementById('size-w');
+  const sizeH = document.getElementById('size-h');
+  const lockAspect = document.getElementById('lock-aspect');
+  const applySizeBtn = document.getElementById('apply-size');
+  const resetSizeBtn = document.getElementById('reset-size');
+  const autoplayChk = document.getElementById('autoplay');
+  let currentAspect = null;
+  // default: lock proportions
+  try{ lockAspect.checked = true; }catch(e){}
+
+  // initialize cover/contain button label
+  try{ coverBtn.textContent = coverMode ? 'Cover' : 'Contain'; }catch(e){}
+
+  // --- Hash state helpers -------------------------------------------------
+  function parseHash(){
+    try{
+      const s = (location.hash || '').replace(/^#/, '');
+      if(!s) return {};
+      const p = new URLSearchParams(s);
+      const out = {};
+      // accept long and short keys (backwards compatible)
+  if(p.has('u')) out.url = expandUrlFromHash(p.get('u'));
+  else if(p.has('url')) out.url = expandUrlFromHash(p.get('url'));
+      if(p.has('m')) out.mode = p.get('m');
+      else if(p.has('mode')) out.mode = p.get('mode');
+      if(p.has('w')) out.w = Number(p.get('w')) || null;
+      if(p.has('h')) out.h = Number(p.get('h')) || null;
+  if(p.has('l')) out.lock = p.get('l') === '1' || p.get('l') === 'true';
+  if(p.has('a')) out.autoplay = p.get('a') === '1' || p.get('a') === 'true';
+      else if(p.has('lock')) out.lock = p.get('lock') === '1' || p.get('lock') === 'true';
+      return out;
+    }catch(e){ return {}; }
+  }
+
+  function writeHash(state){
+    try{
+      const p = new URLSearchParams();
+      // write compact keys to keep hash short, but omit defaults
+      if(state.url) p.set('u', compactUrlForHash(state.url));
+      // mode: default is 'contain' — only write if it's 'cover' (or explicitly non-default)
+      const mode = state.mode || (coverMode ? 'cover' : 'contain');
+      if(mode && mode !== 'contain') p.set('m', mode);
+      // sizes: only include if they differ from the viewport (allow small delta)
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const wnum = (state.w !== undefined && state.w !== '') ? Number(state.w) : null;
+      const hnum = (state.h !== undefined && state.h !== '') ? Number(state.h) : null;
+      if(Number.isFinite(wnum) && Math.abs(wnum - vw) > 2) p.set('w', String(Math.round(wnum)));
+      if(Number.isFinite(hnum) && Math.abs(hnum - vh) > 2) p.set('h', String(Math.round(hnum)));
+  // lock: default true — only write when explicitly false
+  if(typeof state.lock !== 'undefined' && state.lock === false) p.set('l', '0');
+  // autoplay: default false — only write when explicitly true
+  if(typeof state.autoplay !== 'undefined' && state.autoplay === true) p.set('a', '1');
+      const newHash = p.toString();
+      // use replace to avoid creating history entries for each small change
+      if(newHash) location.replace(location.pathname + location.search + '#' + newHash);
+      else location.replace(location.pathname + location.search);
+    }catch(e){ /* ignore */ }
+  }
+
+  // remove common prefixes for shorter hashes, but keep the rest intact
+  function compactUrlForHash(full){
+    try{
+      if(!full) return full;
+      // keep existing percent-encoding
+      const decoded = decodeURIComponent(full);
+      // remove scheme and www
+      const stripped = decoded.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+      return encodeURIComponent(stripped);
+    }catch(e){ return encodeURIComponent(full); }
+  }
+
+  // expand compact form back into a usable URL (assume https)
+  function expandUrlFromHash(compacted){
+    try{
+      if(!compacted) return compacted;
+      const decoded = decodeURIComponent(compacted);
+      // if it already contains a scheme, return as-is
+      if(/^https?:\/\//i.test(decoded)) return decoded;
+      return 'https://' + decoded;
+    }catch(e){ return decodeURIComponent(compacted || ''); }
+  }
+
+  function applyStateToUI(state){
+    if(!state) return;
+    if(state.mode){ coverMode = (state.mode === 'cover'); coverBtn.textContent = coverMode ? 'Cover' : 'Contain'; }
+    if(typeof state.lock !== 'undefined'){ try{ lockAspect.checked = !!state.lock; }catch(e){} }
+    if(state.w) sizeW.value = Math.round(state.w);
+    if(state.h) sizeH.value = Math.round(state.h);
+    if(state.url){ urlIn.value = state.url; }
+    if(typeof state.autoplay !== 'undefined'){ try{ autoplayChk.checked = !!state.autoplay; }catch(e){} }
+  }
+
+  // read initial hash and restore
+  try{
+    const initial = parseHash();
+    if(Object.keys(initial).length){ applyStateToUI(initial); if(initial.url) { setTimeout(()=>{ loadUrl(initial.url); }, 20); } }
+  }catch(e){}
+
+  // handle external hash changes
+  window.addEventListener('hashchange', ()=>{
+    const s = parseHash(); applyStateToUI(s);
+    if(s.url){ loadUrl(s.url); }
+  });
+
+  function findProvider(url){
+    try{ for(const p of providers) if(p.match.test(url)) return p; }catch(e){}
+    return null;
+  }
+
+  function sanitizeAndStripAttrs(html){
+    // Very small sanitizer and attr stripper. For production use DOMPurify.
+    // Remove scripts
+    html = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
+    // Remove on* attributes and style/width/height attributes from tags (esp iframes)
+    html = html.replace(/\s(on[\w-]+)=(["'])(.*?)\2/gi, '');
+    html = html.replace(/\s(width|height|style)=(["'])(.*?)\2/gi, '');
+    return html;
+  }
+
+  async function fetchOembed(url){
+    const p = findProvider(url);
+    if(!p) throw new Error('Unknown provider');
+    const endpoint = p.endpoint + encodeURIComponent(url);
+    const res = await fetch(endpoint, {mode:'cors'});
+    if(!res.ok) throw new Error('oEmbed fetch failed: '+res.status);
+    const data = await res.json();
+    return {provider:p.name, data};
+  }
+
+  function injectHtml(html, meta){
+    injected.innerHTML = '';
+    const wrap = document.createElement('div'); wrap.className = 'embed-wrapper';
+    wrap.innerHTML = html;
+    // prefer iframe or video inside the wrapper
+    const iframe = wrap.querySelector('iframe');
+    const video = wrap.querySelector('video');
+    let el = iframe || video || wrap.firstElementChild;
+
+    // try to capture intrinsic/original dimensions before we strip attributes
+    try{
+      const tryNum = v=>{ const n = Number(v); return (Number.isFinite(n) && n>0) ? n : null };
+      const origW = tryNum(meta && meta.width) || tryNum(el && el.getAttribute && el.getAttribute('width')) || (el && el.naturalWidth) || (el && el.videoWidth) || null;
+      const origH = tryNum(meta && meta.height) || tryNum(el && el.getAttribute && el.getAttribute('height')) || (el && el.naturalHeight) || (el && el.videoHeight) || null;
+      if(origW) wrap.dataset.origW = String(origW);
+      if(origH) wrap.dataset.origH = String(origH);
+    }catch(e){ /* ignore */ }
+
+    // strip inline width/height/style and ensure responsiveness
+    if(el && el.removeAttribute){ el.removeAttribute('width'); el.removeAttribute('height'); el.removeAttribute('style'); }
+
+  // if it's an iframe, set responsive max sizes but don't force width/height so sizing logic can control it
+  if(iframe){ iframe.style.maxWidth = '100%'; iframe.style.maxHeight = '100%'; iframe.style.display = 'block'; }
+    if(video){ video.style.maxWidth = '100%'; video.style.maxHeight = '100%'; }
+
+  injected.appendChild(wrap);
+
+    // After injection, allow layout to settle then size
+    requestAnimationFrame(()=>{
+      try{
+        // if autoplay requested, try to patch iframe src inside injected HTML
+        try{ if(autoplayChk && autoplayChk.checked){ const innerI = wrap.querySelector && wrap.querySelector('iframe'); if(innerI && innerI.src){ const u = new URL(innerI.src, location.href); u.searchParams.set('autoplay', '1'); u.searchParams.set('mute', '1'); innerI.src = u.toString(); innerI.setAttribute('allow','autoplay; encrypted-media; picture-in-picture'); } } }catch(e){}
+        sizeInjected(el, meta);
+  // if the injected html contains an iframe, hide the floating UI
+  // but only when this page is itself embedded inside another frame
+  try{ if(wrap.querySelector && wrap.querySelector('iframe')){ if(window.top !== window.self){ hideFloatingUI(); } } }catch(e){}
+        // animate floating UI down to bottom so it's out of the way
+        try{ animateFloatingToBottom(); }catch(e){}
+      }catch(e){ console.warn(e); }
+    });
+  }
+
+  function injectIframe(url, meta){
+    injected.innerHTML = '';
+    const wrap = document.createElement('div'); wrap.className = 'embed-wrapper';
+    const iframe = document.createElement('iframe');
+    // if autoplay requested, append autoplay and mute for better browser support
+    try{
+      let src = url;
+      if(autoplayChk && autoplayChk.checked){ try{ const u = new URL(url); u.searchParams.set('autoplay','1'); u.searchParams.set('mute','1'); src = u.toString(); }catch(e){ src = url + (url.indexOf('?')===-1 ? '?':'&') + 'autoplay=1&mute=1'; } }
+      iframe.src = src;
+    }catch(e){ iframe.src = url; }
+    iframe.setAttribute('allowfullscreen','');
+    iframe.style.display = 'block';
+    iframe.style.border = '0';
+    iframe.style.maxWidth = '100%';
+    iframe.style.maxHeight = '100%';
+    // allow autoplay APIs
+    try{ iframe.setAttribute('allow', (iframe.getAttribute('allow')||'') + ' autoplay; encrypted-media; picture-in-picture'); }catch(e){}
+    wrap.appendChild(iframe);
+    // store any intrinsic dims we know (meta from oEmbed if available)
+    try{
+      const tryNum = v=>{ const n = Number(v); return (Number.isFinite(n) && n>0) ? n : null };
+      const origW = tryNum(meta && meta.width) || null;
+      const origH = tryNum(meta && meta.height) || null;
+      if(origW) wrap.dataset.origW = String(origW);
+      if(origH) wrap.dataset.origH = String(origH);
+    }catch(e){ }
+
+    injected.appendChild(wrap);
+  // hide the floating UI when we inject a direct iframe — only when this page
+  // is embedded inside another frame. Keep the UI visible when running as top.
+  try{ if(window.top !== window.self){ hideFloatingUI(); } }catch(e){}
+    requestAnimationFrame(()=>{ try{ sizeInjected(iframe, meta); animateFloatingToBottom(); }catch(e){ console.warn(e); } });
+  }
+
+  // Animate the floating UI down to the bottom center of the viewport
+  function animateFloatingToBottom(){
+    try{
+      // stop any ongoing drag
+      floating.style.transition = 'transform 600ms ease, top 600ms ease, left 600ms ease';
+      // compute bottom center
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const r = floating.getBoundingClientRect();
+      const targetLeft = Math.round((vw - r.width)/2);
+      const targetTop = Math.round(vh - r.height - 20); // 20px margin
+      // set absolute positioning coordinates
+      floating.style.left = targetLeft + 'px';
+      floating.style.top = targetTop + 'px';
+      floating.style.transform = 'translate(0,0)';
+      // release transition after it ends
+      setTimeout(()=>{ floating.style.transition = ''; }, 700);
+    }catch(e){}
+  }
+
+  function hideFloatingUI(){
+    try{
+      floating.style.transition = 'opacity 300ms ease, visibility 0ms linear 300ms';
+      floating.style.opacity = '0';
+      floating.style.pointerEvents = 'none';
+      // keep it visually present but hidden so layout calculations remain stable
+    }catch(e){}
+  }
+
+  function showFloatingUI(){
+    try{
+      floating.style.transition = 'opacity 200ms ease';
+      floating.style.opacity = '1';
+      floating.style.pointerEvents = '';
+      // clear visibility transition delay
+      setTimeout(()=>{ floating.style.transition = ''; }, 300);
+    }catch(e){}
+  }
+
+  function sizeInjected(el, meta){
+    // Decide sizing strategy: prefer meta.width/meta.height, else element bounding box, else cover
+    const vpW = window.innerWidth; const vpH = window.innerHeight;
+    let w = null, h = null;
+    // prefer any stored original dims on the wrapper (set at inject time)
+    try{
+      const wrap = (el && el.closest) ? el.closest('.embed-wrapper') : injected.firstElementChild;
+      if(wrap && wrap.dataset && wrap.dataset.origW && wrap.dataset.origH){
+        const ow = Number(wrap.dataset.origW), oh = Number(wrap.dataset.origH);
+        if(Number.isFinite(ow) && Number.isFinite(oh) && ow>0 && oh>0){ w = ow; h = oh; }
+      }
+    }catch(e){ /* ignore */ }
+    if(meta && meta.width && meta.height){ w = meta.width; h = meta.height; }
+    // bounding box fallback
+    try{
+      const r = el.getBoundingClientRect(); if(r.width && r.height){ w = w || r.width; h = h || r.height; }
+    }catch(e){}
+
+    // If we have dims, apply them but prefer 'contain' for video-like content to avoid cropping
+    if(w && h){
+      console.debug('[embed] sizeInjected meta', {meta, w, h});
+      const ar = w/h;
+      const nodeName = (el && el.nodeName) ? el.nodeName.toLowerCase() : '';
+  const isVideoLike = nodeName === 'video' || nodeName === 'iframe' || (meta && meta.type === 'video');
+  // if user explicitly set coverMode=true allow cover even for video-like embeds; otherwise prefer contain
+  const effectiveCover = coverMode ? true : (!isVideoLike);
+      console.debug('[embed] sizeInjected vp', {vpW, vpH, nodeName, isVideoLike, coverMode, effectiveCover});
+      if(effectiveCover){
+        // cover: keep the wrapper exactly the viewport size and scale/position the inner
+        // element so it fills and is centered (overflow:hidden) — avoids making the
+        // wrapper taller than the viewport while still covering it.
+        const wrap = el && el.closest ? el.closest('.embed-wrapper') : injected.firstElementChild;
+        if(!wrap) return;
+        // ensure numeric
+        w = Number(w); h = Number(h);
+        // avoid accidental tiny sizes - enforce sensible minimums
+        const MIN_HEIGHT = 240;
+        if(h && h < MIN_HEIGHT){
+          const scaleUp = MIN_HEIGHT / h;
+          w = Math.round(w * scaleUp);
+          h = Math.round(h * scaleUp);
+        }
+        if(w && h){
+          // compute scale to cover the viewport
+          const scale = Math.max(vpW / w, vpH / h, 1);
+          const contentW = Math.round(w * scale);
+          const contentH = Math.round(h * scale);
+          // set wrapper to viewport and hide overflow; make it the containing block
+          wrap.style.width = vpW + 'px';
+          wrap.style.height = vpH + 'px';
+          wrap.style.overflow = 'hidden';
+          wrap.style.position = 'relative';
+          wrap.style.display = 'block';
+          // pick the actual content element (iframe/video/img) if el is a wrapper div
+          let contentEl = el;
+          try{ if(contentEl && contentEl.nodeName && contentEl.nodeName.toLowerCase() === 'div'){ const found = contentEl.querySelector && contentEl.querySelector('iframe,video,img'); if(found) contentEl = found; } }catch(e){}
+          // size the actual content element to the scaled content size and center it using absolute positioning
+          try{
+            if(contentEl && contentEl.style){
+              // set element to its intrinsic px size and scale via transform (more robust)
+              contentEl.style.maxWidth = 'none'; contentEl.style.maxHeight = 'none';
+              contentEl.style.width = w + 'px';
+              contentEl.style.height = h + 'px';
+              contentEl.style.position = 'absolute';
+              contentEl.style.left = '50%'; contentEl.style.top = '50%';
+              contentEl.style.transformOrigin = 'center center';
+              contentEl.style.transform = 'translate(-50%,-50%) scale(' + scale + ')';
+            }
+          }catch(e){}
+          try{
+            const wrapRect = wrap.getBoundingClientRect(); const contentRect = (contentEl && contentEl.getBoundingClientRect) ? contentEl.getBoundingClientRect() : null;
+            console.debug('[embed] sizeInjected scale', {scale, contentW, contentH, usedOrig:{w,h}, targeted: (contentEl && contentEl.nodeName), wrapRect, contentRect});
+          }catch(e){}
+          showSizeControls(vpW, vpH);
+        } else {
+          // fallback: use viewport
+          wrap.style.width = vpW + 'px'; wrap.style.height = vpH + 'px'; wrap.style.overflow = 'hidden';
+          showSizeControls(vpW, vpH);
+        }
+      } else {
+        // contain: size wrapper to viewport then scale inner element to fit entirely without cropping
+        const wrap = el && el.closest ? el.closest('.embed-wrapper') : injected.firstElementChild;
+        if(!wrap) return;
+  wrap.style.width = vpW + 'px'; wrap.style.height = vpH + 'px'; wrap.style.overflow = 'hidden'; wrap.style.position = 'relative'; wrap.style.maxWidth = 'none'; wrap.style.maxHeight = 'none';
+  // compute scale to fit inside viewport (allow upscaling so small embeds grow to fit)
+  const scale = Math.min(vpW / w, vpH / h);
+        const contentW = Math.round(w * scale);
+        const contentH = Math.round(h * scale);
+  // pick actual inner element if el is a wrapper
+        let contentEl = el;
+        try{ if(contentEl && contentEl.nodeName && contentEl.nodeName.toLowerCase() === 'div'){ const found = contentEl.querySelector && contentEl.querySelector('iframe,video,img'); if(found) contentEl = found; } }catch(e){}
+        try{
+          if(contentEl && contentEl.style){
+            contentEl.style.maxWidth = 'none'; contentEl.style.maxHeight = 'none';
+            contentEl.style.width = w + 'px';
+            contentEl.style.height = h + 'px';
+            contentEl.style.position = 'absolute';
+            contentEl.style.left = '50%'; contentEl.style.top = '50%';
+            contentEl.style.transformOrigin = 'center center';
+            contentEl.style.transform = 'translate(-50%,-50%) scale(' + scale + ')';
+          }
+        }catch(e){}
+        try{
+          const wrapRect = wrap.getBoundingClientRect(); const contentRect = (contentEl && contentEl.getBoundingClientRect) ? contentEl.getBoundingClientRect() : null;
+          console.debug('[embed] sizeInjected contain', {vpW, vpH, w, h, scale, contentW, contentH, targeted: (contentEl && contentEl.nodeName), wrapRect, contentRect});
+        }catch(e){}
+        showSizeControls(contentW, contentH);
+      }
+    } else {
+      // no dims — default to cover viewport (but for video-like prefer contain)
+      applySize(vpW, vpH);
+    }
+  }
+
+  function applySize(w,h){
+    // set injected wrapper to the size and center it
+    const wrap = injected.firstElementChild;
+    if(!wrap) return;
+    wrap.style.width = w + 'px';
+    wrap.style.height = h + 'px';
+    wrap.style.maxWidth = '100%'; wrap.style.maxHeight = '100%';
+    wrap.style.display = 'flex'; wrap.style.alignItems = 'center'; wrap.style.justifyContent = 'center';
+  }
+
+  function showSizeControls(w,h){
+    if(!sizeControls) return;
+    const vpW = window.innerWidth, vpH = window.innerHeight;
+    // default to viewport sizes if not provided
+    const outW = (w && w>0) ? w : vpW;
+    const outH = (h && h>0) ? h : vpH;
+    sizeControls.style.display = 'flex';
+    sizeW.value = Math.round(outW);
+    sizeH.value = Math.round(outH);
+    currentAspect = outW / outH;
+    // lock proportions by default when controls appear
+    try{ lockAspect.checked = true; }catch(e){}
+  }
+
+  function hideSizeControls(){ if(sizeControls) sizeControls.style.display='none'; }
+
+  async function loadUrl(u){
+    if(!u) return;
+    try{
+      // try oEmbed fetch
+      const {provider, data} = await fetchOembed(u);
+      lastData = {provider, data};
+      if(data.html){
+        const html = sanitizeAndStripAttrs(data.html);
+        injectHtml(html, {width: data.width, height: data.height, type: data.type});
+      } else if(data.type === 'photo' && data.url){
+        injectHtml(`<img src="${data.url}" alt="embed" style="max-width:100%">`, {width: data.width, height: data.height, type: data.type});
+      } else {
+        // fallback to iframe
+        injectIframe(u, {width: data.width, height: data.height, type: data.type});
+      }
+    }catch(err){
+      // if oEmbed failed, try direct iframe
+      console.warn('oEmbed failed, falling back to iframe', err);
+      injectIframe(u, null);
+    }
+  }
+
+  // UI wiring
+  loadBtn.addEventListener('click', ()=>{ loadUrl(urlIn.value.trim()); });
+  loadBtn.addEventListener('click', ()=>{ const u = urlIn.value.trim(); loadUrl(u); writeHash({ url: u, mode: coverMode ? 'cover' : 'contain', w: sizeW.value || '', h: sizeH.value || '', lock: lockAspect.checked }); });
+  loadBtn.addEventListener('click', ()=>{ const u = urlIn.value.trim(); loadUrl(u); writeHash({ url: u, mode: coverMode ? 'cover' : 'contain', w: sizeW.value || '', h: sizeH.value || '', lock: lockAspect.checked, autoplay: autoplayChk.checked }); });
+  clearBtn.addEventListener('click', ()=>{ injected.innerHTML=''; urlIn.value=''; lastData = null; hideSizeControls(); writeHash({}); try{ showFloatingUI(); }catch(e){} });
+  coverBtn.addEventListener('click', ()=>{
+    coverMode = !coverMode; coverBtn.textContent = coverMode? 'Cover':'Contain';
+    // re-run sizing on current embed so the toggle takes effect immediately
+    const el = injected.querySelector('.embed-wrapper iframe, .embed-wrapper video, .embed-wrapper img, .embed-wrapper > *');
+    if(el) {
+      try{ sizeInjected(el, lastData ? lastData.data : null); writeHash({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', w: sizeW.value || '', h: sizeH.value || '', lock: lockAspect.checked, autoplay: autoplayChk.checked }); }catch(e){ console.warn(e); }
+    }
+  });
+
+  // size control handlers
+  applySizeBtn.addEventListener('click', ()=>{
+    const w = Number(sizeW.value) || window.innerWidth;
+    const h = Number(sizeH.value) || window.innerHeight;
+    applySize(w,h);
+    writeHash({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', w, h, lock: lockAspect.checked, autoplay: autoplayChk.checked });
+  });
+  resetSizeBtn.addEventListener('click', ()=>{ if(lastData){ sizeInjected(injected.querySelector('iframe,video,div'), lastData.data); } });
+  sizeW.addEventListener('input', ()=>{ if(lockAspect.checked && currentAspect){ sizeH.value = Math.round(Number(sizeW.value) / currentAspect); } });
+  sizeH.addEventListener('input', ()=>{ if(lockAspect.checked && currentAspect){ sizeW.value = Math.round(Number(sizeH.value) * currentAspect); } });
+  resetSizeBtn.addEventListener('click', ()=>{ writeHash({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', w: sizeW.value || '', h: sizeH.value || '', lock: lockAspect.checked, autoplay: autoplayChk.checked }); });
+  lockAspect.addEventListener('change', ()=>{ writeHash({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', w: sizeW.value || '', h: sizeH.value || '', lock: lockAspect.checked, autoplay: autoplayChk.checked }); });
+  autoplayChk.addEventListener('change', ()=>{ writeHash({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', w: sizeW.value || '', h: sizeH.value || '', lock: lockAspect.checked, autoplay: autoplayChk.checked }); });
+
+  // enable enter key on input
+  urlIn.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ loadUrl(urlIn.value.trim()); } });
+
+  // make floating draggable via handle
+  (function(){
+    let dragging=false, sx=0, sy=0, ox=0, oy=0;
+    handle.addEventListener('pointerdown', (ev)=>{
+      dragging=true; handle.setPointerCapture && handle.setPointerCapture(ev.pointerId);
+      sx = ev.clientX; sy = ev.clientY; const r = floating.getBoundingClientRect(); ox = r.left; oy = r.top;
+      floating.style.transition = 'none';
+    });
+    // pointermove/up don't call preventDefault so can be passive for better scrolling performance
+    window.addEventListener('pointermove', (ev)=>{
+      if(!dragging) return; const dx = ev.clientX - sx, dy = ev.clientY - sy; floating.style.left = (ox + dx) + 'px'; floating.style.top = (oy + dy) + 'px'; floating.style.transform = 'translate(0,0)';
+    }, {passive:true});
+    window.addEventListener('pointerup', ()=>{ dragging=false; floating.style.transition = ''; }, {passive:true});
+  })();
+
+  // Restore focus to input on load
+  urlIn.focus();
+
+  // Expose for debugging
+  window.embedLoader = { loadUrl, injectHtml, injectIframe, sizeInjected, hideFloatingUI, showFloatingUI };
+
+})();
+</script>
+</body>
+</html>
