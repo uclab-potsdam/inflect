@@ -100,27 +100,43 @@
             // fallbacks before failing so the site behaves like local.
             const owner = 'mushon', repo = 'nibal', branch = 'main';
             const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
-            const candidatePaths = [
-                // prefer HTML fallbacks (GitHub Pages pre-rendered)
-                file + ".html",
-                './' + file + ".html",
-                'README.html',
-                rawBase + file + '.html',
-                rawBase + 'README.html',
-                // then try markdown variants locally and under subpath
-                file + ".md",
-                './' + file + ".md",
-                file.toUpperCase() + ".md",
-                file.toLowerCase() + ".md",
-                'README.md',
-                '/' + file + '.html',
-                '/' + file + '.md',
-                '/' + repo + '/' + file + '.html',
-                '/' + repo + '/' + file + '.md',
-                rawBase + file + '.md',
-                rawBase + 'README.md',
-                (location.pathname.replace(/\/[^/]*$/, '') || '/') + file + '.md'
-            ];
+            let candidatePaths;
+            if (file === 'README') {
+                // On GitHub Pages the README may be rendered as HTML or not
+                // available at the site-root path; prefer raw.githubusercontent and
+                // local HTML variants to avoid 404 noise for /nibal/README.md.
+                candidatePaths = [
+                    rawBase + 'README.md',
+                    rawBase + 'README.html',
+                    'README.html',
+                    './README.html',
+                    './README.md',
+                    file + '.html',
+                    file + '.md'
+                ];
+            } else {
+                candidatePaths = [
+                    // prefer HTML fallbacks (GitHub Pages pre-rendered)
+                    file + ".html",
+                    './' + file + ".html",
+                    'README.html',
+                    rawBase + file + '.html',
+                    rawBase + 'README.html',
+                    // then try markdown variants locally and under subpath
+                    file + ".md",
+                    './' + file + ".md",
+                    file.toUpperCase() + ".md",
+                    file.toLowerCase() + ".md",
+                    'README.md',
+                    '/' + file + '.html',
+                    '/' + file + '.md',
+                    '/' + repo + '/' + file + '.html',
+                    '/' + repo + '/' + file + '.md',
+                    rawBase + file + '.md',
+                    rawBase + 'README.md',
+                    (location.pathname.replace(/\/[^/]*$/, '') || '/') + file + '.md'
+                ];
+            }
             let response = null;
             let text = null;
             for (const p of candidatePaths) {
