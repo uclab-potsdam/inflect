@@ -14,6 +14,27 @@
 
     <script src="src/marked.min.js"></script>
 
+    <script>
+        // Ensure relative URLs resolve correctly when served from a repository subpath
+        // (e.g. https://<user>.github.io/nibal/). Insert a <base> element dynamically
+        // so fetch('./README.md') and other relative requests use the repo root.
+        (function(){
+            try{
+                const path = location.pathname;
+                // If the site is hosted on a subpath (contains the repo name), use it
+                let baseHref = '/';
+                const m = path.match(/^(\/[^/]+\/[^/]+\/)$/);
+                if(m) baseHref = m[1];
+                // fallback: use directory of current path
+                if(baseHref === '/'){
+                    const dir = path.replace(/\/[^/]*$/, '/') || '/';
+                    baseHref = dir;
+                }
+                const b = document.createElement('base'); b.href = baseHref; document.head.insertBefore(b, document.head.firstChild);
+            }catch(e){}
+        })();
+    </script>
+
     <link rel="stylesheet" href="src/base.css">
     <style>
         /* Layout is controlled by external CSS files: base.css is always loaded.
@@ -79,8 +100,44 @@
                              ? title
                              : `${title} · ${file}`;
 
-            const response = await fetch(file + ".md"); 
-            let text = await response.text();
+            // Try fetching the markdown file. On GitHub Pages some files may be
+            // served from a different base path or omitted; attempt sensible
+            // fallbacks before failing so the site behaves like local.
+            const owner = 'mushon', repo = 'nibal', branch = 'main';
+            const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
+            const candidatePaths = [
+                file + ".md",
+                './' + file + ".md",
+                file + ".html",
+                './' + file + ".html",
+                file.toUpperCase() + ".md",
+                file.toLowerCase() + ".md",
+                'README.md',
+                'README.html',
+                '/' + file + '.md',
+                '/' + file + '.html',
+                '/' + repo + '/' + file + '.md',
+                '/' + repo + '/' + file + '.html',
+                rawBase + file + '.md',
+                rawBase + file + '.html',
+                rawBase + 'README.md',
+                rawBase + 'README.html',
+                (location.pathname.replace(/\/[^/]*$/, '') || '/') + file + '.md'
+            ];
+            let response = null;
+            let text = null;
+            for (const p of candidatePaths) {
+                try {
+                    response = await fetch(p, {cache: 'no-store'});
+                    if (response && response.ok) {
+                        text = await response.text();
+                        break;
+                    }
+                } catch (e) {
+                    // ignore and try next
+                }
+            }
+            if (!text) throw new Error('Could not fetch markdown for: ' + file + ' (checked ' + candidatePaths.join(', ') + ')');
 
             // --- Per-page front-matter and CSS marker parsing ---
             // Extract YAML front-matter keys `css` and `body-class` (simple, line-based)
@@ -180,8 +237,52 @@
                         // behavior so external links or arbitrary hrefs can be treated as
                         // inflection links. Leave anchors as authored.)
 
-            // render markdown into HTML           
-            let html = marked.parse(text);
+            // If the fetched resource looks like a full HTML page (GitHub Pages or Jekyll
+            // may serve HTML instead of raw markdown), parse it and extract the
+            // body/main content. Otherwise treat as markdown and render via marked.
+            let html = '';
+            try {
+                const looksLikeHtml = /(^\s*<!doctype)|(<html[\s>])|(<body[\s>])/i.test(text);
+                if (looksLikeHtml) {
+                    try {
+                        const dp = new DOMParser();
+                        const doc = dp.parseFromString(text, 'text/html');
+                        // Prefer an explicit <main> if present in the fetched HTML
+                        const mainEl = doc.querySelector('main');
+                        html = mainEl ? mainEl.innerHTML : (doc.body ? doc.body.innerHTML : text);
+                        // If the fetched HTML carried stylesheet links in its head, import
+                        // them safely (only same-origin or clearly safe relative paths).
+                        try {
+                            const headLinks = Array.from(doc.querySelectorAll('link[rel="stylesheet"]'));
+                            headLinks.forEach(l => {
+                                const href = l.getAttribute('href');
+                                if (href && /^(\/|\.\/|\.\.\/|src\/|css\/)/.test(href)) {
+                                    const id = 'page-css-' + btoa(href).replace(/=/g,'');
+                                    if (!document.getElementById(id)) {
+                                        const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = href; link.id = id; document.head.appendChild(link);
+                                    }
+                                }
+                            });
+                        } catch(e){}
+                    } catch(e) {
+                        // fallback to treating as markdown
+                        html = marked.parse(text);
+                    }
+                } else {
+                    html = marked.parse(text);
+                }
+            } catch(e) {
+                html = marked.parse(text);
+            }
+
+            // Strip any <meta> or <link rel="stylesheet"> tags that may have been
+            // included in the content. Injecting these into the document body
+            // creates warnings and causes browsers to ignore CSP meta tags that
+            // appear outside of <head>. Remove them from the rendered HTML.
+            try {
+                html = html.replace(/<meta[\s\S]*?>/gi, '');
+                html = html.replace(/<link[^>]*rel=["']?stylesheet["']?[^>]*>/gi, '');
+            } catch (e) { /* swallow */ }
 
             // skip footer when on inflect page
             if (document.URL!="https://uclab.fh-potsdam.de/inflect/") html = html + "\n<footer>a story made with <strong><a class='dontinflect' href='https://uclab.fh-potsdam.de/inflect/'>!nflect</a></strong></footer>";
