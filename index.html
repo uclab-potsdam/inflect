@@ -81,21 +81,36 @@
                              ? title
                              : `${title} · ${file}`;
 
-            // Simple local-first candidate paths. Prefer .html before .md to
-            // avoid noisy 404s on GitHub Pages which often serves README as HTML.
-            let candidatePaths;
+            // Resolve candidate paths robustly for both GitHub Pages (repo subpath)
+            // and local development. Build absolute URLs using location.origin + basePath
+            // which points to the repository root directory for the current path.
+            const origin = location.origin || ('https://' + location.host);
+            const basePath = (location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/\/[^/]*$/, '/'));
+            let candidatePaths = [];
             if (file === 'README') {
-                // Only attempt README.html to avoid noisy 404s for README.md on Pages
+                // Try absolute paths first (handles GH Pages repo subpath), prefer lowercase readme.md then README variants and HTML
                 candidatePaths = [
+                    origin + basePath + 'readme.md',
+                    origin + basePath + 'README.md',
+                    origin + basePath + 'README.html',
                     './README.html',
-                    'README.html'
+                    './readme.md',
+                    './README.md',
+                    'README.html',
+                    'readme.md',
+                    'README.md'
                 ];
             } else {
+                // For other files, try absolute HTML then MD, then relative fallbacks
                 candidatePaths = [
+                    origin + basePath + file + '.html',
+                    origin + basePath + file + '.md',
                     file + '.html',
                     './' + file + '.html',
                     file + '.md',
                     './' + file + '.md',
+                    origin + basePath + 'README.html',
+                    origin + basePath + 'readme.md',
                     'README.html',
                     'README.md'
                 ];
