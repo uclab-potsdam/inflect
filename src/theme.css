@@ -204,10 +204,14 @@ main {
     left: 0;
     padding: 0 5vh;
     margin: 0;
+    background: linear-gradient(-90deg, rgba(51, 51, 51, 0.60) 35%, rgba(51, 51, 51, 0.00) 50%)
+        /* -webkit-backdrop-filter: blur(2px);
+        backdrop-filter: blur(2px); */
 }
 
 section {
-    margin: 6vh auto;
+    margin: 6vh 0 6vh auto;
+    max-width: 60vh;
     color: #fff;
     display: flex;
     justify-content: center;
@@ -224,7 +228,7 @@ section:first-of-type, section:last-of-type {
 section:first-of-type {
     min-height: 85vh;
     padding-bottom: 15vh;
-    margin-top: 0;
+    margin: 0 auto;
 }
 
 section:last-of-type {
@@ -234,11 +238,11 @@ section:last-of-type {
 
 /* removed empty .big-pic rule (lint warning) */
 
-iframe {
+iframe#if {
     top: 0;
-    left: 0;
+    left: -25vw;
     height: 100vh;
-    width: 70vw;
+    width: 125vw;
     position: fixed;
     background-color: transparent;
     border: 0;
@@ -259,7 +263,7 @@ iframe {
         top: 0;
         left: 0;
         width: 100vw;
-        height: 50vh;
+        height: 70vh;
         z-index: 0;
         pointer-events: none; /* don't intercept taps when covered */
     }
@@ -274,7 +278,7 @@ iframe {
         margin:  0 0;
         z-index: 10;
         overflow: auto; /* allow scrolling on main if content overflows */
-        background: linear-gradient(0deg, rgba(51, 51, 51, 0.50) 40%, rgba(51, 51, 51, 0.00) 50%);
+        background: linear-gradient(0deg, rgba(51, 51, 51, 0) 30%, rgba(51, 51, 51, 0.00) 55%);
         /* -webkit-backdrop-filter: blur(2px);
         backdrop-filter: blur(2px); */
     }
