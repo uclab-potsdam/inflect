@@ -96,48 +96,18 @@
                              ? title
                              : `${title} · ${file}`;
 
-            // Try fetching the markdown file. Prefer relative/local files (so
-            // local edits are visible while developing). Only fall back to
-            // raw.githubusercontent when we can confidently derive an owner/repo
-            // from the environment (GitHub Pages) or the user explicitly
-            // requests it via ?raw=1. This avoids hardcoding repo details.
-            const branch = 'main';
+            // Simple local-first candidate paths (original repo behavior)
             const origin = location.origin || ('https://' + location.host);
             const basePath = (location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/\/[^/]*$/, '/') );
-            // detect local development hosts
-            const isLocalHost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:' || !location.hostname);
-            const forceRaw = (new URLSearchParams(location.search)).has('raw');
-            // If running on a github.io host, try to infer owner/repo from the path
-            let inferredRawBase = null;
-            try{
-                if(location.hostname && location.hostname.endsWith('github.io')){
-                    const segs = location.pathname.split('/').filter(Boolean);
-                    if(segs.length >= 2){
-                        const owner = segs[0]; const repo = segs[1];
-                        inferredRawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
-                    }
-                }
-            }catch(e){ inferredRawBase = null; }
-            const isGitHubPages = !isLocalHost && location.hostname && location.hostname.endsWith('github.io');
             let candidatePaths;
-
             if (file === 'README') {
-                // Prefer local README files first to reflect local edits while
-                // developing. Only fall back to inferred raw.githubusercontent if
-                // requested or available.
                 candidatePaths = [
                     './README.md',
                     './README.html',
                     'README.md',
-                    'README.html',
-                    origin + basePath + 'README.md',
-                    origin + basePath + 'README.html'
+                    'README.html'
                 ];
-                if ((forceRaw || isGitHubPages) && inferredRawBase) {
-                    candidatePaths.unshift(inferredRawBase + 'README.md', inferredRawBase + 'README.html');
-                }
             } else {
-                // Prefer relative/local files first
                 candidatePaths = [
                     file + '.md',
                     './' + file + '.md',
@@ -146,11 +116,6 @@
                     'README.md',
                     'README.html'
                 ];
-                if ((forceRaw || isGitHubPages) && inferredRawBase) {
-                    // If we inferred raw base, try that before local fallbacks
-                    candidatePaths.unshift(inferredRawBase + file + '.md', inferredRawBase + file + '.html');
-                    candidatePaths.push(inferredRawBase + 'README.md', inferredRawBase + 'README.html');
-                }
             }
             let response = null;
             let text = null;
@@ -172,18 +137,6 @@
             }
             if (!text) {
                 console.debug('renderMarkdown: no candidate succeeded');
-                // As a last resort, try raw.githubusercontent only if we inferred an
-                // owner/repo or the user explicitly asked for raw via ?raw=1
-                if ((forceRaw || isGitHubPages) && inferredRawBase) {
-                    try{
-                        const fb = inferredRawBase + (file === 'README' ? 'README.md' : (file + '.md'));
-                        const rf = await fetch(fb, {cache: 'no-store'});
-                        if (rf && rf.ok) { text = await rf.text(); console.debug('renderMarkdown: fetched fallback', fb); }
-                        else console.debug('renderMarkdown: raw fallback not ok', fb, rf && rf.status);
-                    }catch(e){ console.debug('renderMarkdown: raw fallback fetch error', e && e.message); }
-                } else {
-                    console.debug('renderMarkdown: skipping raw.githubusercontent fallback (not inferred or not requested)');
-                }
             }
 
             if (!text) {
