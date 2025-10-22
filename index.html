@@ -15,21 +15,6 @@
     <script src="src/marked.min.js"></script>
 
     <base href="./">
-    <script>
-        // Ensure relative URLs resolve correctly when served from a repository subpath
-        // (e.g. https://<user>.github.io/nibal/). Insert a <base> element dynamically
-        // so fetch('./README.md') and other relative requests use the repo root.
-        (function(){
-            try{
-                const path = location.pathname || '/';
-                // Use the current path's directory as base. This covers cases like
-                // '/nibal/' (GitHub Pages repo subpath) and nested paths.
-                let baseHref = path;
-                if(!baseHref.endsWith('/')) baseHref = baseHref.replace(/\/[^/]*$/, '/') || '/';
-                const b = document.createElement('base'); b.href = baseHref; document.head.insertBefore(b, document.head.firstChild);
-            }catch(e){}
-        })();
-    </script>
 
     <link rel="stylesheet" href="src/base.css">
     <style>
@@ -96,25 +81,23 @@
                              ? title
                              : `${title} · ${file}`;
 
-            // Simple local-first candidate paths (original repo behavior)
-            const origin = location.origin || ('https://' + location.host);
-            const basePath = (location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/\/[^/]*$/, '/') );
+            // Simple local-first candidate paths. Prefer .html before .md to
+            // avoid noisy 404s on GitHub Pages which often serves README as HTML.
             let candidatePaths;
             if (file === 'README') {
+                // Only attempt README.html to avoid noisy 404s for README.md on Pages
                 candidatePaths = [
-                    './README.md',
                     './README.html',
-                    'README.md',
                     'README.html'
                 ];
             } else {
                 candidatePaths = [
-                    file + '.md',
-                    './' + file + '.md',
                     file + '.html',
                     './' + file + '.html',
-                    'README.md',
-                    'README.html'
+                    file + '.md',
+                    './' + file + '.md',
+                    'README.html',
+                    'README.md'
                 ];
             }
             let response = null;
