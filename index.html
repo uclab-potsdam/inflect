@@ -96,79 +96,60 @@
                              ? title
                              : `${title} · ${file}`;
 
-            // Try fetching the markdown file. On GitHub Pages some files may be
-            // served from a different base path or omitted; attempt sensible
-            // fallbacks before failing so the site behaves like local.
-            const owner = 'mushon', repo = 'nibal', branch = 'main';
-            const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
-            let candidatePaths;
-            // Detect GitHub Pages / repo-hosted environment and prefer raw.githubusercontent
+            // Try fetching the markdown file. Prefer relative/local files (so
+            // local edits are visible while developing). Only fall back to
+            // raw.githubusercontent when we can confidently derive an owner/repo
+            // from the environment (GitHub Pages) or the user explicitly
+            // requests it via ?raw=1. This avoids hardcoding repo details.
+            const branch = 'main';
             const origin = location.origin || ('https://' + location.host);
             const basePath = (location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/\/[^/]*$/, '/') );
-            const isGitHubPages = location.hostname && location.hostname.endsWith('github.io') || location.pathname.startsWith('/' + repo + '/');
+            // detect local development hosts
+            const isLocalHost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:' || !location.hostname);
+            const forceRaw = (new URLSearchParams(location.search)).has('raw');
+            // If running on a github.io host, try to infer owner/repo from the path
+            let inferredRawBase = null;
+            try{
+                if(location.hostname && location.hostname.endsWith('github.io')){
+                    const segs = location.pathname.split('/').filter(Boolean);
+                    if(segs.length >= 2){
+                        const owner = segs[0]; const repo = segs[1];
+                        inferredRawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
+                    }
+                }
+            }catch(e){ inferredRawBase = null; }
+            const isGitHubPages = !isLocalHost && location.hostname && location.hostname.endsWith('github.io');
+            let candidatePaths;
 
             if (file === 'README') {
-                if (isGitHubPages) {
-                    // On GitHub Pages prefer the raw.githubusercontent copy first to avoid
-                    // repo-relative README.md requests which often 404 on Pages.
-                    candidatePaths = [
-                        rawBase + 'README.md',
-                        rawBase + 'README.html',
-                        // local fallbacks last
-                        './README.html',
-                        './README.md',
-                        'README.html',
-                        'README.md'
-                    ];
-                } else {
-                    // Local / generic ordering for non-GitHub Pages environments
-                    candidatePaths = [
-                        rawBase + 'README.md',
-                        rawBase + 'README.html',
-                        origin + basePath + 'README.md',
-                        origin + basePath + 'README.html',
-                        origin + '/' + repo + '/README.md',
-                        origin + '/' + repo + '/README.html',
-                        './README.html',
-                        './README.md',
-                        'README.html',
-                        'README.md'
-                    ];
+                // Prefer local README files first to reflect local edits while
+                // developing. Only fall back to inferred raw.githubusercontent if
+                // requested or available.
+                candidatePaths = [
+                    './README.md',
+                    './README.html',
+                    'README.md',
+                    'README.html',
+                    origin + basePath + 'README.md',
+                    origin + basePath + 'README.html'
+                ];
+                if ((forceRaw || isGitHubPages) && inferredRawBase) {
+                    candidatePaths.unshift(inferredRawBase + 'README.md', inferredRawBase + 'README.html');
                 }
             } else {
-                if (isGitHubPages) {
-                    // For pages hosted on GitHub, prefer raw content to avoid
-                    // missing repo-relative files on the Pages host.
-                    candidatePaths = [
-                        rawBase + file + '.md',
-                        rawBase + file + '.html',
-                        rawBase + 'README.md',
-                        rawBase + 'README.html',
-                        file + '.html',
-                        './' + file + '.html',
-                        file + '.md',
-                        './' + file + '.md'
-                    ];
-                } else {
-                    candidatePaths = [
-                        file + ".html",
-                        './' + file + ".html",
-                        'README.html',
-                        rawBase + file + '.html',
-                        rawBase + 'README.html',
-                        file + ".md",
-                        './' + file + ".md",
-                        file.toUpperCase() + ".md",
-                        file.toLowerCase() + ".md",
-                        'README.md',
-                        '/' + file + '.html',
-                        '/' + file + '.md',
-                        '/' + repo + '/' + file + '.html',
-                        '/' + repo + '/' + file + '.md',
-                        rawBase + file + '.md',
-                        rawBase + 'README.md',
-                        (location.pathname.replace(/\/[^/]*$/, '') || '/') + file + '.md'
-                    ];
+                // Prefer relative/local files first
+                candidatePaths = [
+                    file + '.md',
+                    './' + file + '.md',
+                    file + '.html',
+                    './' + file + '.html',
+                    'README.md',
+                    'README.html'
+                ];
+                if ((forceRaw || isGitHubPages) && inferredRawBase) {
+                    // If we inferred raw base, try that before local fallbacks
+                    candidatePaths.unshift(inferredRawBase + file + '.md', inferredRawBase + file + '.html');
+                    candidatePaths.push(inferredRawBase + 'README.md', inferredRawBase + 'README.html');
                 }
             }
             let response = null;
@@ -190,19 +171,18 @@
                 }
             }
             if (!text) {
-                console.debug('renderMarkdown: no candidate succeeded, trying raw.githubusercontent fallback');
-                try {
-                    // Final guaranteed fallback: raw.githubusercontent copy for this repo/branch
-                    const fb = rawBase + (file === 'README' ? 'README.md' : (file + '.md'));
-                    const rf = await fetch(fb, {cache: 'no-store'});
-                    if (rf && rf.ok) {
-                        text = await rf.text();
-                        console.debug('renderMarkdown: fetched fallback', fb);
-                    } else {
-                        console.debug('renderMarkdown: raw fallback not ok', fb, rf && rf.status);
-                    }
-                } catch (e) {
-                    console.debug('renderMarkdown: raw fallback fetch error', e && e.message);
+                console.debug('renderMarkdown: no candidate succeeded');
+                // As a last resort, try raw.githubusercontent only if we inferred an
+                // owner/repo or the user explicitly asked for raw via ?raw=1
+                if ((forceRaw || isGitHubPages) && inferredRawBase) {
+                    try{
+                        const fb = inferredRawBase + (file === 'README' ? 'README.md' : (file + '.md'));
+                        const rf = await fetch(fb, {cache: 'no-store'});
+                        if (rf && rf.ok) { text = await rf.text(); console.debug('renderMarkdown: fetched fallback', fb); }
+                        else console.debug('renderMarkdown: raw fallback not ok', fb, rf && rf.status);
+                    }catch(e){ console.debug('renderMarkdown: raw fallback fetch error', e && e.message); }
+                } else {
+                    console.debug('renderMarkdown: skipping raw.githubusercontent fallback (not inferred or not requested)');
                 }
             }
 
@@ -425,10 +405,48 @@
                 try {
                     const hasExplicitHash = (window.location.hash || '').length > 1;
                     if (!hasExplicitHash) {
-                        const jumpEl = document.querySelector('main .pin');
-                        if (jumpEl) {
-                            jumpEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
+                        // Robustly scroll to `.pin`: try immediately, retry for a
+                        // short period, and also observe DOM mutations and the
+                        // typewriter completion event so we don't miss delayed
+                        // insertions.
+                        let attempts = 0; const maxAttempts = 20; const delay = 80; // ~1.6s total
+                        let settled = false;
+                        let mo = null; let timer = null;
+                        const container = document.querySelector('main') || document.body;
+
+                        const cleanup = () => {
+                            try{ if(mo) mo.disconnect(); }catch(e){}
+                            try{ if(timer) clearTimeout(timer); }catch(e){}
+                        };
+
+                        const doScrollOnce = () => {
+                            try{
+                                const jumpEl = document.querySelector('main .pin');
+                                if(jumpEl){
+                                    try{ jumpEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); }catch(e){}
+                                    // suppress snap behavior briefly so it doesn't override the pin jump
+                                    try{ window.__pinSuppressUntil = Date.now() + 1200; }catch(e){}
+                                    settled = true; return true;
+                                }
+                            }catch(e){}
+                            return false;
+                        };
+
+                        // MutationObserver to detect late insertions
+                        try{
+                            mo = new MutationObserver((mutations)=>{ if(!settled && doScrollOnce()){ cleanup(); } });
+                            mo.observe(container, { childList: true, subtree: true });
+                        }catch(e){ mo = null; }
+                        const tick = () => {
+                            if(settled) { cleanup(); return; }
+                            attempts++;
+                            if(doScrollOnce()){ cleanup(); return; }
+                            if(attempts < maxAttempts) timer = setTimeout(tick, delay);
+                            else cleanup();
+                        };
+
+                        // Start attempts
+                        tick();
                     }
                 } catch (e) {
                     // swallow — best-effort only
@@ -436,8 +454,14 @@
 
                 // (typewriter functionality removed)
 
-            // return to old position
-            if (location.hostname=="localhost") window.scrollTo(0, sessionStorage.getItem("scrollPosition") || 0);
+            // return to old position — but don't override an intentional `.pin` jump
+            try{
+                const hasPin = !!document.querySelector('main .pin');
+                const hasExplicitHash = (window.location.hash || '').length > 1;
+                if (location.hostname === 'localhost' && !hasPin && !hasExplicitHash) {
+                    window.scrollTo(0, sessionStorage.getItem('scrollPosition') || 0);
+                }
+            }catch(e){}
         } catch (error) {
             console.error('Error fetching or rendering the markdown file:', error);
         }
@@ -612,7 +636,9 @@
                     if (en.isIntersecting) {
                         try {
                             const sec = en.target;
-                            if ((Date.now() || 0) > (window.__snapSuppressUntil || 0)) {
+                            const now = Date.now() || 0;
+                            // If a recent pin jump occurred, avoid snapping until it settles
+                            if (now > (window.__pinSuppressUntil || 0) && now > (window.__snapSuppressUntil || 0)) {
                                 _snapToSection(sec, true);
                             }
                         } catch (e) {}

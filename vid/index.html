@@ -103,7 +103,11 @@
   }
 </script>
   <div id="container">
-    <iframe id="yt-iframe" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    <div id="yt-wrapper" style="position:relative;display:inline-block">
+      <iframe id="yt-iframe" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+      <!-- Custom overlay play button to hide YouTube chrome until user interacts -->
+      <button id="overlay-play" aria-label="Play video" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:999px;border:none;padding:0.6em 0.9em;background:rgba(0,0,0,0.6);color:#fff;font-size:1.1em;display:none;cursor:pointer;">▶</button>
+    </div>
     <!-- Preloader overlay: a simple grey frame that appears over the iframe while loading -->
     <div id="preloader" aria-hidden="true"></div>
     <div id="controls">
@@ -133,6 +137,19 @@
   </div>
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
+    // Responsive sizing for the iframe wrapper. When the wrapper has class
+    // `shorts` we use a portrait aspect ratio (9:16) appropriate for YouTube Shorts.
+    (function(){
+      const style = document.createElement('style');
+      style.textContent = `
+        #yt-wrapper { display:inline-block; }
+        #yt-wrapper iframe { width: 80vw; max-width: 960px; height: calc(56.25vw); max-height: 540px; }
+        /* Portrait shorts: width constrained but height taller (9:16) */
+        #yt-wrapper.shorts iframe { width: min(40vw, 420px); max-width: 420px; aspect-ratio: 9/16; height: auto; }
+        @media (max-width: 600px) { #yt-wrapper.shorts iframe { width: min(86vw, 360px); } }
+      `;
+      document.head.appendChild(style);
+    })();
     const ytIframe = document.getElementById('yt-iframe');
     const urlInput = document.getElementById('video-url');
     const loadBtn = document.getElementById('load-url');
@@ -140,6 +157,8 @@
   let ytPlayer = null;
   let ytReady = false;
   let pendingId = null;
+  let pendingIsShorts = false;
+  const overlayPlay = document.getElementById('overlay-play');
   const autoplayToggle = document.getElementById('autoplay-toggle');
     const darkEmbedToggle = document.getElementById('dark-embed-toggle');
     // initialize dark embed state from localStorage. Default to dark mode
@@ -175,6 +194,23 @@
       const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([\w-]{11})/);
       return match ? match[1] : null;
     }
+
+    // Parse a YouTube URL and detect if it's a Shorts URL. Returns {id, isShorts}
+    function parseYouTubeUrl(url) {
+      if (!url) return { id: null, isShorts: false };
+      // Raw id
+      if (/^[\w-]{11}$/.test(url)) return { id: url, isShorts: false };
+      try {
+        const u = new URL(url, location.href);
+        const isShorts = u.pathname && u.pathname.startsWith('/shorts/');
+        const m = url.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([\w-]{11})/);
+        if (m && m[1]) return { id: m[1], isShorts };
+      } catch (e) {
+        const m2 = url.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([\w-]{11})/);
+        if (m2 && m2[1]) return { id: m2[1], isShorts: /shorts\//.test(url) };
+      }
+      return { id: null, isShorts: false };
+    }
     function getTikTokId(url){
       if (!url) return null;
       // examples:
@@ -209,18 +245,31 @@
         autoplayToggle.checked = (location.hash.split(',').includes('auto'));
       }
     }
-    function loadYouTube(id) {
+    function loadYouTube(id, isShorts) {
       // show preloader while iframe navigates
       showPreloader();
-      // Use YouTube embed URL
-      ytIframe.src = `https://www.youtube.com/embed/${id}?enablejsapi=1&origin=${location.origin}`;
+      // Use YouTube embed URL with minimal UI params. We still enable JS API
+      // so we can control playback programmatically. We keep modestbranding,
+      // disable related videos and controls, and request playsinline.
+      const params = new URLSearchParams({
+        enablejsapi: '1',
+        origin: location.origin,
+        modestbranding: '1',
+        rel: '0',
+        controls: '0',
+        playsinline: '1',
+        widget_referrer: location.href
+      });
+      ytIframe.src = `https://www.youtube.com/embed/${id}?${params.toString()}`;
       // mark as a YouTube embed
       ytIframe.dataset.provider = 'youtube';
-      // restore default YouTube-ish iframe sizing
-      ytIframe.style.width = '';
-      ytIframe.style.height = '';
-      ytIframe.style.maxWidth = '';
-      ytIframe.style.maxHeight = '';
+      // adjust iframe wrapper class for shorts (portrait) vs normal videos
+      try {
+        const wrap = document.getElementById('yt-wrapper');
+        if (wrap) {
+          if (isShorts) wrap.classList.add('shorts'); else wrap.classList.remove('shorts');
+        }
+      } catch(e){}
       if (playPauseBtn) playPauseBtn.disabled = false;
       const providerEl = document.getElementById('provider-indicator'); if (providerEl) providerEl.textContent = 'Provider: YouTube';
     }
@@ -294,10 +343,22 @@
             ytReady = true;
             try { hidePreloader(); } catch(e){}
             playPauseBtn.disabled = false;
+            // hide overlay once the player is ready (we'll show it when paused)
+            try { if (overlayPlay) overlayPlay.style.display = 'none'; } catch(e){}
             if (pendingId && pendingId !== id) {
               ytPlayer.loadVideoById(pendingId);
               pendingId = null;
             }
+          },
+          'onStateChange': function(e) {
+            // Show overlay when paused/stopped; hide when playing
+            try {
+              if (!overlayPlay) return;
+              const state = e.data;
+              // 1 = playing, 2 = paused, 0 = ended
+              if (state === 1) overlayPlay.style.display = 'none';
+              else overlayPlay.style.display = '';
+            } catch(e){}
           }
         }
       });
@@ -329,9 +390,22 @@
         return;
       }
       if (ytId) {
-        setHash(ytId, startSec, endSec, true);
-        loadYouTube(ytId);
-        setupPlayer(ytId);
+        // If this came from a Shorts URL, prefix the token so the hash preserves
+        // that information. setHash accepts whatever token we pass as the id.
+        const token = parsed && parsed.isShorts ? `s:${ytId}` : ytId;
+        setHash(token, startSec, endSec, true);
+        const parsed = parseYouTubeUrl(url);
+        loadYouTube(ytId, parsed.isShorts);
+        // If autoplay is requested, create the player immediately; otherwise
+        // show overlay play button and defer player creation until user clicks.
+        if (autoplayToggle && autoplayToggle.checked) {
+          setupPlayer(ytId);
+        } else {
+          // show overlay so the user can click to instantiate the minimal UI
+          try { overlayPlay.style.display = ''; } catch(e){}
+          pendingId = ytId;
+          pendingIsShorts = parsed.isShorts;
+        }
         return;
       }
       alert('Invalid YouTube or TikTok URL/ID');
@@ -349,6 +423,26 @@
     urlInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') handleLoad();
     });
+
+    if (overlayPlay) {
+      overlayPlay.addEventListener('click', () => {
+        try {
+          // If a pendingId was set (deferred load), create the player with it
+          const id = pendingId || getYouTubeId(urlInput.value.trim());
+          if (!id) return;
+          const parsed = parseYouTubeUrl(urlInput.value.trim());
+          // ensure the iframe src is the correct embed (in case it was set earlier)
+          loadYouTube(id, pendingIsShorts || parsed.isShorts);
+          setupPlayer(id);
+          // play once ready
+          const tryPlay = () => { try { if (ytPlayer && ytReady && typeof ytPlayer.playVideo === 'function') ytPlayer.playVideo(); } catch(e){} };
+          setTimeout(tryPlay, 600);
+          // hide overlay immediately to avoid double clicks
+          overlayPlay.style.display = 'none';
+          pendingId = null; pendingIsShorts = false;
+        } catch(e){}
+      });
+    }
     const resetSizeBtn = document.getElementById('reset-size');
     if (resetSizeBtn) {
       resetSizeBtn.addEventListener('click', () => {
@@ -388,9 +482,28 @@
           // no timeline controls for TikTok
           return;
         }
-        urlInput.value = `https://youtu.be/${id}`;
-        loadYouTube(id);
-        setupPlayer(id);
+
+        // Recognize shorts prefix 's:ID' used to preserve shorts identity in the hash
+        let isShorts = false;
+        let rawId = id;
+        if (String(id).startsWith('s:')) {
+          isShorts = true;
+          rawId = String(id).slice(2);
+        }
+
+        // Attempt to parse the raw hash token as a full YouTube URL (to detect shorts)
+        let parsed = parseYouTubeUrl(rawId);
+        if (!parsed.id) {
+          // Not a full URL — treat the token as a plain id
+          parsed = { id: rawId, isShorts };
+          urlInput.value = parsed.isShorts ? `https://www.youtube.com/shorts/${parsed.id}` : `https://youtu.be/${parsed.id}`;
+        } else {
+          // Use parsed info but respect explicit s: prefix which takes priority
+          parsed.isShorts = parsed.isShorts || isShorts;
+          urlInput.value = parsed.isShorts ? `https://www.youtube.com/shorts/${parsed.id}` : `https://youtu.be/${parsed.id}`;
+        }
+        loadYouTube(parsed.id, parsed.isShorts);
+        setupPlayer(parsed.id);
 
         // Wait for player ready and duration, then set handles and play
         let tries = 0;

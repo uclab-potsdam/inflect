@@ -42,15 +42,12 @@
       <input id="url" type="text" placeholder="https://..." aria-label="url input">
       <button id="load">Load</button>
     <label style="display:flex;align-items:center;gap:6px"><input id="autoplay" type="checkbox"> autoplay</label>
+      <label style="display:flex;align-items:center;gap:6px"><input id="lock-aspect" type="checkbox"> lock</label>
+      <label style="display:flex;align-items:center;gap:6px"><input id="loop" type="checkbox"> loop</label>
       <button id="clear" class="secondary">Clear</button>
   <button id="cover" class="secondary" title="Toggle cover/contain">Cover</button>
-      <div id="size-controls" class="size-controls">
-        <label>W <input id="size-w" type="number" min="1"></label>
-        <label>H <input id="size-h" type="number" min="1"></label>
-        <label style="display:flex;align-items:center;gap:6px"><input id="lock-aspect" type="checkbox"> lock</label>
-        <button id="apply-size" class="secondary">Apply</button>
-        <button id="reset-size" class="secondary">Reset</button>
-      </div>
+  <button id="pan-toggle" class="secondary" title="Toggle pan/zoom interactions">Pan: Off</button>
+      <!-- numeric size controls removed: direct manipulation (drag/wheel) is used instead -->
     </div>
   </div>
 
@@ -80,13 +77,25 @@
   let lastData = null;
   // size control elements
   const sizeControls = document.getElementById('size-controls');
-  const sizeW = document.getElementById('size-w');
-  const sizeH = document.getElementById('size-h');
   const lockAspect = document.getElementById('lock-aspect');
-  const applySizeBtn = document.getElementById('apply-size');
-  const resetSizeBtn = document.getElementById('reset-size');
   const autoplayChk = document.getElementById('autoplay');
+  const loopChk = document.getElementById('loop');
+  const panToggleBtn = document.getElementById('pan-toggle');
   let currentAspect = null;
+  let panEnabled = false;
+  // Direct manipulation state
+  let activeContentEl = null;
+  let manipState = null; // {startPointer:{x,y}, startPx, startPy}
+  let currentTransform = { s: 1, x: 0, y: 0 };
+  let activeOverlay = null;
+  // embed readiness / pending state
+  let embedLoaded = false;
+  let pendingState = null;
+  // manipulation debounce state
+  let isManipulating = false;
+  let _manipWriteTimer = null;
+  let _lastQueuedState = null;
+  const MANIP_DEBOUNCE_MS = 100;
   // default: lock proportions
   try{ lockAspect.checked = true; }catch(e){}
 
@@ -96,46 +105,213 @@
   // --- Hash state helpers -------------------------------------------------
   function parseHash(){
     try{
-      const s = (location.hash || '').replace(/^#/, '');
-      if(!s) return {};
-      const p = new URLSearchParams(s);
+      // We support two hash styles:
+      // 1) Legacy key=value pairs (e.g. u=...&s=...)
+      // 2) New compact slash/comma format: compactUrl[/s,x,y][/flag,flag]
+      // Query params (location.search) still override hash values when present.
+      const q = new URLSearchParams(location.search.replace(/^\?/, ''));
+      const rawHash = (location.hash || '').replace(/^#/, '');
       const out = {};
-      // accept long and short keys (backwards compatible)
-  if(p.has('u')) out.url = expandUrlFromHash(p.get('u'));
-  else if(p.has('url')) out.url = expandUrlFromHash(p.get('url'));
-      if(p.has('m')) out.mode = p.get('m');
-      else if(p.has('mode')) out.mode = p.get('mode');
-      if(p.has('w')) out.w = Number(p.get('w')) || null;
-      if(p.has('h')) out.h = Number(p.get('h')) || null;
-  if(p.has('l')) out.lock = p.get('l') === '1' || p.get('l') === 'true';
-  if(p.has('a')) out.autoplay = p.get('a') === '1' || p.get('a') === 'true';
-      else if(p.has('lock')) out.lock = p.get('lock') === '1' || p.get('lock') === 'true';
+
+      // Helper: parse legacy key=value hash when it looks like one
+      const looksLikeKv = rawHash.indexOf('=') !== -1 || rawHash.indexOf('&') !== -1;
+      if(looksLikeKv){
+        const p = new URLSearchParams(rawHash);
+        if(p.has('u')) out.url = expandUrlFromHash(p.get('u'));
+        else if(p.has('url')) out.url = expandUrlFromHash(p.get('url'));
+        if(p.has('m')) out.mode = p.get('m'); else if(p.has('mode')) out.mode = p.get('mode');
+        if(p.has('w')) out.w = Number(p.get('w')) || null; if(p.has('h')) out.h = Number(p.get('h')) || null;
+        if(p.has('s')) out.s = Number(p.get('s')) || null;
+        if(p.has('x')) out.x = Number(p.get('x')) || 0; if(p.has('y')) out.y = Number(p.get('y')) || 0;
+        if(p.has('x_frac')){ const v = Number(p.get('x_frac')); if(!Number.isNaN(v)) out.x = (v * 100); }
+        if(p.has('y_frac')){ const v = Number(p.get('y_frac')); if(!Number.isNaN(v)) out.y = (v * 100); }
+        if(p.has('l')) out.lock = p.get('l') === '1' || p.get('l') === 'true';
+          if(p.has('loop')) out.loop = p.get('loop') === '1' || p.get('loop') === 'true';
+        if(p.has('a')) out.autoplay = p.get('a') === '1' || p.get('a') === 'true';
+        else if(p.has('lock')) out.lock = p.get('lock') === '1' || p.get('lock') === 'true';
+      } else if(rawHash){
+        // New compact format
+        // Example: #example.com/watch?v=xxx/1.2,10,20/autoplay,cover
+        const parts = rawHash.split('/').filter(Boolean);
+        if(parts.length > 0){
+          try{ out.url = expandUrlFromHash(parts[0]); }catch(e){}
+        }
+        if(parts.length > 1){
+          const coords = parts[1].split(',').map(t=>t.trim()).filter(Boolean);
+          if(coords.length >= 3){
+            const a = Number(coords[0]); const b = Number(coords[1]); const c = Number(coords[2]);
+            // Heuristic: prefer interpreting as x,y,s when first two are percentages (0..100)
+            // and third is a reasonable scale (0.01..20). Otherwise fall back to s,x,y.
+            if(!Number.isNaN(a) && !Number.isNaN(b) && !Number.isNaN(c)){
+              const looksLikeXYs = (a >= 0 && a <= 100) && (b >= 0 && b <= 100) && (c > 0 && c <= 20);
+              const looksLikeSxy = (a > 0 && a <= 20) && (b >= 0 && b <= 100) && (c >= 0 && c <= 100);
+              if(looksLikeXYs || (!looksLikeSxy && looksLikeXYs)){
+                out.x = a; out.y = b; out.s = c;
+              } else {
+                out.s = a; out.x = b; out.y = c;
+              }
+            }
+          } else if(coords.length === 2){
+            // two values: interpret as x,y (scale defaults to 1)
+            const a = Number(coords[0]); const b = Number(coords[1]); if(!Number.isNaN(a) && !Number.isNaN(b)){ out.x = a; out.y = b; }
+          } else if(coords.length === 1){
+            // single value: interpret as scale
+            const a = Number(coords[0]); if(!Number.isNaN(a)) out.s = a;
+          }
+        }
+        if(parts.length > 2){
+          const flags = parts[2].split(',').map(t=>t.trim()).filter(Boolean);
+          for(const f of flags){
+            if(f === 'autoplay') out.autoplay = true;
+            else if(f === 'cover') out.mode = 'cover';
+            else if(f === 'contain') out.mode = 'contain';
+            else if(f === 'loop') out.loop = true;
+            // nolock and pan are intentionally ignored for compact flags (do not echo them)
+          }
+        }
+      }
+
+      // Query params override whichever hash style was used
+      for(const [k,v] of q.entries()){
+        if(k === 'u' || k === 'url') out.url = expandUrlFromHash(v);
+        else if(k === 'm' || k === 'mode') out.mode = v;
+        else if(k === 'w') out.w = Number(v) || null;
+        else if(k === 'h') out.h = Number(v) || null;
+        else if(k === 's') out.s = Number(v) || null;
+        else if(k === 'x') out.x = Number(v) || 0;
+        else if(k === 'y') out.y = Number(v) || 0;
+        else if(k === 'x_frac'){ const n=Number(v); if(!Number.isNaN(n)) out.x = n*100; }
+        else if(k === 'y_frac'){ const n=Number(v); if(!Number.isNaN(n)) out.y = n*100; }
+        else if(k === 'l' || k === 'lock') out.lock = (v === '1' || v === 'true');
+        else if(k === 'a' || k === 'autoplay') out.autoplay = (v === '1' || v === 'true');
+        else if(k === 'loop') out.loop = (v === '1' || v === 'true');
+      }
+
+      // normalize x/y into percentages (0..100). Accept formats:
+      // fractional 0..1 -> convert to percent; pixel values (>100) -> convert using viewport size
+      try{
+        const vw = window.innerWidth || 1, vh = window.innerHeight || 1;
+        if(typeof out.x !== 'undefined' && out.x !== null){ const vx = Number(out.x); if(Math.abs(vx) <= 1) out.x = vx * 100; else if(vx > 100) out.x = (vx / vw) * 100; else out.x = vx; }
+        if(typeof out.y !== 'undefined' && out.y !== null){ const vy = Number(out.y); if(Math.abs(vy) <= 1) out.y = vy * 100; else if(vy > 100) out.y = (vy / vh) * 100; else out.y = vy; }
+      }catch(e){}
+
+      if(typeof out.lock !== 'undefined') out.lock = !!out.lock;
+      if(typeof out.autoplay !== 'undefined') out.autoplay = !!out.autoplay;
+      if(typeof out.loop !== 'undefined') out.loop = !!out.loop;
       return out;
     }catch(e){ return {}; }
   }
 
+  // normalize state numeric types (scale and x/y) and clamp percentages
+  function normalizeState(st){
+    if(!st || typeof st !== 'object') return {};
+    const out = Object.assign({}, st);
+    if(typeof out.s !== 'undefined' && out.s !== null) out.s = Number(out.s) || null;
+    try{
+      const vw = window.innerWidth || 1, vh = window.innerHeight || 1;
+      if(typeof out.x !== 'undefined' && out.x !== null){ let vx = Number(out.x); if(Math.abs(vx) <= 1) vx = vx * 100; else if(vx > 100) vx = (vx / vw) * 100; out.x = Math.max(0, Math.min(100, vx)); }
+      if(typeof out.y !== 'undefined' && out.y !== null){ let vy = Number(out.y); if(Math.abs(vy) <= 1) vy = vy * 100; else if(vy > 100) vy = (vy / vh) * 100; out.y = Math.max(0, Math.min(100, vy)); }
+    }catch(e){}
+    if(typeof out.lock !== 'undefined') out.lock = !!out.lock;
+    if(typeof out.autoplay !== 'undefined') out.autoplay = !!out.autoplay;
+    if(typeof out.loop !== 'undefined') out.loop = !!out.loop;
+    return out;
+  }
+
+  // Prefer initial parsed state (captured at load) and merge with current query/hash; query overrides initial
+  function getEffectiveState(){
+    const current = (function(){ try{ return parseHash(); }catch(e){ return {}; } })();
+    const initial = (window.__embed_initial_state && Object.keys(window.__embed_initial_state).length) ? window.__embed_initial_state : {};
+    const merged = Object.assign({}, initial, current);
+    return normalizeState(merged);
+  }
+
+  // Queue or apply a parsed state only when the embed is ready. If the embed
+  // hasn't signalled readiness yet, keep the normalized state in `pendingState`.
+  function applyOrQueueState(st){
+    try{
+      const norm = normalizeState(st || {});
+      pendingState = norm;
+      if(embedLoaded && injected && injected.firstElementChild){
+        // apply now
+        try{ applyTransform(Number(norm.s || 1), Number(norm.x || 0), Number(norm.y || 0)); }catch(e){}
+      try{ currentTransform.s = Number(norm.s || 1); currentTransform.x = Number(norm.x || 0); currentTransform.y = Number(norm.y || 0); }catch(e){}
+        pendingState = null;
+      }
+    }catch(e){ /* ignore */ }
+  }
+
+  function onEmbedReady(){
+    try{
+      try{ console.debug('[embed] onEmbedReady', {t:performance.now(), currentTransform, pendingState}); }catch(e){}
+      embedLoaded = true;
+      // clear any preview transform applied to the injected container and
+      // apply the authoritative transform to the embedded content.
+      try{ injected.style.transform = ''; injected.style.transformOrigin = ''; }catch(e){}
+      try{ if(currentTransform && injected && injected.firstElementChild){ requestAnimationFrame(()=>{ try{ applyTransform(Number(currentTransform.s||1), Number(currentTransform.x||0), Number(currentTransform.y||0)); }catch(e){} }); } }catch(e){}
+      if(pendingState){ requestAnimationFrame(()=>{ try{ applyOrQueueState(pendingState); }catch(e){} }); }
+    }catch(e){}
+  }
+
+  // Immediately echo state visually. If embedded content exists, applyTransform
+  // directly. Otherwise, apply a conservative preview transform to the injected
+  // container so the UI reflects the requested position/scale immediately.
+  function echoStateImmediately(st){
+    try{
+      try{ console.debug('[embed] echoStateImmediately called', {t:performance.now(), st}); }catch(e){}
+      const norm = normalizeState(st || {});
+      currentTransform.s = Number(norm.s || 1);
+      currentTransform.x = Number(norm.x || 0);
+      currentTransform.y = Number(norm.y || 0);
+      // if content present, apply directly
+      if(injected && injected.firstElementChild){ try{ applyTransform(currentTransform.s, currentTransform.x, currentTransform.y); }catch(e){} }
+      else {
+        // preview on injected container: compute px/py from percentages
+        try{
+          const px = Math.round((Number(currentTransform.x||0) / 100) * window.innerWidth || 0);
+          const py = Math.round((Number(currentTransform.y||0) / 100) * window.innerHeight || 0);
+          injected.style.transformOrigin = '50% 50%';
+          injected.style.transform = `translate(${px}px, ${py}px) scale(${currentTransform.s})`;
+          try{ console.debug('[embed] echo preview set', {t:performance.now(), px, py, s:currentTransform.s}); }catch(e){}
+        }catch(e){}
+      }
+    }catch(e){}
+  }
+
   function writeHash(state){
     try{
-      const p = new URLSearchParams();
-      // write compact keys to keep hash short, but omit defaults
-      if(state.url) p.set('u', compactUrlForHash(state.url));
-      // mode: default is 'contain' — only write if it's 'cover' (or explicitly non-default)
-      const mode = state.mode || (coverMode ? 'cover' : 'contain');
-      if(mode && mode !== 'contain') p.set('m', mode);
-      // sizes: only include if they differ from the viewport (allow small delta)
-      const vw = window.innerWidth, vh = window.innerHeight;
-      const wnum = (state.w !== undefined && state.w !== '') ? Number(state.w) : null;
-      const hnum = (state.h !== undefined && state.h !== '') ? Number(state.h) : null;
-      if(Number.isFinite(wnum) && Math.abs(wnum - vw) > 2) p.set('w', String(Math.round(wnum)));
-      if(Number.isFinite(hnum) && Math.abs(hnum - vh) > 2) p.set('h', String(Math.round(hnum)));
-  // lock: default true — only write when explicitly false
-  if(typeof state.lock !== 'undefined' && state.lock === false) p.set('l', '0');
-  // autoplay: default false — only write when explicitly true
-  if(typeof state.autoplay !== 'undefined' && state.autoplay === true) p.set('a', '1');
-      const newHash = p.toString();
-      // use replace to avoid creating history entries for each small change
-      if(newHash) location.replace(location.pathname + location.search + '#' + newHash);
-      else location.replace(location.pathname + location.search);
+      try{ console.debug('[embed] writeHash', {t:performance.now(), state: state}); }catch(e){}
+      // Build compact hash in format: compactUrl[/s,x,y][/flag,flag]
+      // Omit coords if they are default (s=1,x=0,y=0). Omit flags that are defaults.
+      const parts = [];
+      if(state.url) parts.push(compactUrlForHash(state.url));
+
+      // decide whether to emit coords in the order: x,y,s (per request)
+      const sVal = (typeof state.s !== 'undefined' && state.s !== null) ? Number(state.s) : 1;
+      const xVal = (typeof state.x !== 'undefined' && state.x !== null) ? Number(state.x) : 0;
+      const yVal = (typeof state.y !== 'undefined' && state.y !== null) ? Number(state.y) : 0;
+      const coordsAreDefault = (Math.abs(sVal - 1) < 1e-6) && (Math.abs(xVal) < 1e-6) && (Math.abs(yVal) < 1e-6);
+      if(!coordsAreDefault){
+        // keep numbers short and minimal and emit as x,y,s
+        const cx = (Math.round(xVal*100)/100).toString();
+        const cy = (Math.round(yVal*100)/100).toString();
+        const cs = (Math.round(sVal*100)/100).toString();
+        parts.push([cx,cy,cs].join(','));
+      }
+
+  // flags: include only non-defaults. Do not echo 'nolock' or 'pan' in compact hash.
+  const flags = [];
+  if(typeof state.autoplay !== 'undefined' && state.autoplay === true) flags.push('autoplay');
+  if(typeof state.loop !== 'undefined' && state.loop === true) flags.push('loop');
+  // mode: default is 'contain' — include 'cover' only when coords are default (mutually exclusive with custom position)
+  const modeVal = (state.mode || (coverMode ? 'cover' : 'contain'));
+  if(coordsAreDefault && modeVal === 'cover') flags.push('cover');
+  if(flags.length) parts.push(flags.join(','));
+
+      const newHash = parts.join('/');
+      // write with replace so we don't create history entries for each tiny change
+      if(newHash) location.replace(location.pathname + (location.search ? ('?' + location.search.replace(/^\?/,'')) : '') + '#' + newHash);
+      else location.replace(location.pathname + (location.search ? ('?' + location.search.replace(/^\?/,'')) : ''));
     }catch(e){ /* ignore */ }
   }
 
@@ -166,22 +342,170 @@
     if(!state) return;
     if(state.mode){ coverMode = (state.mode === 'cover'); coverBtn.textContent = coverMode ? 'Cover' : 'Contain'; }
     if(typeof state.lock !== 'undefined'){ try{ lockAspect.checked = !!state.lock; }catch(e){} }
-    if(state.w) sizeW.value = Math.round(state.w);
-    if(state.h) sizeH.value = Math.round(state.h);
+    if(typeof state.loop !== 'undefined'){ try{ loopChk.checked = !!state.loop; }catch(e){} }
+    // legacy: if w/h provided, set approximate scale relative to viewport
+    const vpW = window.innerWidth, vpH = window.innerHeight;
+    if(state.w) {
+      try{ const nw = Number(state.w); if(Number.isFinite(nw) && nw>0){ currentTransform.s = (nw / Math.max(1, vpW)); } }catch(e){}
+    }
+    if(state.h) {
+      try{ const nh = Number(state.h); if(Number.isFinite(nh) && nh>0 && currentAspect){ currentTransform.s = ( (nh * currentAspect) / Math.max(1, vpW) ); } }catch(e){}
+    }
+  // new transform params: s is unitless; x/y in state are percentages (0..100) when provided via query
+  if(typeof state.s !== 'undefined' && state.s !== null){ try{ currentTransform.s = Number(state.s); }catch(e){} }
+  if(typeof state.x !== 'undefined'){
+    try{ let xv = Number(state.x) || 0; xv = Math.max(0, Math.min(100, xv)); currentTransform.x = Math.round(xv * 100) / 100; }catch(e){}
+  }
+  if(typeof state.y !== 'undefined'){
+    try{ let yv = Number(state.y) || 0; yv = Math.max(0, Math.min(100, yv)); currentTransform.y = Math.round(yv * 100) / 100; }catch(e){}
+  }
     if(state.url){ urlIn.value = state.url; }
     if(typeof state.autoplay !== 'undefined'){ try{ autoplayChk.checked = !!state.autoplay; }catch(e){} }
+    // If an embed already exists, apply the parsed transform immediately
+    try{
+    if(typeof state.s !== 'undefined' && state.s !== null && injected && injected.firstElementChild){ const sx = Number(state.x||0); const sy = Number(state.y||0); applyTransform(Number(state.s), sx, sy); }
+    }catch(e){}
+  }
+
+  // Attach direct manipulation handlers (drag + wheel) to an element
+  function detachDirectManipulation(){
+    try{
+      // remove overlay listeners and overlay element
+      if(activeOverlay){
+        activeOverlay.removeEventListener('pointerdown', onPointerDown);
+        activeOverlay.removeEventListener('wheel', onWheel);
+        try{ activeOverlay.parentNode && activeOverlay.parentNode.removeChild(activeOverlay); }catch(e){}
+        activeOverlay = null;
+      }
+      if(activeContentEl && activeContentEl.style) activeContentEl.style.cursor = '';
+      activeContentEl = null; manipState = null;
+    }catch(e){}
+  }
+
+  function attachDirectManipulation(el){
+    try{
+      if(!el) return; detachDirectManipulation();
+      if(!panEnabled) return; // only create overlay when pan mode is enabled
+      activeContentEl = el;
+      // find wrapper to host overlay
+      const wrap = (el && el.closest) ? el.closest('.embed-wrapper') : injected.firstElementChild;
+      if(!wrap) return;
+      // create transparent overlay that captures pointer/wheel events reliably (works over iframes)
+      const ov = document.createElement('div');
+      ov.className = 'embed-manip-overlay';
+  ov.style.position = 'absolute'; ov.style.left = '0'; ov.style.top = '0'; ov.style.right = '0'; ov.style.bottom = '0';
+  ov.style.width = '100%'; ov.style.height = '100%'; ov.style.background = 'transparent';
+  // Keep overlay below the floating controls so the handle and buttons remain clickable
+  ov.style.zIndex = '1';
+      ov.style.cursor = 'grab'; ov.style.touchAction = 'none';
+      wrap.appendChild(ov);
+      activeOverlay = ov;
+      activeOverlay.addEventListener('pointerdown', onPointerDown);
+      activeOverlay.addEventListener('wheel', onWheel, {passive:false});
+    }catch(e){ console.warn(e); }
+  }
+
+  function onPointerDown(ev){
+    try{
+      isManipulating = true;
+      ev.preventDefault(); activeContentEl.setPointerCapture && activeContentEl.setPointerCapture(ev.pointerId);
+      activeContentEl.style.cursor = 'grabbing';
+      const s = Number(currentTransform.s) || 1;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const startPx = (Number(currentTransform.x) || 0) / 100 * vw;
+      const startPy = (Number(currentTransform.y) || 0) / 100 * vh;
+      manipState = { id: ev.pointerId, sx: ev.clientX, sy: ev.clientY, startPx, startPy };
+      function onMove(e){
+        if(!manipState) return;
+        const dx = e.clientX - manipState.sx; const dy = e.clientY - manipState.sy;
+        const px = manipState.startPx + dx; const py = manipState.startPy + dy;
+        const nx = (px / vw) * 100; const ny = (py / vh) * 100;
+        // update transform
+        applyTransform(Number(currentTransform.s) || 1, nx, ny);
+      }
+      function onUp(e){
+        try{ window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); activeContentEl.style.cursor = 'grab'; activeContentEl.releasePointerCapture && activeContentEl.releasePointerCapture(ev.pointerId); manipState = null; // persist
+          // flush debounced write now that interaction ended
+          flushManipulationWrite();
+          isManipulating = false;
+        }catch(e){}
+      }
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp, {once:true});
+    }catch(e){ console.warn(e); }
+  }
+
+  function onWheel(ev){
+    try{
+      ev.preventDefault();
+      const delta = ev.deltaY;
+      const factor = Math.exp(-delta * 0.0015); // smooth zoom
+      const oldS = Number(currentTransform.s) || 1;
+      let newS = Math.max(0.05, Math.min(8, oldS * factor));
+      // zoom around cursor: adjust x/y so point under cursor remains fixed
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const mx = ev.clientX, my = ev.clientY;
+      const px = (Number(currentTransform.x) || 0) / 100 * vw;
+      const py = (Number(currentTransform.y) || 0) / 100 * vh;
+      // vector from center to mouse
+      const cx = vw/2, cy = vh/2;
+      const dx = mx - cx, dy = my - cy;
+      // when scaling, the content moves by (1 - newS/oldS) * (dx,dy)
+      const pxNew = px + dx * (1 - newS/oldS);
+      const pyNew = py + dy * (1 - newS/oldS);
+      const nx = (pxNew / vw) * 100; const ny = (pyNew / vh) * 100;
+      // apply
+      applyTransform(newS, nx, ny);
+      // schedule debounced write (don't hammer the hash while the user is still scrolling)
+      scheduleManipulationWrite({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', s: newS, x: nx, y: ny, lock: lockAspect.checked, autoplay: autoplayChk.checked });
+    }catch(e){ console.warn(e); }
+  }
+
+  function scheduleManipulationWrite(state){
+    try{
+      try{ console.debug('[embed] scheduleManipulationWrite', {t:performance.now(), state}); }catch(e){}
+      _lastQueuedState = state;
+      isManipulating = true;
+      if(_manipWriteTimer) clearTimeout(_manipWriteTimer);
+      _manipWriteTimer = setTimeout(()=>{
+        try{ if(_lastQueuedState) writeHash(_lastQueuedState); }catch(e){}
+        _manipWriteTimer = null; _lastQueuedState = null; isManipulating = false;
+      }, MANIP_DEBOUNCE_MS);
+    }catch(e){}
+  }
+
+  function flushManipulationWrite(){
+    try{
+      try{ console.debug('[embed] flushManipulationWrite', {t:performance.now(), _lastQueuedState}); }catch(e){}
+      if(_manipWriteTimer){ clearTimeout(_manipWriteTimer); _manipWriteTimer = null; }
+      if(_lastQueuedState){ writeHash(_lastQueuedState); _lastQueuedState = null; }
+    }catch(e){}
   }
 
   // read initial hash and restore
   try{
-    const initial = parseHash();
-    if(Object.keys(initial).length){ applyStateToUI(initial); if(initial.url) { setTimeout(()=>{ loadUrl(initial.url); }, 20); } }
+  const initial = normalizeState(parseHash());
+  // keep initial parsed state so sizeInjected can access it during initial load
+  window.__embed_initial_state = initial;
+  if(Object.keys(initial).length){ applyStateToUI(initial); echoStateImmediately(initial); if(initial.url) { setTimeout(()=>{ loadUrl(initial.url); }, 20); } }
   }catch(e){}
 
   // handle external hash changes
   window.addEventListener('hashchange', ()=>{
-    const s = parseHash(); applyStateToUI(s);
-    if(s.url){ loadUrl(s.url); }
+    // ignore hash updates while the user is manipulating the embed
+    if(isManipulating) return;
+    const s = parseHash();
+    applyStateToUI(s);
+    // echo immediately so the UI reflects the hash even before embed loads
+    echoStateImmediately(s);
+    // Only reload the embed if the URL actually changed. Avoid reloading the same
+    // URL which would re-inject and reset the current transform after user
+    // manipulation finishes and we flush the hash.
+    try{
+      const cur = (urlIn && urlIn.value) ? urlIn.value.trim() : '';
+      const parsedUrl = s.url ? s.url.trim() : '';
+      if(parsedUrl && parsedUrl !== cur){ loadUrl(parsedUrl); }
+    }catch(e){}
   });
 
   function findProvider(url){
@@ -219,6 +543,7 @@
 
   function injectHtml(html, meta){
     injected.innerHTML = '';
+    embedLoaded = false; pendingState = null;
     const wrap = document.createElement('div'); wrap.className = 'embed-wrapper';
     wrap.innerHTML = html;
     // prefer iframe or video inside the wrapper
@@ -247,8 +572,19 @@
     // After injection, allow layout to settle then size
     requestAnimationFrame(()=>{
       try{
-        // if autoplay requested, try to patch iframe src inside injected HTML
-        try{ if(autoplayChk && autoplayChk.checked){ const innerI = wrap.querySelector && wrap.querySelector('iframe'); if(innerI && innerI.src){ const u = new URL(innerI.src, location.href); u.searchParams.set('autoplay', '1'); u.searchParams.set('mute', '1'); innerI.src = u.toString(); innerI.setAttribute('allow','autoplay; encrypted-media; picture-in-picture'); } } }catch(e){}
+        // attach load handlers to detect when the embedded content is ready
+        try{
+          const innerI = wrap.querySelector && wrap.querySelector('iframe');
+          const innerImg = wrap.querySelector && wrap.querySelector('img');
+          const innerVideo = wrap.querySelector && wrap.querySelector('video');
+          if(innerI){ innerI.addEventListener('load', onEmbedReady, {once:true}); }
+          if(innerImg){ if(innerImg.complete) onEmbedReady(); else innerImg.addEventListener('load', onEmbedReady, {once:true}); }
+          if(innerVideo){ if(innerVideo.readyState >= 1) onEmbedReady(); else innerVideo.addEventListener('loadedmetadata', onEmbedReady, {once:true}); }
+        }catch(e){}
+  // if autoplay requested, try to patch iframe src inside injected HTML
+  try{ if(autoplayChk && autoplayChk.checked){ const innerI = wrap.querySelector && wrap.querySelector('iframe'); if(innerI && innerI.src){ const u = new URL(innerI.src, location.href); u.searchParams.set('autoplay', '1'); u.searchParams.set('mute', '1'); innerI.src = u.toString(); innerI.setAttribute('allow','autoplay; encrypted-media; picture-in-picture'); } } }catch(e){}
+  // if loop requested, set loop attribute on any video tag and best-effort add loop param to iframe src
+  try{ if(loopChk && loopChk.checked){ const innerV = wrap.querySelector && wrap.querySelector('video'); if(innerV){ innerV.setAttribute('loop',''); innerV.loop = true; } const innerI3 = wrap.querySelector && wrap.querySelector('iframe'); if(innerI3 && innerI3.src){ try{ const u3 = new URL(innerI3.src, location.href); u3.searchParams.set('loop','1'); innerI3.src = u3.toString(); }catch(e){} } } }catch(e){}
         sizeInjected(el, meta);
   // if the injected html contains an iframe, hide the floating UI
   // but only when this page is itself embedded inside another frame
@@ -261,12 +597,14 @@
 
   function injectIframe(url, meta){
     injected.innerHTML = '';
+    embedLoaded = false; pendingState = null;
     const wrap = document.createElement('div'); wrap.className = 'embed-wrapper';
     const iframe = document.createElement('iframe');
     // if autoplay requested, append autoplay and mute for better browser support
     try{
       let src = url;
-      if(autoplayChk && autoplayChk.checked){ try{ const u = new URL(url); u.searchParams.set('autoplay','1'); u.searchParams.set('mute','1'); src = u.toString(); }catch(e){ src = url + (url.indexOf('?')===-1 ? '?':'&') + 'autoplay=1&mute=1'; } }
+  if(autoplayChk && autoplayChk.checked){ try{ const u = new URL(url); u.searchParams.set('autoplay','1'); u.searchParams.set('mute','1'); src = u.toString(); }catch(e){ src = url + (url.indexOf('?')===-1 ? '?':'&') + 'autoplay=1&mute=1'; } }
+  if(loopChk && loopChk.checked){ try{ const uL = new URL(src); uL.searchParams.set('loop','1'); src = uL.toString(); }catch(e){ src = src + (src.indexOf('?')===-1 ? '?':'&') + 'loop=1'; } }
       iframe.src = src;
     }catch(e){ iframe.src = url; }
     iframe.setAttribute('allowfullscreen','');
@@ -290,7 +628,7 @@
   // hide the floating UI when we inject a direct iframe — only when this page
   // is embedded inside another frame. Keep the UI visible when running as top.
   try{ if(window.top !== window.self){ hideFloatingUI(); } }catch(e){}
-    requestAnimationFrame(()=>{ try{ sizeInjected(iframe, meta); animateFloatingToBottom(); }catch(e){ console.warn(e); } });
+    requestAnimationFrame(()=>{ try{ iframe.addEventListener('load', onEmbedReady, {once:true}); sizeInjected(iframe, meta); animateFloatingToBottom(); }catch(e){ console.warn(e); } });
   }
 
   // Animate the floating UI down to the bottom center of the viewport
@@ -405,10 +743,38 @@
             console.debug('[embed] sizeInjected scale', {scale, contentW, contentH, usedOrig:{w,h}, targeted: (contentEl && contentEl.nodeName), wrapRect, contentRect});
           }catch(e){}
           showSizeControls(vpW, vpH);
+          // enable direct manipulation (drag + wheel zoom) on the content element
+          try{ attachDirectManipulation(contentEl); }catch(e){}
+          // if hash encodes a transform (s/x/y), apply it now so shared URLs restore visuals
+            try{
+              // Use the effective (merged) state so re-injections use the latest hash/query values
+              const st = getEffectiveState();
+              if(st){
+                // If legacy w/h exist without s, attempt to map them to a scale and center (x=50,y=50)
+                if((typeof st.s === 'undefined' || st.s === null) && st.w){
+                  // approximate scale so original width maps proportionally to viewport
+                  const approxS = Number(st.w) / Math.max(1, vpW);
+                  st.s = approxS;
+                  // center by default
+                  st.x = (typeof st.x === 'undefined') ? 50 : st.x;
+                  st.y = (typeof st.y === 'undefined') ? 50 : st.y;
+                }
+                if(typeof st.s !== 'undefined' && st.s !== null){
+                  // ensure x/y are treated as percentages
+                  const sx = Number(st.x || 0);
+                  const sy = Number(st.y || 0);
+                  // apply transform after layout settles
+                  requestAnimationFrame(()=>{ applyTransform(Number(st.s), sx, sy); });
+                  // reflect parsed values into internal state
+                  try{ currentTransform.s = Number(st.s); currentTransform.x = sx; currentTransform.y = sy; }catch(e){}
+                }
+              }
+            }catch(e){}
         } else {
           // fallback: use viewport
           wrap.style.width = vpW + 'px'; wrap.style.height = vpH + 'px'; wrap.style.overflow = 'hidden';
           showSizeControls(vpW, vpH);
+            try{ const st = getEffectiveState(); if(st && typeof st.s !== 'undefined' && st.s !== null){ requestAnimationFrame(()=>{ applyTransform(Number(st.s), Number(st.x||0), Number(st.y||0)); currentTransform.s = Number(st.s); currentTransform.x = Number(st.x||0); currentTransform.y = Number(st.y||0); }); } }catch(e){}
         }
       } else {
         // contain: size wrapper to viewport then scale inner element to fit entirely without cropping
@@ -438,10 +804,14 @@
           console.debug('[embed] sizeInjected contain', {vpW, vpH, w, h, scale, contentW, contentH, targeted: (contentEl && contentEl.nodeName), wrapRect, contentRect});
         }catch(e){}
         showSizeControls(contentW, contentH);
+        try{ attachDirectManipulation(contentEl); }catch(e){}
       }
     } else {
       // no dims — default to cover viewport (but for video-like prefer contain)
-      applySize(vpW, vpH);
+    applySize(vpW, vpH);
+  try{ const st = getEffectiveState(); if(st && typeof st.s !== 'undefined' && st.s !== null){ requestAnimationFrame(()=>{ applyTransform(Number(st.s), Number(st.x||0), Number(st.y||0)); currentTransform.s = Number(st.s); currentTransform.x = Number(st.x||0); currentTransform.y = Number(st.y||0); }); } }catch(e){}
+  // try to attach to any content element present
+  try{ const wrap = injected.firstElementChild; const contentEl = wrap && wrap.querySelector && wrap.querySelector('iframe,video,img') || (wrap && wrap.firstElementChild); if(contentEl) attachDirectManipulation(contentEl); }catch(e){}
     }
   }
 
@@ -455,16 +825,48 @@
     wrap.style.display = 'flex'; wrap.style.alignItems = 'center'; wrap.style.justifyContent = 'center';
   }
 
+  function applyTransform(scale = 1, x = 0, y = 0){
+    // Apply CSS transform to the embedded content (centered by default)
+    const wrap = injected.firstElementChild;
+    if(!wrap) return;
+    let contentEl = wrap.querySelector('iframe,video,img') || wrap.firstElementChild;
+    if(!contentEl) return;
+    // ensure the content is positioned absolutely at center for transform to work
+    try{
+        if(contentEl.style){
+          try{ console.debug('[embed] applyTransform start', {t:performance.now(), scale, x, y}); }catch(e){}
+        contentEl.style.position = 'absolute';
+        contentEl.style.left = '50%';
+        contentEl.style.top = '50%';
+        // x/y are percentages of viewport: convert to pixels for translation
+        const px = Math.round((Number(x) / 100) * window.innerWidth || 0);
+        const py = Math.round((Number(y) / 100) * window.innerHeight || 0);
+        // translate by px/py (pixels) then center and scale
+        contentEl.style.transform = `translate(${px}px, ${py}px) translate(-50%, -50%) scale(${scale})`;
+        contentEl.style.transformOrigin = '50% 50%';
+        try{ console.debug('[embed] applyTransform css set'); }catch(e){}
+      }
+    }catch(e){ /* ignore */ }
+    // update internal state (rounded)
+    try{
+      const s = Number(scale) || 1;
+      const sx = Math.round((Number(x) || 0) * 100) / 100;
+      const sy = Math.round((Number(y) || 0) * 100) / 100;
+      currentTransform = { s, x: sx, y: sy };
+      try{ console.debug('[embed] currentTransform updated', currentTransform); }catch(e){}
+    }catch(e){}
+  }
+
   function showSizeControls(w,h){
     if(!sizeControls) return;
     const vpW = window.innerWidth, vpH = window.innerHeight;
     // default to viewport sizes if not provided
-    const outW = (w && w>0) ? w : vpW;
-    const outH = (h && h>0) ? h : vpH;
-    sizeControls.style.display = 'flex';
-    sizeW.value = Math.round(outW);
-    sizeH.value = Math.round(outH);
-    currentAspect = outW / outH;
+  sizeControls.style.display = 'flex';
+  // default scale and positions (now internal)
+  currentTransform.s = currentTransform.s || 1;
+  currentTransform.x = (typeof currentTransform.x !== 'undefined') ? currentTransform.x : 0;
+  currentTransform.y = (typeof currentTransform.y !== 'undefined') ? currentTransform.y : 0;
+    currentAspect = (w && h) ? (w / h) : null;
     // lock proportions by default when controls appear
     try{ lockAspect.checked = true; }catch(e){}
   }
@@ -494,44 +896,75 @@
   }
 
   // UI wiring
-  loadBtn.addEventListener('click', ()=>{ loadUrl(urlIn.value.trim()); });
-  loadBtn.addEventListener('click', ()=>{ const u = urlIn.value.trim(); loadUrl(u); writeHash({ url: u, mode: coverMode ? 'cover' : 'contain', w: sizeW.value || '', h: sizeH.value || '', lock: lockAspect.checked }); });
-  loadBtn.addEventListener('click', ()=>{ const u = urlIn.value.trim(); loadUrl(u); writeHash({ url: u, mode: coverMode ? 'cover' : 'contain', w: sizeW.value || '', h: sizeH.value || '', lock: lockAspect.checked, autoplay: autoplayChk.checked }); });
-  clearBtn.addEventListener('click', ()=>{ injected.innerHTML=''; urlIn.value=''; lastData = null; hideSizeControls(); writeHash({}); try{ showFloatingUI(); }catch(e){} });
+  loadBtn.addEventListener('click', ()=>{
+    const u = urlIn.value.trim();
+    loadUrl(u);
+    // write current transform state (prefer s/x/y)
+    const s = Number(currentTransform.s) || null;
+    // UI x/y are percentages 0..100 — store as-is
+    const x = Number(currentTransform.x) || 0;
+    const y = Number(currentTransform.y) || 0;
+    writeHash({ url: u, mode: coverMode ? 'cover' : 'contain', s: s, x: x, y: y, lock: lockAspect.checked, autoplay: autoplayChk.checked, loop: loopChk.checked });
+  });
+  // ...existing code...
+  clearBtn.addEventListener('click', ()=>{
+    try{ detachDirectManipulation(); }catch(e){}
+    injected.innerHTML=''; urlIn.value=''; lastData = null; hideSizeControls();
+    embedLoaded = false; pendingState = null;
+    writeHash({});
+    try{ showFloatingUI(); }catch(e){}
+  });
   coverBtn.addEventListener('click', ()=>{
-    coverMode = !coverMode; coverBtn.textContent = coverMode? 'Cover':'Contain';
+    coverMode = !coverMode; coverBtn.textContent = coverMode ? 'Cover' : 'Contain';
+    // when switching to cover/contain, remove any custom transform (x,y,s)
+    currentTransform = { s: 1, x: 0, y: 0 };
     // re-run sizing on current embed so the toggle takes effect immediately
     const el = injected.querySelector('.embed-wrapper iframe, .embed-wrapper video, .embed-wrapper img, .embed-wrapper > *');
-    if(el) {
-      try{ sizeInjected(el, lastData ? lastData.data : null); writeHash({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', w: sizeW.value || '', h: sizeH.value || '', lock: lockAspect.checked, autoplay: autoplayChk.checked }); }catch(e){ console.warn(e); }
+    if (el) {
+      try {
+        sizeInjected(el, lastData ? lastData.data : null);
+        // write hash without s/x/y so positioning is viewport-based
+        writeHash({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', lock: lockAspect.checked, autoplay: autoplayChk.checked, loop: loopChk.checked });
+      } catch (e) { console.warn(e); }
     }
   });
 
   // size control handlers
-  applySizeBtn.addEventListener('click', ()=>{
-    const w = Number(sizeW.value) || window.innerWidth;
-    const h = Number(sizeH.value) || window.innerHeight;
-    applySize(w,h);
-    writeHash({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', w, h, lock: lockAspect.checked, autoplay: autoplayChk.checked });
-  });
-  resetSizeBtn.addEventListener('click', ()=>{ if(lastData){ sizeInjected(injected.querySelector('iframe,video,div'), lastData.data); } });
-  sizeW.addEventListener('input', ()=>{ if(lockAspect.checked && currentAspect){ sizeH.value = Math.round(Number(sizeW.value) / currentAspect); } });
-  sizeH.addEventListener('input', ()=>{ if(lockAspect.checked && currentAspect){ sizeW.value = Math.round(Number(sizeH.value) * currentAspect); } });
-  resetSizeBtn.addEventListener('click', ()=>{ writeHash({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', w: sizeW.value || '', h: sizeH.value || '', lock: lockAspect.checked, autoplay: autoplayChk.checked }); });
-  lockAspect.addEventListener('change', ()=>{ writeHash({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', w: sizeW.value || '', h: sizeH.value || '', lock: lockAspect.checked, autoplay: autoplayChk.checked }); });
-  autoplayChk.addEventListener('change', ()=>{ writeHash({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', w: sizeW.value || '', h: sizeH.value || '', lock: lockAspect.checked, autoplay: autoplayChk.checked }); });
+  // numeric size inputs removed; lock and autoplay still write hash
+  lockAspect.addEventListener('change', ()=>{ writeHash({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', s: currentTransform.s || null, x: currentTransform.x || 0, y: currentTransform.y || 0, lock: lockAspect.checked, autoplay: autoplayChk.checked, loop: loopChk.checked }); });
+  autoplayChk.addEventListener('change', ()=>{ writeHash({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', s: currentTransform.s || null, x: currentTransform.x || 0, y: currentTransform.y || 0, lock: lockAspect.checked, autoplay: !!autoplayChk.checked, loop: loopChk.checked }); });
+  loopChk.addEventListener('change', ()=>{ writeHash({ url: urlIn.value.trim(), mode: coverMode ? 'cover' : 'contain', s: currentTransform.s || null, x: currentTransform.x || 0, y: currentTransform.y || 0, lock: lockAspect.checked, autoplay: autoplayChk.checked, loop: !!loopChk.checked }); });
 
   // enable enter key on input
   urlIn.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ loadUrl(urlIn.value.trim()); } });
 
+  // Pan toggle: enable or disable overlay-based pan/zoom interactions
+  try{
+    panToggleBtn.addEventListener('click', ()=>{
+      try{
+        panEnabled = !panEnabled;
+        panToggleBtn.textContent = panEnabled ? 'Pan: On' : 'Pan: Off';
+        if(!panEnabled) try{ detachDirectManipulation(); }catch(e){}
+        else {
+          // if currently injected, attach overlay
+          try{ const wrap = injected.firstElementChild; const contentEl = wrap && wrap.querySelector && wrap.querySelector('iframe,video,img') || (wrap && wrap.firstElementChild); if(contentEl) attachDirectManipulation(contentEl); }catch(e){}
+        }
+      }catch(err){ console.warn('pan toggle handler error', err); }
+    });
+  }catch(e){ console.warn('pan toggle binding failed', e); }
+
   // make floating draggable via handle
   (function(){
     let dragging=false, sx=0, sy=0, ox=0, oy=0;
-    handle.addEventListener('pointerdown', (ev)=>{
-      dragging=true; handle.setPointerCapture && handle.setPointerCapture(ev.pointerId);
-      sx = ev.clientX; sy = ev.clientY; const r = floating.getBoundingClientRect(); ox = r.left; oy = r.top;
-      floating.style.transition = 'none';
-    });
+    try{
+      handle.addEventListener('pointerdown', (ev)=>{
+        try{
+          dragging=true; handle.setPointerCapture && handle.setPointerCapture(ev.pointerId);
+          sx = ev.clientX; sy = ev.clientY; const r = floating.getBoundingClientRect(); ox = r.left; oy = r.top;
+          floating.style.transition = 'none';
+        }catch(err){ console.warn('handle pointerdown error', err); }
+      });
+    }catch(err){ console.warn('handle binding failed', err); }
     // pointermove/up don't call preventDefault so can be passive for better scrolling performance
     window.addEventListener('pointermove', (ev)=>{
       if(!dragging) return; const dx = ev.clientX - sx, dy = ev.clientY - sy; floating.style.left = (ox + dx) + 'px'; floating.style.top = (oy + dy) + 'px'; floating.style.transform = 'translate(0,0)';

@@ -95,6 +95,14 @@ section.testimony p{
     border-right: 4px solid #FA5F5F;
 }
 
+/* used as placeholder */
+section p code { 
+    color: #fac65f;
+    font-family: inherit;
+    text-shadow: none;
+    text-decoration: overline underline #fac65f double;
+}
+
 section:first-of-type h1,
 section:first-of-type h2 {
     margin: 0;
@@ -224,8 +232,7 @@ section:last-of-type {
     margin-bottom: 0;
 }
 
-section.big-pic{
-}
+/* removed empty .big-pic rule (lint warning) */
 
 iframe {
     top: 0;
