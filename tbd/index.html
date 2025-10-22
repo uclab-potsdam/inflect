@@ -1,0 +1,211 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>inflect placeholder</title>
+<style>
+  :root{--bg:#333;--note:#ff66bf;--note-border: #b33880}
+  html,body{height:100%;margin:0;background:var(--bg);font-family:system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
+  .wrap{height:100%;display:flex;align-items:center;justify-content:center}
+  /* Square note: responsive square using aspect-ratio. Content fills and scrolls if it overflows */
+  .note{width:min(40ch,50vmin);aspect-ratio:1/1;padding:1.5rem;border-radius:6px;background:var(--note);box-shadow:0 8px 24px rgba(0,0,0,0.15);border:2px solid var(--note-border);display:flex;flex-direction:column}
+  .note p{margin:0;font-size:1.1rem;line-height:1.4;color:#111;outline:none;white-space:pre-wrap;overflow:auto;flex:1}
+  .hint{position:fixed;left:8px;bottom:8px;font-size:12px;color:#666}
+</style>
+</head>
+<body>
+    <div class="wrap">
+    <div class="note" id="note"><p id="noteText" contenteditable="true" spellcheck="false">placeholder</p></div>
+  </div>
+  <div class="hint">Provide text in the URL hash (e.g. #Hello%20World)</div>
+<script>
+(function(){
+  const el = document.getElementById('noteText');
+
+  // --- Friendly hash encoding/decoding
+  // We want hashes that are easier to read: map spaces -> '_' while preserving
+  // original underscores by escaping them as '__'. This is reversible and
+  // safe for use in the fragment identifier. We still run encodeURIComponent
+  // on the transformed string for extra safety.
+  function friendlyEncode(str){
+    // Escape existing underscores
+    const esc = String(str).replace(/_/g, '__').replace(/ /g, '_');
+    return encodeURIComponent(esc);
+  }
+  function friendlyDecode(encoded){
+    if (!encoded) return '';
+    try{
+      const dec = decodeURIComponent(encoded);
+      // Replace escaped double-underscores with a temporary marker, then
+      // convert remaining single underscores to spaces, then revert marker
+      const marker = '\u0000';
+      const step1 = dec.replace(/__/g, marker).replace(/_/g, ' ').replace(new RegExp(marker, 'g'), '_');
+      return step1;
+    }catch(e){ return decodeURIComponent(encoded); }
+  }
+
+  // --- Hash -> content
+  function updateFromHash(){
+    try{
+      const raw = (location.hash||'').replace(/^#/, '');
+      const decoded = friendlyDecode(raw) || 'placeholder';
+      // Only update if different to avoid clobbering user edits
+      if (el.textContent !== decoded) {
+        el.textContent = decoded;
+        linkifyAndRestoreCaret();
+      }
+    }catch(e){ if (el.textContent === '') el.textContent = 'placeholder'; }
+  }
+
+  // --- Linkify utilities (operate on text nodes, avoid double-wrapping)
+  const urlRegex = /(https?:\/\/[^\s<>]+)|(www\.[^\s<>]+)|(\b\w+@[-a-z0-9]+(\.[-a-z0-9]+)+\b)/gi;
+
+  function walkTextNodes(node, cb){
+    const treeWalker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null, false);
+    let tn;
+    while ((tn = treeWalker.nextNode())) cb(tn);
+  }
+
+  function createAnchorForUrl(url){
+    let href = url;
+    if (/^www\./i.test(url)) href = 'http://' + url;
+    if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(url)) { // email
+      href = 'mailto:' + url;
+    }
+    const a = document.createElement('a');
+    a.href = href;
+    a.textContent = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.style.color = 'inherit';
+    a.style.textDecoration = 'underline';
+    return a;
+  }
+
+  function linkifyElement(root){
+    // Replace URL substrings in text nodes with anchor elements. Skip when parent is already an anchor.
+    walkTextNodes(root, (textNode) => {
+      if (!textNode.nodeValue) return;
+      if (textNode.parentNode && textNode.parentNode.nodeName === 'A') return;
+      const str = textNode.nodeValue;
+      let match, lastIndex = 0;
+      const frag = document.createDocumentFragment();
+      urlRegex.lastIndex = 0;
+      let any = false;
+      while ((match = urlRegex.exec(str)) !== null) {
+        any = true;
+        const idx = match.index;
+        const before = str.slice(lastIndex, idx);
+        if (before) frag.appendChild(document.createTextNode(before));
+        const url = match[0];
+        frag.appendChild(createAnchorForUrl(url));
+        lastIndex = idx + url.length;
+      }
+      if (!any) return;
+      const rest = str.slice(lastIndex);
+      if (rest) frag.appendChild(document.createTextNode(rest));
+      textNode.parentNode.replaceChild(frag, textNode);
+    });
+  }
+
+  // --- Caret preservation helpers
+  function getCaretCharacterOffsetWithin(element) {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return 0;
+    const range = sel.getRangeAt(0);
+    const preCaretRange = range.cloneRange();
+    preCaretRange.selectNodeContents(element);
+    preCaretRange.setEnd(range.endContainer, range.endOffset);
+    return preCaretRange.toString().length;
+  }
+
+  function setCaretCharacterOffsetWithin(element, offset) {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    let current = 0;
+    let nodeStack = [element];
+    let node, found = false;
+    while (nodeStack.length && !found) {
+      node = nodeStack.shift();
+      if (node.nodeType === Node.TEXT_NODE) {
+        const next = current + node.nodeValue.length;
+        if (offset <= next) {
+          range.setStart(node, offset - current);
+          range.collapse(true);
+          found = true;
+          break;
+        }
+        current = next;
+      } else {
+        // push child nodes in order
+        for (let i = 0; i < node.childNodes.length; i++) nodeStack.push(node.childNodes[i]);
+      }
+    }
+    if (!found) {
+      // place at end
+      range.selectNodeContents(element);
+      range.collapse(false);
+    }
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  // Linkify while attempting to preserve caret position
+  function linkifyAndRestoreCaret(){
+    try{
+      const caret = getCaretCharacterOffsetWithin(el);
+      linkifyElement(el);
+      setCaretCharacterOffsetWithin(el, caret);
+    }catch(e){
+      // If anything goes wrong, best-effort: just run linkify without caret handling
+      try { linkifyElement(el); } catch(e2){}
+    }
+  }
+
+  // --- Initial load
+  updateFromHash();
+
+  // When the hash changes externally, update the editable text
+  window.addEventListener('hashchange', updateFromHash, false);
+
+  // While editing, update the URL hash live without adding history entries
+  let replaceTimer = null;
+  const updateUrlFromContent = () => {
+    try {
+      const txt = el.textContent || '';
+      const enc = friendlyEncode(txt);
+      const newUrl = '#' + enc;
+      // Use replaceState so typing doesn't flood the history stack
+      try { history.replaceState(null, '', newUrl); } catch(e) { location.hash = enc; }
+    } catch (e) { /* swallow */ }
+  };
+
+  // Debounce linkify separately so we don't fight the user's typing caret
+  let linkifyTimer = null;
+  el.addEventListener('input', () => {
+    // update hash (debounced)
+    if (replaceTimer) clearTimeout(replaceTimer);
+    replaceTimer = setTimeout(() => { updateUrlFromContent(); replaceTimer = null; }, 150);
+
+    // schedule linkify a bit later to avoid DOM flicker while typing
+    if (linkifyTimer) clearTimeout(linkifyTimer);
+    linkifyTimer = setTimeout(() => { linkifyAndRestoreCaret(); linkifyTimer = null; }, 250);
+  });
+
+  // On paste, run linkify shortly after the paste event
+  el.addEventListener('paste', () => { setTimeout(linkifyAndRestoreCaret, 20); });
+
+  // On focus, if placeholder present, clear it
+  el.addEventListener('focus', () => { if (el.textContent === 'placeholder') el.textContent = ''; });
+
+  // If user presses Escape, restore text from hash
+  el.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') { ev.preventDefault(); updateFromHash(); el.blur(); }
+  });
+
+})();
+</script>
+</body>
+</html>

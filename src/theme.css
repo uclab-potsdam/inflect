@@ -97,10 +97,11 @@ section.testimony p{
 
 /* used as placeholder */
 section p code { 
-    color: #fac65f;
+    /* color: #fac65f; */
     font-family: inherit;
     text-shadow: none;
-    text-decoration: overline underline #fac65f double;
+    text-decoration: underline wavy;
+    text-decoration-color: #ff0095;
 }
 
 section:first-of-type h1,
