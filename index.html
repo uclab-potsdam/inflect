@@ -322,8 +322,8 @@
 
     // with IntersectionObserver we can check what is visible    
     function initializeObservers() {
-        const observer = new IntersectionObserver((entries) => {
-
+        const isMobilePortrait = window.matchMedia("(max-width: 1000px) and (orientation: portrait)").matches;
+        const observer = new IntersectionObserver((entries) => {            
             entries.forEach(entry => {
                 if (entry.isIntersecting) {                    
                     // Add active class only to the visible link
@@ -336,6 +336,8 @@
                 }
                 else entry.target.classList.remove("active")
             });
+        },{
+            rootMargin: isMobilePortrait ? "-50% 0px 0px 0px" : "0px"
         });
 
         // Add observer to all inflect links
