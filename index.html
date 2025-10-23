@@ -215,20 +215,22 @@
     let lastIframePath = null;
     let firstFrame = true;
     const iframe = document.getElementById('if');
+    let ifUpdateTimeout = null;
 
     // Fade in new content 
     function setIframeIfPathChanged(newHref) {
-      const newURL = new URL(newHref, window.location.origin);
-      newURL.hash = ''; // remove hash for path comparison
-      const newPath = newURL.href;
-
-      // If path changes, set iframe to 0 opacity
-      if (newPath !== lastIframePath) {
-        if (firstFrame) firstFrame = false;
-        else iframe.style.opacity = '0';
-        iframe.src = newHref;
-        lastIframePath = newPath;
-      } 
+        const newURL = new URL(newHref, window.location.origin);
+        newURL.hash = ''; // remove hash for path comparison
+        const newPath = newURL.href;
+        console.log(lastIframePath, newURL, newPath);
+        
+        // If path changes, set iframe to 0 opacity
+        if (newPath !== lastIframePath) {
+            if (firstFrame) firstFrame = false;
+            else iframe.style.opacity = '0';
+            iframe.src = newHref;
+            lastIframePath = newPath;
+        } 
       else {
         // Otherwise just update src as needed (rare case)
         iframe.src = newHref;
@@ -296,11 +298,13 @@
     document.addEventListener("scroll", (event) => {
         if (location.hostname=="localhost") sessionStorage.setItem("scrollPosition", window.scrollY);
         if (window.scrollY > 5) {
-            document.querySelector('#scroll-hint').classList.remove('animated');
-            setTimeout(function(){ document.querySelector('#scroll-hint').remove(); },500);
-        }
-    
-    });    
+            let scrollHint = document.querySelector('#scroll-hint');
+            if (!scrollHint) return;
+            scrollHint.classList.remove('animated');
+            setTimeout(function(){ scrollHint.remove(); },500);
+        }    
+    });
+        
     window.addEventListener("beforeunload", function () {
         if (location.hostname=="localhost") sessionStorage.setItem("scrollPosition", window.scrollY);
     });
