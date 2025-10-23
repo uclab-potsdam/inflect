@@ -41,10 +41,11 @@ css: src/theme.css
 זה סיפורה של אחת מהם.
 
 
+{.pin}
 ## החיים שלפני
 
 
-{.testimony pin typewriter}
+{.testimony typewriter}
 
 [](svg/#opening.svg/-236,-18,0.94/+nibal_2023)
 שמי ניבאל אל-הסי. אני בת 25. עד שהתחילה המתקפה הישראלית, גרתי בג׳אבליא עם בעלי, אחמד וביתנו התינוקת ריתא.

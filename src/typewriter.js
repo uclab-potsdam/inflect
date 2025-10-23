@@ -20,6 +20,10 @@
 }
 @keyframes typewriter-blink { 50% { opacity: 0; } }
 `;
+  // Add character fade-in class
+  style.textContent += `
+.tw-char { display: inline; opacity: 0; transition: opacity 50ms linear; }
+`;
   document.head.appendChild(style);
 
   // Helper: gather typable targets inside an element.
@@ -164,27 +168,92 @@
         try { if (cursor && cursor.parentNode) cursor.parentNode.removeChild(cursor); } catch (e) {}
         return;
       }
-      const item = sequence[idx++];
+
+      const item = sequence[idx]; // peek, we'll advance idx when we actually consume
+
       if (item.pause) {
+        idx++;
         // natural pause between typable targets (slightly randomized)
         const pauseDur = Math.max(120, speed * 4 + (Math.random() * speed * 2));
         setTimeout(step, pauseDur);
         prevChar = '';
         return;
       }
+
+      // Determine if this item is the start of a word
+      const isStartOfWord = item.ch && item.ch !== ' ' && (prevChar === '' || prevChar === ' ');
+      if (isStartOfWord) {
+        // collect upcoming word string
+        let word = '';
+        let look = idx;
+        while (look < sequence.length) {
+          const s = sequence[look];
+          if (s.pause) break;
+          if (s.ch === ' ') break;
+          word += s.ch || '';
+          look++;
+        }
+
+        if (word.length > 0) {
+          try {
+            // place cursor so measurements reflect the current inline position
+            placeCursorAfter(item.node);
+            const containerRect = el.getBoundingClientRect();
+            const cursorRect = cursor.getBoundingClientRect();
+            const remaining = Math.max(0, containerRect.right - cursorRect.right);
+
+            // create a temporary measuring span next to the cursor to measure the word width
+            const meas = document.createElement('span');
+            meas.style.whiteSpace = 'nowrap';
+            meas.style.visibility = 'hidden';
+            meas.style.pointerEvents = 'none';
+            meas.textContent = word;
+            if (cursor.parentNode) cursor.parentNode.insertBefore(meas, cursor.nextSibling);
+            const wordWidth = meas.getBoundingClientRect().width;
+            if (meas.parentNode) meas.parentNode.removeChild(meas);
+
+            if (wordWidth > remaining) {
+              // Insert a line break before the cursor so the word starts on the next line
+              const br = document.createElement('br');
+              try {
+                if (item.node.nodeType === Node.TEXT_NODE && item.node.parentNode) {
+                  item.node.parentNode.insertBefore(br, cursor);
+                } else if (item.node.nodeType === Node.ELEMENT_NODE && item.node.parentNode) {
+                  item.node.parentNode.insertBefore(br, item.node.nextSibling || cursor);
+                } else {
+                  el.appendChild(br);
+                }
+              } catch (e) { /* swallow */ }
+              // after inserting br, the cursor will move appropriately on next placeCursorAfter
+            }
+          } catch (e) {
+            // measurement best-effort, ignore failures
+          }
+        }
+      }
+
+      // Now consume the item and type it
+      idx++;
       // move cursor to just after the current node so it marks the insertion point
       placeCursorAfter(item.node);
-      // append char to target node's textContent
+      // append char as a span so we can fade it in
       try {
+        const span = document.createElement('span');
+        span.className = 'tw-char';
+        span.textContent = item.ch;
+        // Ensure initial opacity=0 is set (CSS handles this), then trigger to 1
         if (item.node.nodeType === Node.TEXT_NODE) {
-          item.node.textContent = (item.node.textContent || '') + item.ch;
+          // insert before the placeholder text node so characters appear in place
+          if (item.node.parentNode) item.node.parentNode.insertBefore(span, item.node);
         } else if (item.node.nodeType === Node.ELEMENT_NODE) {
-          item.node.textContent = (item.node.textContent || '') + item.ch;
+          item.node.appendChild(span);
         } else {
-          // fallback: append as text node to parent element
-          const p = document.createTextNode(item.ch);
-          if (el) el.appendChild(p);
+          if (el) el.appendChild(span);
         }
+        // trigger fade-in on next frame
+        requestAnimationFrame(() => {
+          try { span.style.opacity = '1'; } catch (e) {}
+        });
       } catch (e) { /* swallow */ }
 
       // compute delay based on the character just typed and previous char
