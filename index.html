@@ -39,7 +39,7 @@
             font-family: "Atkinson", sans-serif;
             font-weight: 250;
             font-size: calc(1vw + 1vh);
-            background-color: rgb(242, 242, 242);
+            background-color: white;
             margin: 0;
             padding: 0;
         }
@@ -82,6 +82,7 @@
         h1, h2, h3, h4 { margin: .25em 0; }
 
         main {
+            background-color: rgb(242, 242, 242);
             box-sizing: border-box;
             position: absolute;
             right: 0;
@@ -222,19 +223,15 @@
         const newURL = new URL(newHref, window.location.origin);
         newURL.hash = ''; // remove hash for path comparison
         const newPath = newURL.href;
-        console.log(lastIframePath, newURL, newPath);
         
         // If path changes, set iframe to 0 opacity
         if (newPath !== lastIframePath) {
             if (firstFrame) firstFrame = false;
-            else iframe.style.opacity = '0';
-            iframe.src = newHref;
+            else iframe.style.opacity = '0';            
             lastIframePath = newPath;
-        } 
-      else {
-        // Otherwise just update src as needed (rare case)
-        iframe.src = newHref;
-      }
+        }
+        clearTimeout(ifUpdateTimeout);         
+        ifUpdateTimeout = setTimeout(function() { iframe.src = newHref; }, 100);         
     }
 
     // Fade in once the iframe finishes loading
@@ -374,7 +371,6 @@
             const rect = section.getBoundingClientRect();
             return rect.top > 1;
         });
-        console.log(target);
         if (target) target.scrollIntoView({ behavior: 'smooth' });            
     }
 
