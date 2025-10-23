@@ -68,6 +68,50 @@
     cursor.className = 'tw-cursor';
     cursor.setAttribute('aria-hidden', 'true');
   const speed = (opts && opts.speed) || (el.dataset.twSpeed ? parseInt(el.dataset.twSpeed,10) : 40); // ms per char
+    // Measure final heights before we clear or replace content so layout doesn't jump.
+    const measuredHeights = new Map();
+    try {
+      const elWidth = Math.max(0, Math.round(el.getBoundingClientRect().width));
+      const clone = el.cloneNode(true);
+      // Keep clone out of flow but renderable so we can measure
+      clone.style.position = 'absolute';
+      clone.style.left = '-99999px';
+      clone.style.top = '0px';
+      clone.style.visibility = 'hidden';
+      clone.style.pointerEvents = 'none';
+      clone.style.width = elWidth ? (elWidth + 'px') : '';
+      document.body.appendChild(clone);
+
+      const origChildren = Array.from(el.childNodes || []);
+      const cloneChildren = Array.from(clone.childNodes || []);
+      // If there are text nodes directly under el, measure the whole clone height and assign to the container once
+      let containerHeightAssigned = false;
+      for (let i = 0; i < origChildren.length; i++) {
+        const o = origChildren[i];
+        const c = cloneChildren[i];
+        if (!c) continue;
+        if (c.nodeType === Node.TEXT_NODE) {
+          const txt = c.textContent || '';
+          if (txt.trim().length > 0 && !containerHeightAssigned) {
+            const h = clone.getBoundingClientRect().height;
+            measuredHeights.set(el, h);
+            containerHeightAssigned = true;
+          }
+        } else if (c.nodeType === Node.ELEMENT_NODE) {
+          const innerText = c.textContent || '';
+          if (innerText.trim().length > 0) {
+            const h = c.getBoundingClientRect().height;
+            // map original element node to measured height
+            measuredHeights.set(o, h);
+          }
+        }
+      }
+      // remove clone
+      document.body.removeChild(clone);
+    } catch (e) {
+      // measurement best-effort; if it fails, proceed without reserved heights
+    }
+
     const targets = gatherTargets(el);
     // Flatten into sequence of characters with pointers to target
     const sequence = [];
@@ -151,6 +195,24 @@
       setTimeout(step, totalDelay);
     }
     // Insert initial cursor before typing starts so user sees position immediately
+    // Apply measured heights as inline styles (min-height) so typing doesn't change layout
+    try {
+      for (const t of targets) {
+        if (!t || !t.node) continue;
+        if (t.type === 'text') {
+          // text nodes were replaced with placeholders inside the container element (el)
+          if (measuredHeights.has(el)) {
+            el.style.minHeight = Math.ceil(measuredHeights.get(el)) + 'px';
+          }
+        } else if (t.type === 'anchor' || t.type === 'element') {
+          const h = measuredHeights.get(t.node);
+          if (h) {
+            try { t.node.style.minHeight = Math.ceil(h) + 'px'; } catch (e) {}
+          }
+        }
+      }
+    } catch (e) { /* swallow */ }
+
     if (sequence.length > 0) placeCursorAfter(sequence[0].node);
     setTimeout(step, speed);
   }
