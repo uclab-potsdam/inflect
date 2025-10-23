@@ -286,8 +286,8 @@ iframe {
     section {
         margin: 0; /* spacing handled within main */
         max-width: none;
-        min-height: 95vh;
-        padding: 0 0 5vh;
+        height: 80vh;
+        padding: 0 0 20vh;
         justify-content: end;
     }
 
