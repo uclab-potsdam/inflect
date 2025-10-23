@@ -87,19 +87,37 @@
             const origin = location.origin || ('https://' + location.host);
             const basePath = (location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/\/[^/]*$/, '/'));
             let candidatePaths = [];
+            // Detect GitHub Pages hosting (served from github.io) to prefer HTML README
+            const isGitHubPages = (location.hostname || '').endsWith('github.io') || (origin || '').includes('github.io');
             if (file === 'README') {
-                // Try absolute paths first (handles GH Pages repo subpath), prefer lowercase readme.md then README variants and HTML
-                candidatePaths = [
-                    origin + basePath + 'readme.md',
-                    origin + basePath + 'README.md',
-                    origin + basePath + 'README.html',
-                    './README.html',
-                    './readme.md',
-                    './README.md',
-                    'README.html',
-                    'readme.md',
-                    'README.md'
-                ];
+                // Try absolute paths first (handles GH Pages repo subpath).
+                // On GitHub Pages prefer README.html early to avoid 404 noise when README.html is served.
+                if (isGitHubPages) {
+                    candidatePaths = [
+                        origin + basePath + 'README.html',
+                        origin + basePath + 'readme.md',
+                        origin + basePath + 'README.md',
+                        './README.html',
+                        './readme.md',
+                        './README.md',
+                        'README.html',
+                        'readme.md',
+                        'README.md'
+                    ];
+                } else {
+                    // Local/dev: prefer lowercase readme.md first then README variants and HTML
+                    candidatePaths = [
+                        origin + basePath + 'readme.md',
+                        origin + basePath + 'README.md',
+                        origin + basePath + 'README.html',
+                        './README.html',
+                        './readme.md',
+                        './README.md',
+                        'README.html',
+                        'readme.md',
+                        'README.md'
+                    ];
+                }
             } else {
                 // For other files, try absolute HTML then MD, then relative fallbacks
                 candidatePaths = [
@@ -115,6 +133,8 @@
                     'README.md'
                 ];
             }
+            // Deduplicate candidatePaths while preserving order to avoid redundant fetches
+            candidatePaths = candidatePaths.filter((v, i, a) => a.indexOf(v) === i);
             let response = null;
             let text = null;
             for (const p of candidatePaths) {
