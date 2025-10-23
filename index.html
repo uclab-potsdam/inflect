@@ -170,23 +170,23 @@
             let successPath = null;
             for (const p of candidatePaths) {
                 try {
-                    console.debug('renderMarkdown: trying', p);
+                    if (window && window.__inflectDebug) console.debug('renderMarkdown: trying', p);
                     response = await fetch(p, {cache: 'no-store'});
                     if (response && response.ok) {
                         text = await response.text();
-                        console.debug('renderMarkdown: fetched', p);
+                        if (window && window.__inflectDebug) console.debug('renderMarkdown: fetched', p);
                         successPath = p;
                         break;
                     } else {
-                        console.debug('renderMarkdown: not ok', p, response && response.status);
+                        if (window && window.__inflectDebug) console.debug('renderMarkdown: not ok', p, response && response.status);
                     }
                 } catch (e) {
-                    console.debug('renderMarkdown: fetch error', p, e && e.message);
+                    if (window && window.__inflectDebug) console.debug('renderMarkdown: fetch error', p, e && e.message);
                     // ignore and try next
                 }
             }
             if (!text) {
-                console.debug('renderMarkdown: no candidate succeeded');
+                if (window && window.__inflectDebug) console.debug('renderMarkdown: no candidate succeeded');
             }
 
             if (!text) {
