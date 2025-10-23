@@ -67,7 +67,7 @@
     const cursor = document.createElement('span');
     cursor.className = 'tw-cursor';
     cursor.setAttribute('aria-hidden', 'true');
-    const speed = (opts && opts.speed) || 40; // ms per char
+  const speed = (opts && opts.speed) || (el.dataset.twSpeed ? parseInt(el.dataset.twSpeed,10) : 40); // ms per char
     const targets = gatherTargets(el);
     // Flatten into sequence of characters with pointers to target
     const sequence = [];
@@ -75,7 +75,7 @@
       for (let i = 0; i < t.chars.length; i++) {
         sequence.push({ node: t.node, ch: t.chars[i] });
       }
-      // After each target we add a small pause (represented by null)
+      // After each target we add a small pause (represented by a marker)
       sequence.push({ pause: true });
     }
 
@@ -94,6 +94,26 @@
     }
 
     let idx = 0;
+    let prevChar = '';
+    function computeDelayForChar(ch) {
+      // base with jitter
+      const jitter = (Math.random() - 0.5) * speed * 0.6; // +/-30%
+      let d = Math.max(20, speed + jitter);
+      // spaces are quicker to type
+      if (ch === ' ') d = Math.max(10, d * 0.5);
+      // small natural pause probability (thinking)
+      if (Math.random() < 0.04) d += Math.random() * 400; // occasional longer pause
+      return Math.round(d);
+    }
+
+    function computeExtraPauseAfter(ch) {
+      // longer pauses after punctuation
+      if (!ch) return 0;
+      if (ch === ',') return speed * 6 + Math.random() * speed * 2; // medium pause
+      if (/[\.\?\!]/.test(ch)) return speed * 10 + Math.random() * speed * 6; // longer pause
+      return 0;
+    }
+
     function step() {
       if (idx >= sequence.length) {
         // finished
@@ -102,7 +122,10 @@
       }
       const item = sequence[idx++];
       if (item.pause) {
-        setTimeout(step, speed * 5);
+        // natural pause between typable targets (slightly randomized)
+        const pauseDur = Math.max(120, speed * 4 + (Math.random() * speed * 2));
+        setTimeout(step, pauseDur);
+        prevChar = '';
         return;
       }
       // move cursor to just after the current node so it marks the insertion point
@@ -119,7 +142,13 @@
           if (el) el.appendChild(p);
         }
       } catch (e) { /* swallow */ }
-      setTimeout(step, speed);
+
+      // compute delay based on the character just typed and previous char
+      const baseDelay = computeDelayForChar(item.ch);
+      const extraAfter = computeExtraPauseAfter(item.ch);
+      const totalDelay = baseDelay + Math.round(extraAfter);
+      prevChar = item.ch;
+      setTimeout(step, totalDelay);
     }
     // Insert initial cursor before typing starts so user sees position immediately
     if (sequence.length > 0) placeCursorAfter(sequence[0].node);
