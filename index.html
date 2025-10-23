@@ -72,6 +72,22 @@
 
     // Function to fetch and render the markdown
     async function renderMarkdown() {
+        // Prevent concurrent or re-entrant runs which can lead to duplicate
+        // fetches and noisy logs (observed on some hosts / redirects).
+        if (window.__renderMarkdownRunning) {
+            console.debug('renderMarkdown: already running, skipping');
+            return;
+        }
+        // Short suppression window: if we rendered successfully very recently,
+        // skip to reduce console noise (2s).
+        try {
+            const now = Date.now();
+            if (window.__lastRenderSuccessAt && (now - window.__lastRenderSuccessAt) < 2000) {
+                console.debug('renderMarkdown: suppressed because successful render occurred within last 2s');
+                return;
+            }
+        } catch(e){}
+        window.__renderMarkdownRunning = true;
         try {
             const hash = window.location.hash.substring(1); // Remove '#' from hash
             const file = hash ? hash : 'README';
@@ -135,8 +151,23 @@
             }
             // Deduplicate candidatePaths while preserving order to avoid redundant fetches
             candidatePaths = candidatePaths.filter((v, i, a) => a.indexOf(v) === i);
+
+            // If we recently rendered successfully and the same candidate is in the
+            // candidate list, skip this run to avoid duplicate fetches/console noise.
+            try {
+                const now = Date.now();
+                if (window.__lastRenderSuccessAt && (now - window.__lastRenderSuccessAt) < 2000 && window.__lastRenderSuccessCandidate) {
+                    const last = window.__lastRenderSuccessCandidate;
+                    if (candidatePaths.indexOf(last) !== -1) {
+                        console.debug('renderMarkdown: skipping because recent successful render of', last);
+                        try { window.__renderMarkdownRunning = false; } catch(e){}
+                        return;
+                    }
+                }
+            } catch(e){}
             let response = null;
             let text = null;
+            let successPath = null;
             for (const p of candidatePaths) {
                 try {
                     console.debug('renderMarkdown: trying', p);
@@ -144,6 +175,7 @@
                     if (response && response.ok) {
                         text = await response.text();
                         console.debug('renderMarkdown: fetched', p);
+                        successPath = p;
                         break;
                     } else {
                         console.debug('renderMarkdown: not ok', p, response && response.status);
@@ -267,30 +299,25 @@
             try {
                 const looksLikeHtml = /(^\s*<!doctype)|(<html[\s>])|(<body[\s>])/i.test(text);
                 if (looksLikeHtml) {
+                    const dp = new DOMParser();
+                    const doc = dp.parseFromString(text, 'text/html');
+                    // Prefer an explicit <main> if present in the fetched HTML
+                    const mainEl = doc.querySelector('main');
+                    html = mainEl ? mainEl.innerHTML : (doc.body ? doc.body.innerHTML : text);
+                    // If the fetched HTML carried stylesheet links in its head, import
+                    // them safely (only same-origin or clearly safe relative paths).
                     try {
-                        const dp = new DOMParser();
-                        const doc = dp.parseFromString(text, 'text/html');
-                        // Prefer an explicit <main> if present in the fetched HTML
-                        const mainEl = doc.querySelector('main');
-                        html = mainEl ? mainEl.innerHTML : (doc.body ? doc.body.innerHTML : text);
-                        // If the fetched HTML carried stylesheet links in its head, import
-                        // them safely (only same-origin or clearly safe relative paths).
-                        try {
-                            const headLinks = Array.from(doc.querySelectorAll('link[rel="stylesheet"]'));
-                            headLinks.forEach(l => {
-                                const href = l.getAttribute('href');
-                                if (href && /^(\/|\.\/|\.\.\/|src\/|css\/)/.test(href)) {
-                                    const id = 'page-css-' + btoa(href).replace(/=/g,'');
-                                    if (!document.getElementById(id)) {
-                                        const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = href; link.id = id; document.head.appendChild(link);
-                                    }
+                        const headLinks = Array.from(doc.querySelectorAll('link[rel="stylesheet"]'));
+                        headLinks.forEach(l => {
+                            const href = l.getAttribute('href');
+                            if (href && /^(\/|\.\/|\.\.\/|src\/|css\/)/.test(href)) {
+                                const id = 'page-css-' + btoa(href).replace(/=/g,'');
+                                if (!document.getElementById(id)) {
+                                    const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = href; link.id = id; document.head.appendChild(link);
                                 }
-                            });
-                        } catch(e){}
-                    } catch(e) {
-                        // fallback to treating as markdown
-                        html = marked.parse(text);
-                    }
+                            }
+                        });
+                    } catch(e){}
                 } else {
                     html = marked.parse(text);
                 }
@@ -311,6 +338,9 @@
             if (document.URL!="https://uclab.fh-potsdam.de/inflect/") html = html + "\n<footer>a story made with <strong><a class='dontinflect' href='https://uclab.fh-potsdam.de/inflect/'>!nflect</a></strong></footer>";
 
                         document.querySelector('main').innerHTML = html;
+
+                        // Record successful render so immediate duplicate invocations can be skipped
+                        try { window.__lastRenderSuccessAt = Date.now(); window.__lastRenderSuccessCandidate = successPath || null; } catch(e){}
 
                         // apply per-page css after rendering
                         try { applyPageCss(pageCssPath); } catch (e) { console.warn('Failed to apply page CSS', e); }
@@ -713,8 +743,15 @@
         }
     });
 
-    // Load, parse, and display markdown on page load
-    renderMarkdown();
+    // Load, parse, and display markdown on page load (debounced scheduler prevents rapid duplicate runs)
+    (function(){
+        window.__renderMarkdownTimer = null;
+        window.scheduleRenderMarkdown = function(delay){
+            try { if (window.__renderMarkdownTimer) clearTimeout(window.__renderMarkdownTimer); } catch(e){}
+            window.__renderMarkdownTimer = setTimeout(() => { try { renderMarkdown(); } catch(e){}; window.__renderMarkdownTimer = null; }, (typeof delay === 'number' ? delay : 50));
+        };
+    })();
+    window.scheduleRenderMarkdown(0);
         // Load external typewriter script (handles its own initialization)
         (function(){
             const s = document.createElement('script');
