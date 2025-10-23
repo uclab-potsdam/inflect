@@ -249,6 +249,39 @@
             const fmBodyClass = extracted.bodyClass;
             // --- end per-page CSS marker parsing ---
 
+                // On GitHub Pages the repository is often served as generated HTML
+                // which may not include the original `css: src/theme.css` marker.
+                // As a fallback, attempt to load `src/theme.css` from the repo root
+                // (origin + basePath) if it exists — this ensures our fonts and
+                // theme definitions load when the page was built by Jekyll.
+                async function tryApplyRepoTheme(){
+                    try {
+                        if (pageCssPath) return; // page explicitly requested CSS, respect it
+                        // Only try for README on GitHub Pages or when basePath looks repo-rootish
+                        const themeCandidates = [
+                            origin + basePath + 'src/theme.css',
+                            origin + basePath + 'src/theme.min.css',
+                            origin + basePath + 'src/base.css'
+                        ];
+                        for (const tc of themeCandidates) {
+                            try {
+                                const r = await fetch(tc, { method: 'HEAD', cache: 'no-store' });
+                                if (r && r.ok) {
+                                    // inject link if not already present
+                                    if (!document.querySelector('link[href="' + tc + '"]')) {
+                                        const l = document.createElement('link');
+                                        l.rel = 'stylesheet';
+                                        l.href = tc;
+                                        l.id = 'repo-theme-css';
+                                        document.head.appendChild(l);
+                                    }
+                                    return;
+                                }
+                            } catch(e) { /* ignore and try next */ }
+                        }
+                    } catch(e) { /* swallow */ }
+                }
+
                         // Detect and strip a leading body-class marker from the raw markdown before we wrap sections
                         // e.g. a file starting with `{.ltr}` should set body classes, not produce an empty section.
                         // Prefer body-class from YAML front-matter if present, otherwise accept the inline `{.cls}` marker.
@@ -343,7 +376,8 @@
                         try { window.__lastRenderSuccessAt = Date.now(); window.__lastRenderSuccessCandidate = successPath || null; } catch(e){}
 
                         // apply per-page css after rendering
-                        try { applyPageCss(pageCssPath); } catch (e) { console.warn('Failed to apply page CSS', e); }
+                            try { applyPageCss(pageCssPath); } catch (e) { console.warn('Failed to apply page CSS', e); }
+                            try { tryApplyRepoTheme(); } catch(e){}
 
                         // If the markdown included a leading body-class marker, apply it to <body>
                         // Remove any previously applied classes from earlier renders (kept in data-body-classes)
