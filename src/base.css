@@ -55,10 +55,10 @@ iframe {
 }
 
 section {
-    margin: 6vh 0;
-    padding: 18px;
+    margin: 6vh auto;
+    padding: 5vh 0;
     max-width: 640px;
-    min-height: 100vh;
+    min-height: 90vh;
 }
 
 section img { max-width: 100%; }

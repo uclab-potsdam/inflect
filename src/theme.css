@@ -80,10 +80,19 @@ section:first-child p{
     border: 0;
 }
 
+section.subheader {
+    text-align: center;
+}
+
+section.meta p {
+    background: #000;
+    font-size: 1em;
+}
+
 section.testimony {
-    margin-right: 0;
     font-family: "Heb_hand";
     max-width: 40vw;
+    margin: 6vh 0 6vh auto;
 }
 
 section.testimony p{
@@ -210,7 +219,6 @@ main {
 }
 
 section {
-    margin: 6vh 0 6vh auto;
     max-width: 60vh;
     color: #fff;
     display: flex;

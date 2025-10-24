@@ -4,24 +4,11 @@
 (function(){
   if (typeof window === 'undefined' || !document) return;
 
-  // Inject simple block-cursor CSS for movable cursor element
+  // Inject minimal character fade-in CSS for typed characters
   const style = document.createElement('style');
   style.id = 'typewriter-external-style';
   style.textContent = `
-.tw-cursor {
-  display: inline-block;
-  width: 0.6ch; /* approximate character width */
-  height: 1em;
-  vertical-align: -0.12em; /* nudge to baseline */
-  margin-left: 0;
-  background: currentColor;
-  opacity: 1;
-  animation: typewriter-blink 1s steps(1) infinite;
-}
-@keyframes typewriter-blink { 50% { opacity: 0; } }
-`;
-  // Add character fade-in class
-  style.textContent += `
+/* Typed character fade-in */
 .tw-char { display: inline; opacity: 0; transition: opacity 50ms linear; }
 `;
   document.head.appendChild(style);
@@ -67,10 +54,9 @@
   function startTypingForElement(el, opts) {
     if (!el || el.dataset._tw_started) return;
     el.dataset._tw_started = '1';
-    // Create a movable cursor element and attach when typing begins
-    const cursor = document.createElement('span');
-    cursor.className = 'tw-cursor';
-    cursor.setAttribute('aria-hidden', 'true');
+  // No DOM cursor: we intentionally avoid adding a blinking cursor element.
+  // Measurements that previously relied on the cursor use a temporary
+  // invisible marker inserted only for measurement and removed immediately.
   const speed = (opts && opts.speed) || (el.dataset.twSpeed ? parseInt(el.dataset.twSpeed,10) : 40); // ms per char
     // Measure final heights before we clear or replace content so layout doesn't jump.
     const measuredHeights = new Map();
@@ -127,18 +113,25 @@
       sequence.push({ pause: true });
     }
 
-    // Helper to place cursor after a target node
-    function placeCursorAfter(node) {
+    // Helper to place a temporary invisible marker after a target node for measurements.
+    // Returns the marker element (caller should remove it when done).
+    function placeMarkerAfter(node) {
+      const marker = document.createElement('span');
+      marker.style.display = 'inline-block';
+      marker.style.width = '0px';
+      marker.style.height = '0px';
+      marker.style.visibility = 'hidden';
+      marker.style.pointerEvents = 'none';
       try {
-        if (node.nodeType === Node.TEXT_NODE) {
-          if (node.parentNode) node.parentNode.insertBefore(cursor, node.nextSibling);
-        } else if (node.nodeType === Node.ELEMENT_NODE) {
-          node.appendChild(cursor);
+        if (node && node.nodeType === Node.TEXT_NODE && node.parentNode) {
+          node.parentNode.insertBefore(marker, node.nextSibling);
+        } else if (node && node.nodeType === Node.ELEMENT_NODE && node.parentNode) {
+          node.parentNode.insertBefore(marker, node.nextSibling || null);
         } else {
-          // fallback: append to element container
-          el.appendChild(cursor);
+          el.appendChild(marker);
         }
       } catch (e) { /* swallow */ }
+      return marker;
     }
 
     let idx = 0;
@@ -149,8 +142,6 @@
       let d = Math.max(20, speed + jitter);
       // spaces are quicker to type
       if (ch === ' ') d = Math.max(10, d * 0.5);
-      // small natural pause probability (thinking)
-      if (Math.random() < 0.04) d += Math.random() * 400; // occasional longer pause
       return Math.round(d);
     }
 
@@ -164,10 +155,9 @@
 
     function step() {
       if (idx >= sequence.length) {
-        // finished
-        try { if (cursor && cursor.parentNode) cursor.parentNode.removeChild(cursor); } catch (e) {}
-        return;
-      }
+          // finished
+          return;
+        }
 
       const item = sequence[idx]; // peek, we'll advance idx when we actually consume
 
@@ -196,35 +186,57 @@
 
         if (word.length > 0) {
           try {
-            // place cursor so measurements reflect the current inline position
-            placeCursorAfter(item.node);
+            // Insert a temporary invisible marker to determine where the next
+            // character will be placed. Measure remaining space and compare
+            // word width. Remove marker after measuring.
             const containerRect = el.getBoundingClientRect();
-            const cursorRect = cursor.getBoundingClientRect();
-            const remaining = Math.max(0, containerRect.right - cursorRect.right);
+            const marker = placeMarkerAfter(item.node);
 
-            // create a temporary measuring span next to the cursor to measure the word width
+            // measure remaining space to the container's right edge
+            const markerRect = marker.getBoundingClientRect();
+            const remaining = Math.max(0, containerRect.right - markerRect.right);
+
+            // create a temporary measuring span after the marker to measure the word width
             const meas = document.createElement('span');
             meas.style.whiteSpace = 'nowrap';
             meas.style.visibility = 'hidden';
             meas.style.pointerEvents = 'none';
             meas.textContent = word;
-            if (cursor.parentNode) cursor.parentNode.insertBefore(meas, cursor.nextSibling);
+            if (marker.parentNode) marker.parentNode.insertBefore(meas, marker.nextSibling);
             const wordWidth = meas.getBoundingClientRect().width;
             if (meas.parentNode) meas.parentNode.removeChild(meas);
+            if (marker.parentNode) marker.parentNode.removeChild(marker);
 
             if (wordWidth > remaining) {
-              // Insert a line break before the cursor so the word starts on the next line
+              // Insert a line break so the word starts on the next line.
+              // Avoid inserting <br> between block-level elements (eg. <p>)
+              // because block elements already break lines and adding <br>
+              // can create extra vertical gaps. Only insert <br> when the
+              // current node is a text node or an inline element.
               const br = document.createElement('br');
               try {
                 if (item.node.nodeType === Node.TEXT_NODE && item.node.parentNode) {
-                  item.node.parentNode.insertBefore(br, cursor);
+                  item.node.parentNode.insertBefore(br, item.node.nextSibling);
                 } else if (item.node.nodeType === Node.ELEMENT_NODE && item.node.parentNode) {
-                  item.node.parentNode.insertBefore(br, item.node.nextSibling || cursor);
+                  // Check computed display style; only insert for inline contexts
+                  let display = 'inline';
+                  try {
+                    display = window.getComputedStyle(item.node).display || display;
+                  } catch (e) { /* ignore */ }
+                  if (display === 'inline' || display === 'inline-block' || display === 'inline-flex' || display === 'inline-grid') {
+                    item.node.parentNode.insertBefore(br, item.node.nextSibling || null);
+                  } else {
+                    // block-level element: do nothing (it already forces line breaks)
+                  }
                 } else {
-                  el.appendChild(br);
+                  // Fallback: append to container only if container is inline-ish
+                  let display = 'block';
+                  try { display = window.getComputedStyle(el).display || display; } catch (e) {}
+                  if (display === 'inline' || display === 'inline-block' || display === 'inline-flex' || display === 'inline-grid') {
+                    el.appendChild(br);
+                  }
                 }
               } catch (e) { /* swallow */ }
-              // after inserting br, the cursor will move appropriately on next placeCursorAfter
             }
           } catch (e) {
             // measurement best-effort, ignore failures
@@ -234,8 +246,7 @@
 
       // Now consume the item and type it
       idx++;
-      // move cursor to just after the current node so it marks the insertion point
-      placeCursorAfter(item.node);
+      // No visible cursor: characters are appended in place without a blinking cursor.
       // append char as a span so we can fade it in
       try {
         const span = document.createElement('span');
@@ -259,11 +270,25 @@
       // compute delay based on the character just typed and previous char
       const baseDelay = computeDelayForChar(item.ch);
       const extraAfter = computeExtraPauseAfter(item.ch);
-      const totalDelay = baseDelay + Math.round(extraAfter);
+      // occasional 'thinking' pause but NOT in the middle of a word
+      let thinking = 0;
+      try {
+        if (Math.random() < 0.04) {
+          const nextItem = sequence[idx]; // after we've advanced idx, this is the next item
+          // Only allow a longer 'thinking' pause when the next item is whitespace
+          // or an explicit pause marker (i.e., at a word boundary).
+          const nextCh = nextItem && nextItem.ch;
+          const nextIsSpace = nextCh === ' ';
+          const nextIsPauseMarker = !!(nextItem && nextItem.pause);
+          if (nextIsSpace || nextIsPauseMarker) {
+            thinking = Math.random() * 400;
+          }
+        }
+      } catch (e) { /* swallow */ }
+      const totalDelay = baseDelay + Math.round(extraAfter) + Math.round(thinking);
       prevChar = item.ch;
       setTimeout(step, totalDelay);
     }
-    // Insert initial cursor before typing starts so user sees position immediately
     // Apply measured heights as inline styles (min-height) so typing doesn't change layout
     try {
       for (const t of targets) {
@@ -282,7 +307,7 @@
       }
     } catch (e) { /* swallow */ }
 
-    if (sequence.length > 0) placeCursorAfter(sequence[0].node);
+    // no initial visible cursor
     setTimeout(step, speed);
   }
 
