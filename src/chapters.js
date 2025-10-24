@@ -2,20 +2,37 @@ document.addEventListener('DOMContentLoaded', function () {
   // Helper: find headings that mark chapters
   function findHeadings() {
     const headingSet = new Set();
+
+    // Prefer explicit .subheader containers if present (existing behavior)
     document.querySelectorAll('.subheader').forEach(container => {
-      // descendant headings
       container.querySelectorAll('h1, h2, h3').forEach(h => headingSet.add(h));
-      // heading immediately after the .subheader element
       const next = container.nextElementSibling;
       if (next && /H[1-3]/.test(next.tagName)) headingSet.add(next);
     });
 
-    // Also include headings that explicitly have class `subheader` (e.g. ## Title {.subheader})
+    // Also include headings that explicitly have class `subheader`
     document.querySelectorAll('h1.subheader, h2.subheader, h3.subheader').forEach(h => headingSet.add(h));
 
-    let headings = Array.from(headingSet).filter(el => el.offsetParent !== null);
-    // Sort headings in document order (top to bottom)
-    headings.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+    // Fallback: include any top-level headings inside <main> (h1-h3).
+    // Some markdown files (like draft.md) place a marker on its own line
+    // before a heading; depending on the markdown processor that marker may
+    // not end up as a wrapper element. Including headings inside <main>
+    // ensures chapters are detected even when `.subheader` isn't present
+    // as a wrapper element.
+    const main = document.querySelector('main') || document;
+    main.querySelectorAll('h1, h2, h3').forEach(h => headingSet.add(h));
+
+    // Filter out hidden headings and sort by document order
+    let headings = Array.from(headingSet).filter(el => el && el.offsetParent !== null);
+    headings.sort((a, b) => {
+      // Use document position if available, fallback to bounding rect
+      try {
+        const pos = a.compareDocumentPosition(b);
+        if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+        if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+      } catch (e) {}
+      return a.getBoundingClientRect().top - b.getBoundingClientRect().top;
+    });
     return headings;
   }
 
@@ -156,16 +173,32 @@ document.addEventListener('DOMContentLoaded', function () {
         const targetTop = target.getBoundingClientRect().top + (scroller.scrollTop || window.pageYOffset);
         const centeredTop = targetTop - (viewportHeight / 2) + (target.offsetHeight / 2);
         
-        if (scroller === document.scrollingElement || scroller === document.documentElement) {
-          window.scrollTo({ top: centeredTop, behavior: 'smooth' });
+        // Use the global smooth helper if available for a softer animation
+        if (window.__smoothScrollTo) {
+          try {
+            window.__smoothScrollTo(scroller, centeredTop, { source: 'nav' });
+          } catch (e) {
+            // fallback to native
+            try {
+              if (scroller === document.scrollingElement || scroller === document.documentElement) {
+                window.scrollTo({ top: centeredTop, behavior: 'smooth' });
+              } else {
+                scroller.scrollTo({ top: centeredTop, behavior: 'smooth' });
+              }
+              setTimeout(() => { window.__chaptersAnimating = false; }, 1000);
+            } catch (e) { /* swallow */ }
+          }
         } else {
-          scroller.scrollTo({ top: centeredTop, behavior: 'smooth' });
+          // Native smooth scroll fallback
+          try {
+            if (scroller === document.scrollingElement || scroller === document.documentElement) {
+              window.scrollTo({ top: centeredTop, behavior: 'smooth' });
+            } else {
+              scroller.scrollTo({ top: centeredTop, behavior: 'smooth' });
+            }
+            setTimeout(() => { window.__chaptersAnimating = false; }, 1000);
+          } catch (e) { /* swallow */ }
         }
-        
-        // Clear animation flag after scroll completes (smooth scroll takes ~500-800ms)
-        setTimeout(() => {
-          window.__chaptersAnimating = false;
-        }, 1000);
       };
     }
 

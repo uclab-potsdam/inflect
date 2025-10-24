@@ -50,6 +50,57 @@
 <main></main>
 
 <script>
+        // Enable verbose debug logs during this investigation
+        try { window.__inflectDebug = true; console.info('inflect: __inflectDebug = true'); } catch(e){}
+        // Global smooth scroll helper used by both nav clicks and snap gestures.
+        // Animates with an ease-out curve and duration proportional to distance
+        // so the programmatic snap feels like a continuation of the user's
+        // scroll gesture rather than an abrupt jump.
+        window.__smoothScrollTo = function(scroller, to, opts) {
+            try {
+                opts = opts || {};
+                const start = (scroller === document.scrollingElement || scroller === document.documentElement) ? (window.pageYOffset || document.documentElement.scrollTop || 0) : (scroller.scrollTop || 0);
+                const distance = Math.max(-start, to - start); // clamp to avoid negative over-scroll
+                const absDist = Math.abs(distance);
+                // Duration grows with distance but is clamped so long trips don't feel slow
+                const duration = opts.duration || Math.min(900, Math.max(300, Math.round(absDist * 0.45) + 150));
+                const startTime = performance.now();
+
+                // cubic ease-out
+                function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+                // Suppress other snap/scroll handlers while animating
+                window.__snapSuppressUntil = Date.now() + duration + 80;
+                window.__chaptersAnimating = true;
+                window.__scrollAnimating = true;
+
+                function step(now) {
+                    const elapsed = Math.min(duration, Math.max(0, now - startTime));
+                    const progress = easeOutCubic(elapsed / duration);
+                    const cur = Math.round(start + (distance * progress));
+                    try {
+                        if (scroller === document.scrollingElement || scroller === document.documentElement) {
+                            window.scrollTo(0, cur);
+                        } else if (typeof scroller.scrollTo === 'function') {
+                            scroller.scrollTo({ top: cur });
+                        } else {
+                            scroller.scrollTop = cur;
+                        }
+                    } catch(e) { /* swallow */ }
+
+                    if (elapsed < duration) {
+                        requestAnimationFrame(step);
+                    } else {
+                        // finish
+                        try { if (scroller === document.scrollingElement || scroller === document.documentElement) window.scrollTo(0, to); else scroller.scrollTo({ top: to }); } catch(e){}
+                        window.__chaptersAnimating = false;
+                        window.__scrollAnimating = false;
+                    }
+                }
+
+                requestAnimationFrame(step);
+            } catch (e) { /* swallow */ }
+        };
     // Track last path (excluding hash)
     let lastIframePath = null;
     let firstFrame = true;
@@ -374,6 +425,7 @@
             if (document.URL!="https://uclab.fh-potsdam.de/inflect/") html = html + "\n<footer>a story made with <strong><a class='dontinflect' href='https://uclab.fh-potsdam.de/inflect/'>!nflect</a></strong></footer>";
 
                         document.querySelector('main').innerHTML = html;
+                        try { console.info('renderMarkdown: rendered', successPath || '(inferred)', 'body-class=', pageBodyClasses || '(none)'); } catch(e){}
 
                         // Record successful render so immediate duplicate invocations can be skipped
                         try { window.__lastRenderSuccessAt = Date.now(); window.__lastRenderSuccessCandidate = successPath || null; } catch(e){}
@@ -427,6 +479,7 @@
                 })();
             }
 
+            try { console.info('initializeObservers: about to run'); } catch(e){}
             initializeObservers();
             // Observe sections so empty/anchor-only links inside sections are detected
             try {
@@ -533,6 +586,22 @@
 
     // (typewriter functionality removed)
 
+    // Track recent direct user input (wheel/touch/keyboard/pointer) so we can
+    // distinguish user gestures from programmatic navigation. This is used by
+    // the section observer to decide whether a section entering view should
+    // trigger a programmatic centering scroll (same function used by navbar).
+    window.__userInputAt = 0;
+    function __markUserInput(e) {
+        // For key events, only treat navigation keys as user gestures
+        if (e && e.type === 'keydown') {
+            if (!['ArrowUp','ArrowDown','PageUp','PageDown',' '].includes(e.key)) return;
+        }
+        try { window.__userInputAt = Date.now(); } catch (err) { /* swallow */ }
+    }
+    ['wheel','touchstart','touchmove','pointerdown','keydown'].forEach(evt => {
+        try { window.addEventListener(evt, __markUserInput, { passive: true }); } catch(e){}
+    });
+
     // with IntersectionObserver we can check what is visible    
     function initializeObservers() {
         const observer = new IntersectionObserver((entries) => {
@@ -574,6 +643,45 @@
                         if (!a) return;
                         const raw = a.getAttribute('href') || '';
                         if (!raw) return;
+                        // Determine whether this intersection was likely caused by
+                        // a direct user gesture (scroll/trackpad/keyboard) rather
+                        // than a programmatic navigation (nav click / scripted scroll).
+                        const now = Date.now();
+                        const recentUser = (now - (window.__userInputAt || 0)) < 700; // ms
+                        const programmaticScrollActive = !!(window.__scrollAnimating || (window.__snapSuppressUntil && now < window.__snapSuppressUntil));
+
+                        // If a recent user gesture occurred and no programmatic
+                        // scroll suppression is active, perform the same centering
+                        // calculation used by navbar buttons. We intentionally
+                        // duplicate the minimal centering logic here rather than
+                        // depending on a global helper so this page works even if
+                        // `chapters.js` hasn't exposed a function.
+                        if (recentUser && !programmaticScrollActive) {
+                            try {
+                                const scroller = document.querySelector('main') || document.scrollingElement || document.documentElement;
+                                const viewportHeight = (scroller && scroller.clientHeight) || window.innerHeight;
+                                const targetTop = sec.getBoundingClientRect().top + (scroller ? scroller.scrollTop : (window.pageYOffset || 0));
+                                const centeredTop = targetTop - (viewportHeight / 2) + (sec.offsetHeight / 2);
+
+                                // Suppress other snap/key handlers while animating
+                                window.__snapSuppressUntil = Date.now() + 700;
+                                window.__chaptersAnimating = true;
+
+                                if (window.__smoothScrollTo) {
+                                    window.__smoothScrollTo(scroller, centeredTop, { source: 'observer' });
+                                } else {
+                                    try {
+                                        if (scroller === document.scrollingElement || scroller === document.documentElement) {
+                                            window.scrollTo({ top: centeredTop, behavior: 'smooth' });
+                                        } else {
+                                            scroller.scrollTo({ top: centeredTop, behavior: 'smooth' });
+                                        }
+                                    } catch(e){}
+                                    setTimeout(() => { window.__chaptersAnimating = false; }, 1000);
+                                }
+                            } catch (e) { /* swallow */ }
+                        }
+
                         try { const full = new URL(raw, window.location.href).href; setIframeNext(full); } catch(e){ setIframeNext(a.href); }
                     } catch(e) { /* swallow */ }
                     sectionObserver.unobserve(en.target);
@@ -585,7 +693,17 @@
         // This magnetizes sections to the center of the viewport and installs
         // wheel/keyboard handlers to flip between sections.
         if (document.body.classList && document.body.classList.contains('snap')) {
-            const scroller = document.querySelector('main') || document.scrollingElement || document.documentElement;
+            // Choose the element that actually scrolls. Prefer <main> only if it
+            // is scrollable; fall back to the document scrolling element otherwise.
+            function chooseScroller() {
+                const mainEl = document.querySelector('main');
+                try {
+                    if (mainEl && mainEl.scrollHeight > (mainEl.clientHeight || 0)) return mainEl;
+                } catch(e){}
+                return (document.scrollingElement || document.documentElement);
+            }
+            const scroller = chooseScroller();
+            try { console.info('snap: attached to scroller ->', scroller && (scroller.tagName || scroller.nodeName)); } catch(e){}
 
             // Helper to compute the index of the section closest to scroller center
             function _snapCurrentIndex() {
@@ -605,12 +723,17 @@
             function _snapToSection(sec, smooth = true) {
                 try {
                     const top = Math.max(0, sec.offsetTop - Math.round((scroller.clientHeight - sec.offsetHeight) / 2));
-                    // suppress wheel/key handlers while programmatic scroll animates
-                    window.__snapSuppressUntil = Date.now() + 700;
-                    if (scroller === document.scrollingElement || scroller === document.documentElement) {
-                        window.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+                    // If our global helper exists, use it for a softer, velocity-like animation
+                    if (window.__smoothScrollTo && smooth) {
+                        window.__smoothScrollTo(scroller, top, { source: 'snap' });
                     } else {
-                        scroller.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+                        // fallback to native smooth behavior
+                        try { window.__snapSuppressUntil = Date.now() + 700; } catch(e){}
+                        if (scroller === document.scrollingElement || scroller === document.documentElement) {
+                            window.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+                        } else {
+                            scroller.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+                        }
                     }
                 } catch (e) { /* swallow */ }
             }
@@ -639,11 +762,23 @@
 
             // Non-passive wheel listener to intercept and flip pages — attach to scroller
             try {
+                // Accumulator for small trackpad deltas: many trackpads emit many
+                // small wheel events that never cross the per-event threshold. We
+                // accumulate small deltas over a short window and when the total
+                // exceeds `smallGestureThreshold` we treat it as an intentional
+                // flick and snap to the next/previous section.
+                let __gestureAccumulator = 0;
+                let __gestureLastDir = 0;
+                let __gestureTimer = null;
+                const __smallGestureThreshold = 60; // px accumulated
+                const __gestureTimeoutMs = 140; // ms to wait for gesture series to finish
+
                 scroller.addEventListener('wheel', (ev) => {
                     try {
                         if (Date.now() < (window.__snapSuppressUntil || 0)) return;
-                        // ignore tiny deltas (accidental touchpad jitter)
-                        if (Math.abs(ev.deltaY) < 8) return;
+                        // mark that scroller-level wheel events are being observed
+                        try { window.__snapListenerConfirmed = true; } catch(e){}
+
                         // If event originated inside an element that should not snap (e.g. maps), skip
                         const path = ev.composedPath && ev.composedPath();
                         for (const node of (path || [])) {
@@ -652,15 +787,152 @@
                             if (el.classList && (el.classList.contains('no-snap') || el.closest && el.closest('.no-snap'))) return;
                         }
 
-                        ev.preventDefault();
-                        ev.stopPropagation();
-                        const secs = Array.from(scroller.querySelectorAll('section'));
-                        if (!secs.length) return;
-                        const idx = _snapCurrentIndex();
-                        const nextIdx = ev.deltaY > 0 ? Math.min(secs.length - 1, idx + 1) : Math.max(0, idx - 1);
-                        if (nextIdx !== idx) _snapToSection(secs[nextIdx], true);
+                        const delta = ev.deltaY || 0;
+                        const abs = Math.abs(delta);
+                        const dir = delta > 0 ? 1 : -1;
+
+                        // Fast, large wheel deltas: immediate snap (mouse wheel)
+                        if (abs >= 16) {
+                            try { ev.preventDefault(); ev.stopPropagation(); } catch(e){}
+                            const secs = Array.from(scroller.querySelectorAll('section'));
+                            if (!secs.length) return;
+                            const idx = _snapCurrentIndex();
+                            const nextIdx = delta > 0 ? Math.min(secs.length - 1, idx + 1) : Math.max(0, idx - 1);
+                            if (nextIdx !== idx) _snapToSection(secs[nextIdx], true);
+                            try { console.info('snap: immediate wheel snap to', nextIdx); } catch(e){}
+                            // clear any in-progress accumulator state
+                            __gestureAccumulator = 0; __gestureLastDir = 0; if (__gestureTimer) { clearTimeout(__gestureTimer); __gestureTimer = null; }
+                            return;
+                        }
+
+                        // Small deltas (typical of trackpads): accumulate briefly
+                        if (abs > 0) {
+                            if (__gestureLastDir && __gestureLastDir !== dir) {
+                                // direction changed — reset accumulator to avoid mixing
+                                __gestureAccumulator = 0;
+                            }
+                            __gestureLastDir = dir;
+                            __gestureAccumulator += abs;
+
+                            // If accumulator crosses threshold now, snap immediately
+                            if (__gestureAccumulator >= __smallGestureThreshold) {
+                                try { ev.preventDefault(); ev.stopPropagation(); } catch(e){}
+                                const secs = Array.from(scroller.querySelectorAll('section'));
+                                if (secs.length) {
+                                    const idx = _snapCurrentIndex();
+                                    const nextIdx = __gestureLastDir > 0 ? Math.min(secs.length - 1, idx + 1) : Math.max(0, idx - 1);
+                                    if (nextIdx !== idx) {
+                                        window.__snapSuppressUntil = Date.now() + 700;
+                                        try { console.info('snap: accumulated immediate snap to', nextIdx, 'acc=', __gestureAccumulator); } catch(e){}
+                                        _snapToSection(secs[nextIdx], true);
+                                    }
+                                }
+                                // reset accumulator and clear timer
+                                __gestureAccumulator = 0; __gestureLastDir = 0; if (__gestureTimer) { clearTimeout(__gestureTimer); __gestureTimer = null; }
+                                return;
+                            }
+
+                            // Schedule evaluation shortly after the last wheel event (fallback)
+                            if (__gestureTimer) clearTimeout(__gestureTimer);
+                            __gestureTimer = setTimeout(() => {
+                                try {
+                                    if (__gestureAccumulator >= __smallGestureThreshold) {
+                                        const secs = Array.from(scroller.querySelectorAll('section'));
+                                        if (secs.length) {
+                                            const idx = _snapCurrentIndex();
+                                            const nextIdx = __gestureLastDir > 0 ? Math.min(secs.length - 1, idx + 1) : Math.max(0, idx - 1);
+                                            if (nextIdx !== idx) {
+                                                window.__snapSuppressUntil = Date.now() + 700;
+                                                try { console.info('snap: accumulated snap to', nextIdx, 'acc=', __gestureAccumulator); } catch(e){}
+                                                _snapToSection(secs[nextIdx], true);
+                                            }
+                                        }
+                                    }
+                                } catch(e) { /* swallow */ }
+                                // reset accumulator
+                                __gestureAccumulator = 0; __gestureLastDir = 0; __gestureTimer = null;
+                            }, __gestureTimeoutMs);
+                        }
                     } catch(e) { /* swallow */ }
                 }, { passive: false, capture: true });
+            } catch(e) { /* swallow */ }
+
+            // Install a window-level fallback listener as well. Some browsers
+            // or embedded content route wheel events to the window/document
+            // instead of the scroller element — installing both handlers is
+            // safe as each handler checks `window.__snapSuppressUntil` and
+            // the scroller handler marks `window.__snapListenerConfirmed` so
+            // the window handler can avoid double-acting when not needed.
+            try {
+                let __w_acc = 0, __w_dir = 0, __w_timer = null;
+                const __w_thresh = 60, __w_timeout = 140;
+                window.addEventListener('wheel', (wev) => {
+                    try {
+                        // If scroller already handled wheel events recently, skip
+                        if (window.__snapListenerConfirmed) return;
+                        if (Date.now() < (window.__snapSuppressUntil || 0)) return;
+
+                        const delta = wev.deltaY || 0;
+                        const abs = Math.abs(delta);
+                        const dir = delta > 0 ? 1 : -1;
+
+                        // Large deltas: immediate snap
+                        if (abs >= 16) {
+                            try { wev.preventDefault(); wev.stopPropagation(); } catch(e){}
+                            const secs = Array.from((document.scrollingElement || document.documentElement).querySelectorAll('section'));
+                            if (!secs.length) return;
+                            const idx = _snapCurrentIndex();
+                            const nextIdx = delta > 0 ? Math.min(secs.length - 1, idx + 1) : Math.max(0, idx - 1);
+                            if (nextIdx !== idx) {
+                                try { console.info('snap: window immediate wheel snap to', nextIdx); } catch(e){}
+                                _snapToSection(secs[nextIdx], true);
+                            }
+                            __w_acc = 0; __w_dir = 0; if (__w_timer) { clearTimeout(__w_timer); __w_timer = null; }
+                            return;
+                        }
+
+                        if (abs > 0) {
+                            if (__w_dir && __w_dir !== dir) __w_acc = 0;
+                            __w_dir = dir; __w_acc += abs;
+
+                            // If accumulated crosses threshold immediately, snap now
+                            if (__w_acc >= __w_thresh) {
+                                try { wev.preventDefault(); wev.stopPropagation(); } catch(e){}
+                                const secs = Array.from((document.scrollingElement || document.documentElement).querySelectorAll('section'));
+                                if (secs.length) {
+                                    const idx = _snapCurrentIndex();
+                                    const nextIdx = __w_dir > 0 ? Math.min(secs.length - 1, idx + 1) : Math.max(0, idx - 1);
+                                    if (nextIdx !== idx) {
+                                        try { console.info('snap: window accumulated immediate snap to', nextIdx, 'acc=', __w_acc); } catch(e){}
+                                        window.__snapSuppressUntil = Date.now() + 700;
+                                        _snapToSection(secs[nextIdx], true);
+                                    }
+                                }
+                                __w_acc = 0; __w_dir = 0; if (__w_timer) { clearTimeout(__w_timer); __w_timer = null; }
+                                return;
+                            }
+
+                            if (__w_timer) clearTimeout(__w_timer);
+                            __w_timer = setTimeout(() => {
+                                try {
+                                    if (__w_acc >= __w_thresh) {
+                                        const secs = Array.from((document.scrollingElement || document.documentElement).querySelectorAll('section'));
+                                        if (secs.length) {
+                                            const idx = _snapCurrentIndex();
+                                            const nextIdx = __w_dir > 0 ? Math.min(secs.length - 1, idx + 1) : Math.max(0, idx - 1);
+                                            if (nextIdx !== idx) {
+                                                try { console.info('snap: window accumulated snap to', nextIdx, 'acc=', __w_acc); } catch(e){}
+                                                window.__snapSuppressUntil = Date.now() + 700;
+                                                _snapToSection(secs[nextIdx], true);
+                                            }
+                                        }
+                                    }
+                                } catch(e){}
+                                __w_acc = 0; __w_dir = 0; __w_timer = null;
+                            }, __w_timeout);
+                        }
+                    } catch(e) { /* swallow */ }
+                }, { passive: true, capture: true });
             } catch(e) { /* swallow */ }
 
             // Keyboard navigation for snapping (remain on document)

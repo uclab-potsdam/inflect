@@ -3,7 +3,6 @@ body-class: snap
 css: src/theme.css
 ---
 
-{.subheader}
 # _המסע של_ ניבאל אל היסי
 
 [](svg/#opening.svg)
