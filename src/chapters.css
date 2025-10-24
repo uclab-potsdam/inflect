@@ -1,0 +1,108 @@
+/* Side chapter navigation: white circular markers at center-left */
+#chapter-nav {
+  position: fixed;
+  left: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  z-index: 1200;
+  pointer-events: auto;
+  align-items: flex-end;
+}
+
+.chapter-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1px;
+}
+
+/* Longer gap before chapter headings for visual separation */
+.chapter-heading-item {
+  margin-top: 8px;
+}
+
+.chapter-heading-item:first-child {
+  margin-top: 0;
+}
+
+.chapter-dot {
+  width: 12px;
+  height: 4px;
+  background: #ffffff;
+  border: 2px solid rgba(0,0,0,0.08);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: width 180ms ease, opacity 180ms ease, transform 180ms ease;
+  display: inline-block;
+  padding: 0;
+}
+
+/* Smaller dots for sections */
+.section-dot {
+  width: 12px;
+  height: 4px;
+  border-width: 1px;
+}
+
+.chapter-item:hover .chapter-dot { transform: scale(1.06); }
+
+/* Progress bar style: visited/past sections are full opacity */
+.chapter-dot.visited {
+  opacity: 1;
+}
+
+/* Future sections stay at 50% */
+.chapter-dot.future {
+  opacity: 0.5;
+}
+
+/* Current/active section is wider to stand out */
+.chapter-dot.current {
+  width: 24px;
+}
+
+.chapter-label {
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,0.78);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 140ms ease, transform 140ms ease;
+  transform-origin: left center;
+}
+
+/* Show labels only on hover (works for both mouse hover and tap on mobile) */
+.chapter-item:hover .chapter-label {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* small arrow */
+.chapter-label::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0; height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 6px solid rgba(0,0,0,0.78);
+}
+
+/* hide on small screens */
+@media (max-width: 800px) {
+  #chapter-nav { display: none; }
+}

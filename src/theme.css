@@ -66,9 +66,12 @@ section p{
     margin: 0;
 }
 
-section:first-child h2{
-    font-size: 1.5em;
-    margin-bottom: 0;
+section:first-child h1 em{
+    font-size: 0.8em;
+    margin-bottom: 0.5em;
+    display: block;
+    color: #fff;
+    font-style: normal;
 }
 
 section:first-child h1{

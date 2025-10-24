@@ -17,6 +17,9 @@
     <base href="./">
 
     <link rel="stylesheet" href="src/base.css">
+    <!-- Chapter navigation styles and behavior (global so scripts run reliably) -->
+    <link rel="stylesheet" href="src/chapters.css">
+    <script src="src/chapters.js" defer></script>
     <style>
         /* Layout is controlled by external CSS files: base.css is always loaded.
            Per-page theme files can be requested from Markdown via a marker; the
@@ -433,67 +436,14 @@
                 });
             } catch(e){}
 
-                // After rendering and wiring observers, if there's a `.pin`
-                // element present in the rendered markdown and the URL does not
-                // contain an explicit hash target, scroll smoothly to it. This
-                // prefers explicit #anchor navigation if the user provided one.
-                try {
-                    const hasExplicitHash = (window.location.hash || '').length > 1;
-                    if (!hasExplicitHash) {
-                        // Robustly scroll to `.pin`: try immediately, retry for a
-                        // short period, and also observe DOM mutations and the
-                        // typewriter completion event so we don't miss delayed
-                        // insertions.
-                        let attempts = 0; const maxAttempts = 20; const delay = 80; // ~1.6s total
-                        let settled = false;
-                        let mo = null; let timer = null;
-                        const container = document.querySelector('main') || document.body;
-
-                        const cleanup = () => {
-                            try{ if(mo) mo.disconnect(); }catch(e){}
-                            try{ if(timer) clearTimeout(timer); }catch(e){}
-                        };
-
-                        const doScrollOnce = () => {
-                            try{
-                                const jumpEl = document.querySelector('main .pin');
-                                if(jumpEl){
-                                    try{ jumpEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); }catch(e){}
-                                    // suppress snap behavior briefly so it doesn't override the pin jump
-                                    try{ window.__pinSuppressUntil = Date.now() + 1200; }catch(e){}
-                                    settled = true; return true;
-                                }
-                            }catch(e){}
-                            return false;
-                        };
-
-                        // MutationObserver to detect late insertions
-                        try{
-                            mo = new MutationObserver((mutations)=>{ if(!settled && doScrollOnce()){ cleanup(); } });
-                            mo.observe(container, { childList: true, subtree: true });
-                        }catch(e){ mo = null; }
-                        const tick = () => {
-                            if(settled) { cleanup(); return; }
-                            attempts++;
-                            if(doScrollOnce()){ cleanup(); return; }
-                            if(attempts < maxAttempts) timer = setTimeout(tick, delay);
-                            else cleanup();
-                        };
-
-                        // Start attempts
-                        tick();
-                    }
-                } catch (e) {
-                    // swallow — best-effort only
-                }
+                // Pin behavior removed: no automatic scroll-to-`.pin` is performed.
 
                 // (typewriter functionality removed)
 
-            // return to old position — but don't override an intentional `.pin` jump
+            // return to old position (don't override explicit hash navigation)
             try{
-                const hasPin = !!document.querySelector('main .pin');
                 const hasExplicitHash = (window.location.hash || '').length > 1;
-                if (location.hostname === 'localhost' && !hasPin && !hasExplicitHash) {
+                if (location.hostname === 'localhost' && !hasExplicitHash) {
                     window.scrollTo(0, sessionStorage.getItem('scrollPosition') || 0);
                 }
             }catch(e){}
@@ -672,8 +622,8 @@
                         try {
                             const sec = en.target;
                             const now = Date.now() || 0;
-                            // If a recent pin jump occurred, avoid snapping until it settles
-                            if (now > (window.__pinSuppressUntil || 0) && now > (window.__snapSuppressUntil || 0)) {
+                            // Avoid snapping while programmatic snap suppression is active
+                            if (now > (window.__snapSuppressUntil || 0)) {
                                 _snapToSection(sec, true);
                             }
                         } catch (e) {}
