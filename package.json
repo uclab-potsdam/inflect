@@ -7,5 +7,8 @@
     "pixelmatch": "^5.3.0",
     "pngjs": "^6.0.0",
     "puppeteer": "^20.8.0"
+  },
+  "scripts": {
+    "test:svg": "node tests/svg-safe-area.e2e.js"
   }
 }

@@ -7,17 +7,20 @@
 <style>
   html,body{height:100%;margin:0;background:#333;color:#fff;font-family:Helvetica,Arial,sans-serif}
   #app{position:relative;height:100vh;overflow:hidden}
-  #canvas{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  #canvas{width:100%;height:100%;position:relative}
+  #referenceFrame{position:absolute;pointer-events:none;border:1px solid #0B99FF;box-sizing:border-box;z-index:10}
+  #svgContainer{position:absolute;left:0;top:0;right:0;bottom:0;overflow:visible}
   #controls{position:absolute;right:8px;top:8px;background:rgba(255,255,255,0.06);padding:8px;border-radius:6px;color:#fff;font-size:13px}
   #controls label{display:block;margin-bottom:6px;font-size:12px}
   #controls input[type=range]{width:140px}
   #status{position:absolute;left:8px;top:8px;background:rgba(0,0,0,0.5);padding:6px 8px;border-radius:6px;font-size:12px}
-  /* when embedded in an iframe we hide the UI chrome */
-  .embedded #controls, .embedded #status{ display:none !important; }
+  /* when embedded in an iframe we hide the UI chrome and reference frame */
+  .embedded #controls, .embedded #status, .embedded #referenceFrame{ display:none !important; }
   /* layer list inside controls */
   #layerList{ max-height:200px; overflow:auto; margin-top:6px; font-size:13px }
   #layerList label{ display:flex; align-items:center; gap:8px; margin:4px 0 }
-  svg{max-width:100%;max-height:100%;}
+  /* Ensure the embedded SVG is not resized by CSS; we control size via transforms */
+  #svgContainer > svg{position:absolute;left:0;top:0;max-width:none;max-height:none;width:auto;height:auto}
 </style>
 <style>
   /* Force an exception child to remain visible without transitions to avoid flicker */
@@ -26,7 +29,10 @@
 </head>
 <body>
 <div id="app">
-  <div id="canvas"><div id="svgContainer"></div></div>
+  <div id="canvas">
+    <div id="referenceFrame"></div>
+    <div id="svgContainer"></div>
+  </div>
   <div id="controls">
     <button id="reset">Reset view</button>
     <div style="margin-top:8px;font-weight:600">Layers</div>
@@ -190,8 +196,9 @@ function layersToUrlField(u){ return u || ''; }
 
 function buildCompactHash(file, params, vis){
   // params: { x, y, s }
-  const x = (params && typeof params.x === 'number') ? Math.round(params.x) : 0;
-  const y = (params && typeof params.y === 'number') ? Math.round(params.y) : 0;
+  // x,y are normalized offsets in reference-frame units; keep 2 decimals
+  const x = (params && typeof params.x === 'number') ? (Math.round(params.x*100)/100) : 0;
+  const y = (params && typeof params.y === 'number') ? (Math.round(params.y*100)/100) : 0;
   const s = (params && typeof params.s === 'number') ? (Math.round(params.s*100)/100) : 1;
   // If params match the default canonical view (0,0,1), omit them from the hash
   let token = String(file || '');
@@ -271,13 +278,28 @@ async function loadSVG(url){
       const h = svgEl.getAttribute('height')||svgEl.clientHeight||150;
       svgEl.setAttribute('viewBox','0 0 '+w+' '+h);
     }
-  // we will manipulate the SVG using CSS transforms on the svg element
-  // Keep the svg in the document flow (not absolute) so its container has
-  // a layout size. The transform-origin should be top-left (0 0).
-  try { svgContainer.style.position = svgContainer.style.position || 'relative'; } catch(e){}
-  svgEl.style.display = svgEl.style.display || 'block';
-  svgEl.style.maxWidth = svgEl.style.maxWidth || '100%';
-  svgEl.style.maxHeight = svgEl.style.maxHeight || '100%';
+  // We manipulate the SVG using CSS transforms on the svg element.
+  // Anchor everything to the canvas' top-left and avoid CSS auto-scaling.
+  try {
+    const canvas = document.getElementById('canvas');
+    if (canvas && canvas.style) canvas.style.position = canvas.style.position || 'relative';
+    if (svgContainer && svgContainer.style) {
+      svgContainer.style.position = 'absolute';
+      svgContainer.style.left = '0';
+      svgContainer.style.top = '0';
+      svgContainer.style.right = '0';
+      svgContainer.style.bottom = '0';
+      svgContainer.style.overflow = 'visible';
+    }
+  } catch(e){}
+  svgEl.style.position = 'absolute';
+  svgEl.style.left = '0';
+  svgEl.style.top = '0';
+  svgEl.style.maxWidth = 'none';
+  svgEl.style.maxHeight = 'none';
+  svgEl.style.width = 'auto';
+  svgEl.style.height = 'auto';
+  svgEl.style.display = 'block';
   svgEl.style.transformOrigin = '0 0';
     // compute bbox after a tick and derive initial fit values
     await new Promise(r => setTimeout(r,20));
@@ -1063,9 +1085,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   if (cp) {
     cp.addEventListener('click', (ev) => {
       try {
-        // If a hash is already present in the URL, copy it exactly (prefixed
-        // by the relative 'svg/' path). This ensures we don't re-serialize or
-        // modify the current hash when the user wants an exact link.
+        // Copy the current URL starting with 'svg/#' format (relative path)
         let text = '';
         if (location && location.hash && location.hash.length > 1) {
           text = `svg/${location.hash}`;
@@ -1090,47 +1110,110 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }
 });
 
+// Get the reference frame dimensions - this is the FIXED coordinate system
+// that all transformations are relative to
+function getReferenceFrame(){
+  // Use the #canvas element which is sized to the full viewport
+  const canvas = document.getElementById('canvas');
+  const canvasRect = canvas ? canvas.getBoundingClientRect() : null;
+  const cw = canvasRect ? canvasRect.width : window.innerWidth;
+  const ch = canvasRect ? canvasRect.height : window.innerHeight;
+  
+  // The reference frame is a centered square that fills the viewport as much as possible (no margins)
+  const refSize = Math.min(cw, ch);
+  const refLeft = (cw - refSize) / 2;
+  const refTop = (ch - refSize) / 2;
+  
+  return {
+    size: refSize,
+    left: refLeft,
+    top: refTop,
+    centerX: refLeft + refSize / 2,
+    centerY: refTop + refSize / 2
+  };
+}
+
 function fitToContainer(){
   if (!svgEl || !bbox) return;
-  const containerRect = svgContainer.getBoundingClientRect();
-  const cw = containerRect.width || window.innerWidth;
-  const ch = containerRect.height || window.innerHeight;
-  // compute a "view" in svg coords that fits the bbox inside the container
-  // This mirrors the image viewer logic: determine a scale then derive the
-  // visible svg rect (view) so that panning/zooming can operate in svg coords.
-  const sx = cw / bbox.width; const sy = ch / bbox.height;
-  const s = Math.min(sx, sy) * 0.9; // leave margins
-  // display size of the bbox when scaled
-  const displayWidth = bbox.width * s;
-  const displayHeight = bbox.height * s;
-  const offsetX = (cw - displayWidth) / 2;
-  const offsetY = (ch - displayHeight) / 2;
-  // view.topLeft such that the bbox is centered with margins
-  const topLeftX = bbox.x - (offsetX / s);
-  const topLeftY = bbox.y - (offsetY / s);
-  const viewWidth = cw / s;
-  const viewHeight = ch / s;
-  view = { topLeft: [ topLeftX, topLeftY ], bottomRight: [ topLeftX + viewWidth, topLeftY + viewHeight ] };
-  // derive state.scale/tx/ty from view so render() can continue to use state
-  state.scale = s || 1;
-  const cx = view.topLeft[0] + (view.bottomRight[0] - view.topLeft[0]) / 2;
-  const cy = view.topLeft[1] + (view.bottomRight[1] - view.topLeft[1]) / 2;
-  state.tx = (cw/2) - cx * state.scale;
-  state.ty = (ch/2) - cy * state.scale;
+  
+  // In the reference frame coordinate system:
+  // - state.scale 1.0 means the SVG exactly fits the reference square
+  // - state.tx=0, state.ty=0 means the SVG is centered in the reference square
+  
+  // Set state to scale 1.0 (SVG fits perfectly in reference frame) at position 0,0 (centered)
+  state.scale = 1.0;
+  // Normalized pan offsets relative to ref.size
+  state.tx = 0;
+  state.ty = 0;
+  
+  // update reference frame display
+  updateReferenceFrame();
+}
+
+function updateReferenceFrame(){
+  // The reference frame is a SQUARE that represents the safe area visible
+  // across all screen resolutions. The SVG's transformations are all relative
+  // to this square: scale 1.0 = fits the square, x=0/y=0 = centered in square.
+  const refFrame = document.getElementById('referenceFrame');
+  if (!refFrame) return;
+  
+  const ref = getReferenceFrame();
+  
+  refFrame.style.width = `${ref.size}px`;
+  refFrame.style.height = `${ref.size}px`;
+  refFrame.style.left = `${ref.left}px`;
+  refFrame.style.top = `${ref.top}px`;
 }
 
 function render(){
   if (!svgEl || !bbox) return;
-  // We'll compute a CSS transform that applies translate(tx,ty) in pixels,
-  // then scale around the top-left (we set transform-origin to 0 0 on load),
-  // and then rotate around the center of the bbox by translating to center,
-  // rotating, and translating back.
-  const cx = bbox.x + bbox.width/2;
-  const cy = bbox.y + bbox.height/2;
-  // Compose: translate (pixel pan) -> scale
-  const translatePart = `translate(${Math.round(state.tx)}px, ${Math.round(state.ty)}px)`;
-  const scalePart = `scale(${state.scale})`;
-  svgEl.style.transform = `${translatePart} ${scalePart}`;
+  
+  // COORDINATE SYSTEM:
+  // 1. Viewport determines reference frame size (centered square, 90% of min dimension)
+  // 2. Reference frame determines SVG transform
+  //    - state.scale: scale relative to reference frame
+  //      * 1.0 = SVG scaled to fit exactly in reference frame
+  //      * 2.0 = SVG scaled to 2x the reference frame size
+  //    - state.tx, state.ty: translation in pixels relative to reference frame center
+  //      * 0,0 = centered in reference frame
+  
+  const ref = getReferenceFrame();
+  
+  // Calculate how to fit SVG in reference frame at scale 1.0
+  const scaleToFitInRef = Math.min(ref.size / bbox.width, ref.size / bbox.height);
+  
+  // The actual viewport scale is: (scale relative to ref) * (scale to fit ref)
+  const viewportScale = state.scale * scaleToFitInRef;
+  
+    // At scale 1.0, the SVG should fit exactly in the reference frame
+    // Let's verify: when state.scale = 1.0:
+    //   - scaledWidth should equal ref.size (if width-constrained) OR
+    //   - scaledHeight should equal ref.size (if height-constrained)
+    const scaledWidth = bbox.width * viewportScale;
+    const scaledHeight = bbox.height * viewportScale;
+  
+    console.log('RENDER:', {
+      'ref.size': ref.size,
+      'bbox': `${bbox.width}x${bbox.height}`,
+      'state.scale': state.scale,
+      'scaleToFitInRef': scaleToFitInRef,
+      'viewportScale': viewportScale,
+      'scaled': `${Math.round(scaledWidth)}x${Math.round(scaledHeight)}`,
+      'shouldFitInRef': Math.max(scaledWidth, scaledHeight) <= ref.size ? '✓' : '✗'
+    });
+  
+    // Position: Start at reference frame center, add offsets (in pixels), subtract SVG center offset
+  // state.tx/state.ty are normalized offsets in reference-frame units (1.0 = ref.size)
+  const offsetXpx = state.tx * ref.size;
+  const offsetYpx = state.ty * ref.size;
+  const viewportTx = ref.centerX + offsetXpx - (bbox.x + bbox.width/2) * viewportScale;
+  const viewportTy = ref.centerY + offsetYpx - (bbox.y + bbox.height/2) * viewportScale;
+  
+  // Apply transform
+  svgEl.style.transform = `translate(${Math.round(viewportTx)}px, ${Math.round(viewportTy)}px) scale(${viewportScale})`;
+  
+  // Update reference frame display (called here for consistency, also called on resize)
+  updateReferenceFrame();
 }
 
 // simple tweening helper for numeric state transitions
@@ -1210,10 +1293,6 @@ function animateTo(params, duration = 900){
                duration,
                (cur) => {
                  state.scale = cur.scale; state.tx = cur.tx; state.ty = cur.ty;
-                 // update UI controls during animation
-                 // UI sliders removed — internal state updated but controls absent
-                 // Keep view consistent with state for subsequent interactions
-                 try { syncViewFromState(); } catch(e){}
                  render();
                });
     // resolve after duration (plus tiny buffer)
@@ -1232,85 +1311,95 @@ function mergeWithDefaults(params){
   };
 }
 
-// Keep `view` consistent with `state` so interactions operate in svg coords.
-function syncViewFromState(){
-  if (!svgContainer || !bbox) return;
-  try {
-    const rect = svgContainer.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    const viewWidth = rect.width / state.scale;
-    const viewHeight = rect.height / state.scale;
-    const cx = (rect.width/2 - state.tx) / state.scale;
-    const cy = (rect.height/2 - state.ty) / state.scale;
-    view = { topLeft: [ cx - viewWidth/2, cy - viewHeight/2 ], bottomRight: [ cx + viewWidth/2, cy + viewHeight/2 ] };
-  } catch(e) { /* ignore sync errors */ }
-}
-
 // interaction
-// Drag-to-pan using `view` in SVG coords (mirrors img/index.html behavior)
+// Drag-to-pan using reference frame coordinates
 svgContainer.addEventListener('mousedown', (e)=>{
-  // ensure view exists (defensive): if the viewer wasn't fit yet, initialize it
-  if (!view) try { fitToContainer(); } catch(e){}
   isDragging=true;
   const rect = svgContainer.getBoundingClientRect();
   const x = (e.clientX - rect.left);
   const y = (e.clientY - rect.top);
   dragStart = [x, y];
+  // store starting normalized offsets
+  const ref = getReferenceFrame();
+  dragStartState = { tx: state.tx, ty: state.ty, refSize: ref.size };
   svgContainer.style.cursor = 'grabbing';
   try { setStatus('drag:start'); } catch(e){}
 });
 window.addEventListener('mouseup', ()=>{ if (isDragging){ isDragging=false; svgContainer.style.cursor=''; commitHash(); }});
 window.addEventListener('mousemove', (e)=>{
-  if (!isDragging || !view) return;
+  if (!isDragging || !dragStartState) return;
   const rect = svgContainer.getBoundingClientRect();
   const x = (e.clientX - rect.left);
   const y = (e.clientY - rect.top);
   const dx = x - dragStart[0];
   const dy = y - dragStart[1];
-  const vw = (view.bottomRight[0] - view.topLeft[0]);
-  const vh = (view.bottomRight[1] - view.topLeft[1]);
-  // convert pixel delta to svg coord delta
-  const svgDx = (dx * vw) / rect.width;
-  const svgDy = (dy * vh) / rect.height;
-  view.topLeft[0] -= svgDx; view.topLeft[1] -= svgDy;
-  view.bottomRight[0] -= svgDx; view.bottomRight[1] -= svgDy;
-  // update state from view (derive scale/tx/ty for render)
-  const cw = rect.width; const ch = rect.height;
-  state.scale = cw / (view.bottomRight[0] - view.topLeft[0]);
-  const cx = view.topLeft[0] + (view.bottomRight[0] - view.topLeft[0]) / 2;
-  const cy = view.topLeft[1] + (view.bottomRight[1] - view.topLeft[1]) / 2;
-  state.tx = (cw/2) - cx * state.scale;
-  state.ty = (ch/2) - cy * state.scale;
-  dragStart = [x, y];
+  
+  // Convert pixel deltas to normalized reference-frame units
+  const ref = getReferenceFrame();
+  const scaleFactor = ref.size || dragStartState.refSize || 1;
+  state.tx = dragStartState.tx + (dx / scaleFactor);
+  state.ty = dragStartState.ty + (dy / scaleFactor);
+  
   render();
-  try { setStatus(`drag view ${JSON.stringify({topLeft:view.topLeft,bottomRight:view.bottomRight})}`); } catch(e){}
+  try { setStatus(`drag tx:${Math.round(state.tx*100)/100} ty:${Math.round(state.ty*100)/100}`); } catch(e){}
 });
 
 // wheel zoom centered at mouse
-// Wheel-based zoom that updates `view` (mirrors img/index.html behavior)
+// Wheel-based zoom using reference frame coordinates
 svgContainer.addEventListener('wheel', (e)=>{
-  if (!view) try { fitToContainer(); } catch(e){}
-  if (!view) return;
+  if (!bbox) return;
   e.preventDefault();
   const rect = svgContainer.getBoundingClientRect();
   if (!rect.width || !rect.height) return;
+  
   const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
-  const pointerX = (e.clientX - rect.left) / rect.width;
-  const pointerY = (e.clientY - rect.top) / rect.height;
-  const centerX = view.topLeft[0] + pointerX * (view.bottomRight[0] - view.topLeft[0]);
-  const centerY = view.topLeft[1] + pointerY * (view.bottomRight[1] - view.topLeft[1]);
-  const vw = (view.bottomRight[0] - view.topLeft[0]) * zoomFactor;
-  const vh = (view.bottomRight[1] - view.topLeft[1]) * zoomFactor;
-  view.topLeft = [ Math.floor(centerX - vw * pointerX), Math.floor(centerY - vh * pointerY) ];
-  view.bottomRight = [ Math.floor(centerX + vw * (1 - pointerX)), Math.floor(centerY + vh * (1 - pointerY)) ];
-  // derive state from view so existing render/commit logic uses current values
-  state.scale = rect.width / (view.bottomRight[0] - view.topLeft[0]);
-  const cx = view.topLeft[0] + (view.bottomRight[0] - view.topLeft[0]) / 2;
-  const cy = view.topLeft[1] + (view.bottomRight[1] - view.topLeft[1]) / 2;
-  state.tx = (rect.width/2) - cx * state.scale;
-  state.ty = (rect.height/2) - cy * state.scale;
+  const ref = getReferenceFrame();
+  const scaleToFitRef = Math.min(ref.size / bbox.width, ref.size / bbox.height);
+  
+  // Mouse position in viewport pixels
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  
+  // We want the point under the mouse to stay fixed during zoom
+  // Current viewport scale
+  const oldViewportScale = state.scale * scaleToFitRef;
+  
+  // Mouse position relative to reference frame center
+  const mouseRefX = mouseX - ref.centerX;
+  const mouseRefY = mouseY - ref.centerY;
+  
+  // The point in the SVG under the mouse (in SVG coordinates)
+  // viewportTx = ref.centerX + state.tx - (bbox.x + bbox.width/2) * viewportScale
+  // mouseX = viewportTx + svgX * viewportScale
+  // Solving for svgX:
+  // svgX = (mouseX - viewportTx) / viewportScale
+  //      = (mouseX - ref.centerX - state.tx + (bbox.x + bbox.width/2) * viewportScale) / viewportScale
+  const txPx = state.tx * ref.size;
+  const tyPx = state.ty * ref.size;
+  const svgX = (mouseRefX - txPx) / oldViewportScale + (bbox.x + bbox.width/2);
+  const svgY = (mouseRefY - tyPx) / oldViewportScale + (bbox.y + bbox.height/2);
+  
+  // Apply zoom to scale (scale is relative to reference frame)
+  const newScale = state.scale / zoomFactor;
+  const newViewportScale = newScale * scaleToFitRef;
+  
+  // Compute new tx, ty such that svgX, svgY still maps to mouse position
+  // mouseX = ref.centerX + newTx + (svgX - (bbox.x + bbox.width/2)) * newViewportScale
+  // Solving for newTx:
+  // newTx = mouseX - ref.centerX - (svgX - (bbox.x + bbox.width/2)) * newViewportScale
+  const newTxPx = mouseRefX - (svgX - (bbox.x + bbox.width/2)) * newViewportScale;
+  const newTyPx = mouseRefY - (svgY - (bbox.y + bbox.height/2)) * newViewportScale;
+  
+  state.scale = newScale;
+  // store normalized offsets
+  state.tx = newTxPx / ref.size;
+  state.ty = newTyPx / ref.size;
+  
   render();
-  try { setStatus(`wheel view ${JSON.stringify({topLeft:view.topLeft,bottomRight:view.bottomRight,scale:state.scale})}`); } catch(e){}
+  try { 
+    const ref = getReferenceFrame();
+    setStatus(`scale:${Math.round(state.scale*100)/100} ref:${Math.round(ref.size)}px`); 
+  } catch(e){}
   // persist new view/scale to the hash after user stops zooming
   try { scheduleViewHashWrite(100); } catch(e){}
 },{ passive: false });
@@ -1396,7 +1485,7 @@ window.acceptViewerHash = function(raw){
       let url = urlMatch[0];
       try{ const u = new URL(url, location.origin); url = u.pathname + (u.search||''); } catch(e){}
       // emit compact hash using current view/state
-      const params = { s: state.scale, x: Math.round(state.tx), y: Math.round(state.ty) };
+  const params = { s: Math.round(state.scale*100)/100, x: Math.round(state.tx*100)/100, y: Math.round(state.ty*100)/100 };
       const compact = buildCompactHash(url, params, { show: [], hide: [] });
       location.hash = '#'+compact; return true;
     }
@@ -1425,7 +1514,7 @@ function startViewer(){
               // animate into the requested params rather than snapping. Merge
               // missing fields with captured defaults so unspecified values
               // animate toward the default fit-to-container state.
-              return animateTo(mergeWithDefaults(parsed.params), 900).catch(()=>{}).then(()=>{ try { syncViewFromState(); } catch(e){} });
+              return animateTo(mergeWithDefaults(parsed.params), 900).catch(()=>{});
             }
       } catch (e) {
         console.warn('Applying params failed', e);
@@ -1472,6 +1561,14 @@ window.addEventListener('hashchange', ()=>{
       else { try { applyVisibilityFromVis(parsed.vis, { animate: true }); } catch(e){} }
     }
   }
+});
+
+// Update reference frame and SVG transform on window resize
+window.addEventListener('resize', () => {
+  try { 
+    updateReferenceFrame();
+    render(); // Re-render SVG to match new reference frame scale
+  } catch(e){}
 });
 
 window.viewerReady = false;
