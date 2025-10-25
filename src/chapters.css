@@ -102,7 +102,65 @@
   border-right: 6px solid rgba(0,0,0,0.78);
 }
 
-/* hide on small screens */
+/* Mobile: full-height touch-friendly rail */
 @media (max-width: 800px) {
-  #chapter-nav { display: none; }
+  #chapter-nav {
+    top: 0;
+    left: 8px;
+    height: 100vh;
+    transform: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    /* Prevent the page from scrolling while swiping the rail */
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Make each item share the height so targets are easy to hit while swiping */
+  #chapter-nav .chapter-item {
+    flex: 1 1 auto;
+    width: 28px;
+    margin: 4;
+  }
+
+  /* Slightly larger dots on mobile for better targets */
+  #chapter-nav .chapter-dot {
+    /* width: 14px;
+    height: 2px;
+  } */
+
+  /* When finger hovers an item (via JS), show its label */
+  #chapter-nav .chapter-item.touch-hover .chapter-label {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+
+  #chapter-nav .chapter-item.touch-hover .chapter-dot {
+    transform: scale(1.12);
+    width: 26px;
+  }
+
+  /* A transparent overlay that captures touch events across the full rail */
+  #chapter-nav .nav-touch-rail {
+    position: absolute;
+    left: -6px; /* extend a little to make it easier to grab */
+    top: 0;
+    width: 44px;
+    height: 100%;
+    pointer-events: auto;
+    background: transparent;
+  }
+
+  #chapter-nav .chapter-item.chapter-heading-item {
+    margin: 8px 0 2px;
+    height: auto;
+  }
+
+  #chapter-nav .chapter-item.chapter-heading-item:first-child {
+    margin-top: 0;
+  }
 }

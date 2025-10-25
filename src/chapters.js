@@ -154,6 +154,96 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.body.appendChild(nav);
 
+    // Mobile: add a full-height transparent rail that captures vertical swipes.
+    // As the finger moves, we highlight the closest item and show its label.
+    try {
+      const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+      const isNarrow = window.matchMedia && window.matchMedia('(max-width: 800px)').matches;
+      if (isTouch && isNarrow) {
+        const rail = document.createElement('div');
+        rail.className = 'nav-touch-rail';
+        nav.appendChild(rail);
+
+        const items = Array.from(nav.querySelectorAll('.chapter-item'));
+        let centers = [];
+        let lastHoverIndex = -1;
+
+        function recomputeCenters() {
+          const nrect = nav.getBoundingClientRect();
+          centers = items.map((it) => {
+            const r = it.getBoundingClientRect();
+            return ((r.top + r.bottom) / 2) - nrect.top; // centerY relative to nav
+          });
+        }
+
+        function clearHover() {
+          if (lastHoverIndex >= 0 && items[lastHoverIndex]) {
+            items[lastHoverIndex].classList.remove('touch-hover');
+          }
+          lastHoverIndex = -1;
+        }
+
+        function hoverNearest(clientY) {
+          const nrect = nav.getBoundingClientRect();
+          const y = clientY - nrect.top;
+          if (!centers.length) recomputeCenters();
+          let best = 0;
+          let bestDist = Infinity;
+          for (let i = 0; i < centers.length; i++) {
+            const d = Math.abs(centers[i] - y);
+            if (d < bestDist) { bestDist = d; best = i; }
+          }
+          if (best !== lastHoverIndex) {
+            clearHover();
+            lastHoverIndex = best;
+            items[best]?.classList.add('touch-hover');
+          }
+        }
+
+        function activateHovered() {
+          if (lastHoverIndex < 0) return;
+          const btn = items[lastHoverIndex].querySelector('.chapter-dot');
+          if (!btn) return;
+          // Trigger the same scroll behavior as a click
+          btn.click();
+        }
+
+        const onStart = (ev) => {
+          try { ev.preventDefault(); } catch (e) {}
+          recomputeCenters();
+          const t = ev.touches && ev.touches[0] ? ev.touches[0] : ev;
+          hoverNearest(t.clientY);
+        };
+        const onMove = (ev) => {
+          try { ev.preventDefault(); } catch (e) {}
+          const t = ev.touches && ev.touches[0] ? ev.touches[0] : ev;
+          hoverNearest(t.clientY);
+        };
+        const onEnd = (ev) => {
+          try { ev.preventDefault(); } catch (e) {}
+          activateHovered();
+          // Keep the highlight briefly so the user sees what was chosen
+          setTimeout(clearHover, 220);
+        };
+
+        rail.addEventListener('touchstart', onStart, { passive: false });
+        rail.addEventListener('touchmove', onMove, { passive: false });
+        rail.addEventListener('touchend', onEnd, { passive: false });
+        rail.addEventListener('touchcancel', onEnd, { passive: false });
+
+        // Also support mouse drag for small-screen simulators
+        rail.addEventListener('mousedown', onStart);
+        window.addEventListener('mousemove', (ev) => {
+          if (ev.buttons !== 1) return; // only while pressed
+          onMove(ev);
+        });
+        window.addEventListener('mouseup', onEnd);
+
+        // Recompute centers on resize/rotation
+        window.addEventListener('resize', () => { centers = []; });
+      }
+    } catch (e) { /* non-fatal */ }
+
     // Helper function to create scroll handler
     function createScrollHandler(targetId) {
       return function(ev) {
