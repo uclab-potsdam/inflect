@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Embed loader (floating)</title>
+  <!-- Plyr CSS -->
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
   <style>
     :root{--ui-bg:rgba(0,0,0,0.6);--ui-fg:#fff}
     html,body{height:100%;margin:0;background:#333;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
@@ -28,8 +30,21 @@
     iframe, video { display:block; border:0; }
   /* responsive iframe wrapper to let content drive sizing when possible */
   .embed-wrapper{display:flex;align-items:center;justify-content:center;width:100%;height:100%;position:relative;overflow:hidden}
+  /* Plyr container styling */
+  .plyr-container{width:100%;height:100%;position:relative;}
+  /* Hide Plyr UI completely */
+  .plyr__controls{display:none !important;}
+  .plyr__control--overlaid{display:none !important;}
+  .plyr--video .plyr__control.plyr__tab-focus,
+  .plyr--video .plyr__control:hover,
+  .plyr--video .plyr__control[aria-expanded=true]{background:transparent;}
+  .plyr__poster{display:none !important;}
   </style>
-  <script src="src/dompurify.min.js"></script>
+  <script src="../src/dompurify.min.js"></script>
+  <!-- Plyr JS -->
+  <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+  <!-- PlayerAdapter -->
+  <script src="../src/players/adapter.js"></script>
 </head>
 <body>
   <div id="canvas">
@@ -96,11 +111,48 @@
   let _manipWriteTimer = null;
   let _lastQueuedState = null;
   const MANIP_DEBOUNCE_MS = 100;
+  // Player adapter state
+  let playerAdapter = null;
+  let playerMode = false; // true when using PlayerAdapter instead of oEmbed
   // default: lock proportions
   try{ lockAspect.checked = true; }catch(e){}
 
   // initialize cover/contain button label
   try{ coverBtn.textContent = coverMode ? 'Cover' : 'Contain'; }catch(e){}
+
+  // --- Provider-specific helpers -------------------------------------------
+  function shouldUsePlyrAdapter(url){
+    const u = String(url || '').toLowerCase();
+    return u.includes('youtube.com') || u.includes('youtu.be') || u.includes('vimeo.com') || u.match(/\.(mp4|webm|ogg)$/);
+  }
+
+  function isVimeoUrl(u){ try{ const url = new URL(u, location.href); return /vimeo\.com$/i.test(url.hostname) || /player\.vimeo\.com$/i.test(url.hostname); }catch(e){ return /vimeo\.com/.test(String(u||'')); } }
+  function patchVimeoParams(u, opts){
+    try{
+      const url = new URL(u, location.href);
+      if(!( /vimeo\.com$/i.test(url.hostname) || /player\.vimeo\.com$/i.test(url.hostname))) return u; // not vimeo
+      if(opts && opts.autoplay){ url.searchParams.set('autoplay','1'); url.searchParams.set('muted','1'); }
+      if(opts && opts.loop){ url.searchParams.set('loop','1'); }
+      // Improve inline autoplay/loop behavior
+      url.searchParams.set('autopause','0');
+      url.searchParams.set('playsinline','1');
+      // In practice, Vimeo's background mode is the most reliable way to ensure
+      // muted autoplay + looping without user gesture across browsers. Enable
+      // it when both autoplay and loop are requested. This also hides controls.
+      if(opts && opts.autoplay && opts.loop){ url.searchParams.set('background','1'); }
+      return url.toString();
+    }catch(e){
+      // best-effort string fallback
+      let out = String(u||'');
+      const sep = out.indexOf('?')===-1 ? '?' : '&';
+      const parts = [];
+      if(opts && opts.autoplay){ parts.push('autoplay=1','muted=1'); }
+      if(opts && opts.loop){ parts.push('loop=1'); }
+      parts.push('autopause=0','playsinline=1');
+      if(opts && opts.autoplay && opts.loop){ parts.push('background=1'); }
+      return out + sep + parts.join('&');
+    }
+  }
 
   // --- Hash state helpers -------------------------------------------------
   function parseHash(){
@@ -137,35 +189,78 @@
           try{ out.url = expandUrlFromHash(parts[0]); }catch(e){}
         }
         if(parts.length > 1){
-          const coords = parts[1].split(',').map(t=>t.trim()).filter(Boolean);
-          if(coords.length >= 3){
-            const a = Number(coords[0]); const b = Number(coords[1]); const c = Number(coords[2]);
-            // Heuristic: prefer interpreting as x,y,s when first two are percentages (0..100)
-            // and third is a reasonable scale (0.01..20). Otherwise fall back to s,x,y.
-            if(!Number.isNaN(a) && !Number.isNaN(b) && !Number.isNaN(c)){
-              const looksLikeXYs = (a >= 0 && a <= 100) && (b >= 0 && b <= 100) && (c > 0 && c <= 20);
-              const looksLikeSxy = (a > 0 && a <= 20) && (b >= 0 && b <= 100) && (c >= 0 && c <= 100);
-              if(looksLikeXYs || (!looksLikeSxy && looksLikeXYs)){
-                out.x = a; out.y = b; out.s = c;
-              } else {
-                out.s = a; out.x = b; out.y = c;
+          const segment = parts[1].split(',').map(t=>t.trim()).filter(Boolean);
+          // Check if this segment looks like coords (all numbers) or flags (has keywords/key=value)
+          const hasFlags = segment.some(s => s.includes('=') || ['autoplay','loop','cover','contain'].includes(s));
+          
+          if(!hasFlags && segment.length >= 1 && segment.every(s => !isNaN(Number(s)))){
+            // All numeric: treat as coords (x,y,s or s,x,y or just s)
+            if(segment.length >= 3){
+              const a = Number(segment[0]); const b = Number(segment[1]); const c = Number(segment[2]);
+              // Heuristic: prefer interpreting as x,y,s when first two are percentages (0..100)
+              // and third is a reasonable scale (0.01..20). Otherwise fall back to s,x,y.
+              if(!Number.isNaN(a) && !Number.isNaN(b) && !Number.isNaN(c)){
+                const looksLikeXYs = (a >= 0 && a <= 100) && (b >= 0 && b <= 100) && (c > 0 && c <= 20);
+                const looksLikeSxy = (a > 0 && a <= 20) && (b >= 0 && b <= 100) && (c >= 0 && c <= 100);
+                if(looksLikeXYs || (!looksLikeSxy && looksLikeXYs)){
+                  out.x = a; out.y = b; out.s = c;
+                } else {
+                  out.s = a; out.x = b; out.y = c;
+                }
               }
+            } else if(segment.length === 2){
+              // two values: interpret as x,y (scale defaults to 1)
+              const a = Number(segment[0]); const b = Number(segment[1]); if(!Number.isNaN(a) && !Number.isNaN(b)){ out.x = a; out.y = b; }
+            } else if(segment.length === 1){
+              // single value: interpret as scale
+              const a = Number(segment[0]); if(!Number.isNaN(a)) out.s = a;
             }
-          } else if(coords.length === 2){
-            // two values: interpret as x,y (scale defaults to 1)
-            const a = Number(coords[0]); const b = Number(coords[1]); if(!Number.isNaN(a) && !Number.isNaN(b)){ out.x = a; out.y = b; }
-          } else if(coords.length === 1){
-            // single value: interpret as scale
-            const a = Number(coords[0]); if(!Number.isNaN(a)) out.s = a;
+          } else {
+            // Has flags: parse them
+            for(const f of segment){
+              if(f === 'autoplay') out.autoplay = true;
+              else if(f === 'cover') out.mode = 'cover';
+              else if(f === 'contain') out.mode = 'contain';
+              else if(f === 'loop') out.loop = true;
+              // Extended video flags: t=start[-end], v=0..100, r=0.5..2, m=0|1
+              else if(f.startsWith('t=')){
+                const tVal = f.substring(2);
+                if(tVal.includes('-')){
+                  const [s,e] = tVal.split('-').map(v=>Number(v.trim()));
+                  if(!Number.isNaN(s) && !Number.isNaN(e)){ out.tStart = s; out.tEnd = e; }
+                } else {
+                  const s = Number(tVal);
+                  if(!Number.isNaN(s)) out.tStart = s;
+                }
+              }
+              else if(f.startsWith('v=')){ const v = Number(f.substring(2)); if(!Number.isNaN(v)) out.volume = Math.max(0, Math.min(100, v)); }
+              else if(f.startsWith('r=')){ const r = Number(f.substring(2)); if(!Number.isNaN(r)) out.rate = Math.max(0.25, Math.min(4, r)); }
+              else if(f.startsWith('m=')){ const m = f.substring(2); out.muted = (m === '1' || m === 'true'); }
+            }
           }
         }
         if(parts.length > 2){
+          // Third segment: always flags
           const flags = parts[2].split(',').map(t=>t.trim()).filter(Boolean);
           for(const f of flags){
             if(f === 'autoplay') out.autoplay = true;
             else if(f === 'cover') out.mode = 'cover';
             else if(f === 'contain') out.mode = 'contain';
             else if(f === 'loop') out.loop = true;
+            // Extended video flags: t=start[-end], v=0..100, r=0.5..2, m=0|1
+            else if(f.startsWith('t=')){
+              const tVal = f.substring(2);
+              if(tVal.includes('-')){
+                const [s,e] = tVal.split('-').map(v=>Number(v.trim()));
+                if(!Number.isNaN(s) && !Number.isNaN(e)){ out.tStart = s; out.tEnd = e; }
+              } else {
+                const s = Number(tVal);
+                if(!Number.isNaN(s)) out.tStart = s;
+              }
+            }
+            else if(f.startsWith('v=')){ const v = Number(f.substring(2)); if(!Number.isNaN(v)) out.volume = Math.max(0, Math.min(100, v)); }
+            else if(f.startsWith('r=')){ const r = Number(f.substring(2)); if(!Number.isNaN(r)) out.rate = Math.max(0.25, Math.min(4, r)); }
+            else if(f.startsWith('m=')){ const m = f.substring(2); out.muted = (m === '1' || m === 'true'); }
             // nolock and pan are intentionally ignored for compact flags (do not echo them)
           }
         }
@@ -303,6 +398,26 @@
   const flags = [];
   if(typeof state.autoplay !== 'undefined' && state.autoplay === true) flags.push('autoplay');
   if(typeof state.loop !== 'undefined' && state.loop === true) flags.push('loop');
+  // Extended video flags
+  if(typeof state.tStart !== 'undefined' && state.tStart !== null){
+    const ts = Math.round(Number(state.tStart)*10)/10;
+    if(typeof state.tEnd !== 'undefined' && state.tEnd !== null){
+      const te = Math.round(Number(state.tEnd)*10)/10;
+      flags.push(`t=${ts}-${te}`);
+    } else {
+      flags.push(`t=${ts}`);
+    }
+  }
+  if(typeof state.volume !== 'undefined' && state.volume !== null && state.volume !== 100){
+    flags.push(`v=${Math.round(Number(state.volume))}`);
+  }
+  if(typeof state.rate !== 'undefined' && state.rate !== null && state.rate !== 1){
+    const r = Math.round(Number(state.rate)*100)/100;
+    flags.push(`r=${r}`);
+  }
+  if(typeof state.muted !== 'undefined' && state.muted === true){
+    flags.push('m=1');
+  }
   // mode: default is 'contain' — include 'cover' only when coords are default (mutually exclusive with custom position)
   const modeVal = (state.mode || (coverMode ? 'cover' : 'contain'));
   if(coordsAreDefault && modeVal === 'cover') flags.push('cover');
@@ -581,10 +696,39 @@
           if(innerImg){ if(innerImg.complete) onEmbedReady(); else innerImg.addEventListener('load', onEmbedReady, {once:true}); }
           if(innerVideo){ if(innerVideo.readyState >= 1) onEmbedReady(); else innerVideo.addEventListener('loadedmetadata', onEmbedReady, {once:true}); }
         }catch(e){}
-  // if autoplay requested, try to patch iframe src inside injected HTML
-  try{ if(autoplayChk && autoplayChk.checked){ const innerI = wrap.querySelector && wrap.querySelector('iframe'); if(innerI && innerI.src){ const u = new URL(innerI.src, location.href); u.searchParams.set('autoplay', '1'); u.searchParams.set('mute', '1'); innerI.src = u.toString(); innerI.setAttribute('allow','autoplay; encrypted-media; picture-in-picture'); } } }catch(e){}
-  // if loop requested, set loop attribute on any video tag and best-effort add loop param to iframe src
-  try{ if(loopChk && loopChk.checked){ const innerV = wrap.querySelector && wrap.querySelector('video'); if(innerV){ innerV.setAttribute('loop',''); innerV.loop = true; } const innerI3 = wrap.querySelector && wrap.querySelector('iframe'); if(innerI3 && innerI3.src){ try{ const u3 = new URL(innerI3.src, location.href); u3.searchParams.set('loop','1'); innerI3.src = u3.toString(); }catch(e){} } } }catch(e){}
+  // if autoplay/loop requested, patch iframe src (especially Vimeo) and enable attributes
+  try{
+    const innerI = wrap.querySelector && wrap.querySelector('iframe');
+    if(innerI && innerI.src){
+      let newSrc = innerI.src;
+      if(autoplayChk && autoplayChk.checked){
+        // Vimeo: use muted=1; others: try generic autoplay param as well
+        if(isVimeoUrl(newSrc)) newSrc = patchVimeoParams(newSrc, {autoplay:true, loop: !!(loopChk && loopChk.checked)});
+        else { try{ const u = new URL(newSrc, location.href); u.searchParams.set('autoplay','1'); u.searchParams.set('mute','1'); newSrc = u.toString(); }catch(e){} }
+        innerI.setAttribute('allow','autoplay; encrypted-media; picture-in-picture');
+      }
+      if(loopChk && loopChk.checked){
+        if(isVimeoUrl(newSrc)) newSrc = patchVimeoParams(newSrc, {autoplay: !!(autoplayChk && autoplayChk.checked), loop: true});
+        else { try{ const uL = new URL(newSrc, location.href); uL.searchParams.set('loop','1'); newSrc = uL.toString(); }catch(e){} }
+      }
+      if(newSrc !== innerI.src) innerI.src = newSrc;
+    }
+    // also handle native <video>
+    const innerV = wrap.querySelector && wrap.querySelector('video');
+    if(innerV){
+      // Ensure native videos honor autoplay/loop reliably
+      if(loopChk && loopChk.checked){ try{ innerV.setAttribute('loop',''); innerV.loop = true; }catch(e){} }
+      if(autoplayChk && autoplayChk.checked){
+        try{
+          innerV.setAttribute('autoplay','');
+          innerV.autoplay = true;
+          innerV.setAttribute('muted','');
+          innerV.muted = true;
+          innerV.setAttribute('playsinline','');
+        }catch(e){}
+      }
+    }
+  }catch(e){}
         sizeInjected(el, meta);
   // if the injected html contains an iframe, hide the floating UI
   // but only when this page is itself embedded inside another frame
@@ -600,11 +744,17 @@
     embedLoaded = false; pendingState = null;
     const wrap = document.createElement('div'); wrap.className = 'embed-wrapper';
     const iframe = document.createElement('iframe');
-    // if autoplay requested, append autoplay and mute for better browser support
+    // if autoplay/loop requested, append params (special handling for Vimeo)
     try{
       let src = url;
-  if(autoplayChk && autoplayChk.checked){ try{ const u = new URL(url); u.searchParams.set('autoplay','1'); u.searchParams.set('mute','1'); src = u.toString(); }catch(e){ src = url + (url.indexOf('?')===-1 ? '?':'&') + 'autoplay=1&mute=1'; } }
-  if(loopChk && loopChk.checked){ try{ const uL = new URL(src); uL.searchParams.set('loop','1'); src = uL.toString(); }catch(e){ src = src + (src.indexOf('?')===-1 ? '?':'&') + 'loop=1'; } }
+      const wantAutoplay = !!(autoplayChk && autoplayChk.checked);
+      const wantLoop = !!(loopChk && loopChk.checked);
+      if(isVimeoUrl(src)){
+        src = patchVimeoParams(src, {autoplay: wantAutoplay, loop: wantLoop});
+      } else {
+        if(wantAutoplay){ try{ const u = new URL(src, location.href); u.searchParams.set('autoplay','1'); u.searchParams.set('mute','1'); src = u.toString(); }catch(e){ src = src + (src.indexOf('?')===-1 ? '?':'&') + 'autoplay=1&mute=1'; } }
+        if(wantLoop){ try{ const uL = new URL(src, location.href); uL.searchParams.set('loop','1'); src = uL.toString(); }catch(e){ src = src + (src.indexOf('?')===-1 ? '?':'&') + 'loop=1'; } }
+      }
       iframe.src = src;
     }catch(e){ iframe.src = url; }
     iframe.setAttribute('allowfullscreen','');
@@ -875,6 +1025,14 @@
 
   async function loadUrl(u){
     if(!u) return;
+
+    // Check if we should use PlayerAdapter (YouTube, Vimeo, HTML5 video)
+    if(shouldUsePlyrAdapter(u)){
+      await loadWithAdapter(u);
+      return;
+    }
+
+    // Otherwise, use oEmbed path for TikTok/Twitter/etc
     try{
       // try oEmbed fetch
       const {provider, data} = await fetchOembed(u);
@@ -895,6 +1053,105 @@
     }
   }
 
+  async function loadWithAdapter(u){
+    try{
+      // Destroy any existing adapter
+      if(playerAdapter){ try{ playerAdapter.destroy(); }catch(e){} playerAdapter = null; }
+      injected.innerHTML = '';
+      embedLoaded = false; pendingState = null; playerMode = true;
+
+      // Create wrapper and adapter
+      const wrap = document.createElement('div');
+      wrap.className = 'embed-wrapper plyr-container';
+      injected.appendChild(wrap);
+
+      playerAdapter = window.createAdapter(wrap, u);
+      
+      // Wire player events BEFORE loading (so we catch 'ready')
+      playerAdapter.on('ready', () => {
+        embedLoaded = true;
+        // Apply parsed state from hash
+        const st = getEffectiveState();
+        console.log('[embed] Player ready, applying state:', st);
+        applyPlayerState(st);
+        // Auto-hide UI if embedded
+        try{ if(window.top !== window.self){ hideFloatingUI(); } }catch(e){}
+        animateFloatingToBottom();
+      });
+
+      // Seeked event (user scrubbed) → write hash
+      playerAdapter.on('seeked', () => {
+        const ct = playerAdapter.getCurrentTime();
+        schedulePlayerHashWrite({ t: ct });
+      });
+
+      // Timeupdate for periodic state reflection (optional; mainly for segment enforcement)
+      playerAdapter.on('timeupdate', () => {
+        // Could emit to scroll position or other UI here
+      });
+
+      // Load the player (this will trigger 'ready' event)
+      await playerAdapter.load(u);
+
+      // Apply current sizing (cover/contain)
+      try{ sizeInjected(wrap.firstElementChild || wrap, null); }catch(e){}
+
+    }catch(err){
+      console.error('PlayerAdapter load failed', err);
+      playerMode = false;
+    }
+  }
+
+  function applyPlayerState(state){
+    if(!playerAdapter || !playerAdapter.ready) return;
+    console.log('[embed] applyPlayerState', state);
+    try{
+      // Apply muting BEFORE autoplay (required for autoplay policy)
+      if(state.autoplay){
+        // Autoplay requires muted
+        console.log('[embed] Setting muted for autoplay');
+        playerAdapter.setMuted(true);
+      } else if(typeof state.muted !== 'undefined'){
+        playerAdapter.setMuted(state.muted);
+      }
+      
+      // Apply volume, rate, loop
+      if(typeof state.volume !== 'undefined') playerAdapter.setVolume(state.volume);
+      if(typeof state.rate !== 'undefined') playerAdapter.setRate(state.rate);
+      
+      // Apply segment or loop
+      if(typeof state.tStart !== 'undefined'){
+        if(typeof state.tEnd !== 'undefined'){
+          // Segment loop
+          playerAdapter.setSegment(state.tStart, state.tEnd, !!state.loop);
+        } else {
+          // Seek to timestamp
+          playerAdapter.seek(state.tStart);
+        }
+      } else if(typeof state.loop !== 'undefined'){
+        playerAdapter.setLoop(state.loop);
+      }
+      
+      // Start playback AFTER everything is configured
+      if(state.autoplay){
+        console.log('[embed] Calling play()');
+        playerAdapter.play().then(() => {
+          console.log('[embed] Autoplay succeeded');
+        }).catch(e => {
+          console.warn('[embed] Autoplay failed:', e);
+        });
+      }
+    }catch(e){ console.warn('applyPlayerState error', e); }
+  }
+
+  function schedulePlayerHashWrite(partialState){
+    // Merge with current state and schedule debounced write
+    const st = getEffectiveState();
+    const merged = Object.assign({}, st, partialState);
+    merged.url = urlIn.value.trim();
+    scheduleManipulationWrite(merged);
+  }
+
   // UI wiring
   loadBtn.addEventListener('click', ()=>{
     const u = urlIn.value.trim();
@@ -909,6 +1166,8 @@
   // ...existing code...
   clearBtn.addEventListener('click', ()=>{
     try{ detachDirectManipulation(); }catch(e){}
+    if(playerAdapter){ try{ playerAdapter.destroy(); }catch(e){} playerAdapter = null; }
+    playerMode = false;
     injected.innerHTML=''; urlIn.value=''; lastData = null; hideSizeControls();
     embedLoaded = false; pendingState = null;
     writeHash({});
