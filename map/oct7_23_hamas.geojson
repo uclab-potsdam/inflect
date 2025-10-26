@@ -1,0 +1,320 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Be'eri",
+        "category": "kibbutz",
+        "source": "Wikipedia / Be'eri massacre"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.48972,
+          31.42389
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kfar Aza",
+        "category": "kibbutz",
+        "source": "Wikipedia / Kfar Aza, coords"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.532291,
+          31.483416
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Nahal Oz",
+        "category": "kibbutz",
+        "source": "Wikipedia / Nahal Oz (kibbutz)"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.49722,
+          31.4725
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mefalsim",
+        "category": "kibbutz",
+        "source": "Wikipedia / Mefalsim"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.56444,
+          31.50194
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Nir Oz",
+        "category": "kibbutz",
+        "source": "Wikipedia / Nir Oz attack"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.40222,
+          31.31028
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Nirim",
+        "category": "kibbutz",
+        "source": "Maptons / Nirim coords"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.394087,
+          31.33573
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Re'im",
+        "category": "kibbutz",
+        "source": "latitude.to / Re'im"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.45618,
+          31.38499
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sufa",
+        "category": "kibbutz",
+        "source": "latitude.to / Sufa"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.33817,
+          31.23571
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kissufim",
+        "category": "kibbutz",
+        "source": "Wikipedia / Kissufim"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.39944,
+          31.37417
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kerem Shalom",
+        "category": "kibbutz",
+        "source": "Maptons / Kerem Shalom"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.284559,
+          31.228281
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Holit",
+        "category": "kibbutz",
+        "source": "Wikipedia / Holit"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.32667,
+          31.23
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Nir Yitzhak",
+        "category": "kibbutz",
+        "source": "Wikipedia / Nir Yitzhak"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.35722,
+          31.23722
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Alumim",
+        "category": "kibbutz",
+        "source": "Wikipedia / Alumim"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.51361,
+          31.45167
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sa'ad",
+        "category": "kibbutz",
+        "source": "(common knowledge, near Sderot)"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.5639,
+          31.4792
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Erez",
+        "category": "kibbutz",
+        "source": "Wikipedia / Erez"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.56611,
+          31.56
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Zikim",
+        "category": "kibbutz",
+        "source": "Wikipedia / Zikim"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.52167,
+          31.60778
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Netiv HaAsara",
+        "category": "moshav",
+        "source": "Wikipedia / Netiv HaAsara massacre"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.53944,
+          31.57083
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Yakhini",
+        "category": "moshav",
+        "source": "Wikipedia / Yakhini"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.598634,
+          31.482205
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sderot",
+        "category": "city",
+        "source": "Wikipedia / Sderot"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.59528,
+          31.52278
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Ofakim",
+        "category": "city",
+        "source": "Wikipedia / Ofakim"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.622824,
+          31.311337
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Nova music festival site (near Re'im)",
+        "category": "event site",
+        "source": "Wikipedia / Nova festival massacre (near Re'im) - approximate"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.442,
+          31.382
+        ]
+      }
+    }
+  ]
+}

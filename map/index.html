@@ -29,6 +29,8 @@
   <!-- Add JSZip and togeojson for KMZ/KML support -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://unpkg.com/togeojson@0.16.0/dist/togeojson.js"></script>
+  <!-- Add Papa Parse for robust CSV parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 </head>
 <body>
 <div id="map"></div>
@@ -129,53 +131,201 @@ function parseHash() {
   };
 }
 
-// Helper: load and add GeoJSON as top layer or replace source of a layer
-// geojsonFile: path or filename, toLayer: optional { visibility } or { sourceHint }
+// Helper: load and add GeoJSON (or CSV as fallback) as a top layer or replace source of a layer
+// geojsonFile: path or filename (typically name.geojson). If not found, we also try name.csv in the same folder.
+// toLayer: optional { visibility } or { sourceHint }
 async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
+  // 1) Attempt to fetch and normalize into GeoJSON
+  async function loadAsGeoJSONOrCSV(path) {
+    const lower = path.toLowerCase();
+    const isCSV = lower.endsWith('.csv');
+    const isJSON = lower.endsWith('.geojson') || lower.endsWith('.json');
+    const base = path.replace(/\.(geo)?json$/i, '').replace(/\.csv$/i, '');
+    const nameOnly = base.split('/').pop();
+    const sameDirGeo = `${base}.geojson`;
+    const sameDirCsv = `${base}.csv`;
+    const dataDirCsv = `${base.substring(0, base.lastIndexOf('/')) !== '' ? base.substring(0, base.lastIndexOf('/')) + '/' : ''}data/${nameOnly}.csv`;
+    const upDataDirCsv = `../data/${nameOnly}.csv`;
+
+    // Try explicit path first
+    if (isJSON) {
+      try {
+        console.debug('[DATA] Trying GeoJSON:', path);
+        const r = await fetch(path);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return await r.json();
+      } catch (e) {
+        // Fallback to CSV beside it
+        const csvPath = sameDirCsv;
+        try {
+          console.debug('[DATA] GeoJSON not found. Trying CSV (same dir):', csvPath);
+          const r2 = await fetch(csvPath);
+          if (!r2.ok) throw new Error(`HTTP ${r2.status}`);
+          const txt = await r2.text();
+          return csvTextToGeoJSON(txt);
+        } catch (e2) {
+          // Try ./data/ and ../data/
+          try {
+            console.debug('[DATA] Trying CSV (data/):', dataDirCsv);
+            const r3 = await fetch(dataDirCsv);
+            if (!r3.ok) throw new Error(`HTTP ${r3.status}`);
+            const txt3 = await r3.text();
+            return csvTextToGeoJSON(txt3);
+          } catch (e3) {
+            try {
+              console.debug('[DATA] Trying CSV (../data/):', upDataDirCsv);
+              const r4 = await fetch(upDataDirCsv);
+              if (!r4.ok) throw new Error(`HTTP ${r4.status}`);
+              const txt4 = await r4.text();
+              return csvTextToGeoJSON(txt4);
+            } catch (e4) {
+              throw new Error(`Failed to load as GeoJSON (${path}) or CSV (${csvPath} | ${dataDirCsv} | ${upDataDirCsv}).`);
+            }
+          }
+        }
+      }
+    } else if (isCSV) {
+      try {
+        console.debug('[DATA] Trying CSV:', path);
+        const r = await fetch(path);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const txt = await r.text();
+        return csvTextToGeoJSON(txt);
+      } catch (e) {
+        // Fallback to GeoJSON beside it
+        const gjPath = sameDirGeo;
+        try {
+          console.debug('[DATA] CSV not found. Trying GeoJSON (same dir):', gjPath);
+          const r2 = await fetch(gjPath);
+          if (!r2.ok) throw new Error(`HTTP ${r2.status}`);
+          return await r2.json();
+        } catch (e2) {
+          throw new Error(`Failed to load as CSV (${path}) or GeoJSON (${gjPath}).`);
+        }
+      }
+    } else {
+      // No extension provided: try .geojson then .csv
+      try {
+        console.debug('[DATA] No extension. Trying GeoJSON (same dir):', sameDirGeo);
+        const r = await fetch(sameDirGeo);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return await r.json();
+      } catch (e) {
+        try {
+          console.debug('[DATA] Trying CSV (same dir):', sameDirCsv);
+          const r2 = await fetch(sameDirCsv);
+          if (!r2.ok) throw new Error(`HTTP ${r2.status}`);
+          const txt = await r2.text();
+          return csvTextToGeoJSON(txt);
+        } catch (e2) {
+          // Try ./data/ and ../data/
+          try {
+            console.debug('[DATA] Trying CSV (data/):', dataDirCsv);
+            const r3 = await fetch(dataDirCsv);
+            if (!r3.ok) throw new Error(`HTTP ${r3.status}`);
+            const txt3 = await r3.text();
+            return csvTextToGeoJSON(txt3);
+          } catch (e3) {
+            try {
+              console.debug('[DATA] Trying CSV (../data/):', upDataDirCsv);
+              const r4 = await fetch(upDataDirCsv);
+              if (!r4.ok) throw new Error(`HTTP ${r4.status}`);
+              const txt4 = await r4.text();
+              return csvTextToGeoJSON(txt4);
+            } catch (e4) {
+              throw new Error(`Failed to load ${nameOnly} as .geojson or .csv (searched: ${sameDirGeo}, ${sameDirCsv}, ${dataDirCsv}, ${upDataDirCsv})`);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // CSV -> GeoJSON (Point features) using Papa Parse for robust CSV parsing
+  function csvTextToGeoJSON(csvText) {
+    if (typeof Papa === 'undefined' || !Papa.parse) {
+      throw new Error('CSV parsing library not loaded.');
+    }
+    const res = Papa.parse(csvText, { header: true, dynamicTyping: true, skipEmptyLines: true });
+    if (res.errors && res.errors.length) {
+      console.warn('CSV parse warnings:', res.errors);
+    }
+    const rows = res.data || [];
+    if (!rows.length) return { type: 'FeatureCollection', features: [] };
+    // Find lat/lon columns (case-insensitive)
+    const keys = Object.keys(rows[0] || {});
+    const lowerMap = Object.fromEntries(keys.map(k => [k.toLowerCase(), k]));
+    const latCandidates = ['lat', 'latitude', 'y'];
+    const lonCandidates = ['lon', 'lng', 'long', 'longitude', 'x'];
+    const latKey = latCandidates.map(k => lowerMap[k]).find(Boolean);
+    const lonKey = lonCandidates.map(k => lowerMap[k]).find(Boolean);
+    if (!latKey || !lonKey) {
+      throw new Error('CSV missing latitude/longitude columns');
+    }
+    const features = [];
+    for (const row of rows) {
+      const lat = parseFloat(row[latKey]);
+      const lon = parseFloat(row[lonKey]);
+      if (!isFinite(lat) || !isFinite(lon)) continue;
+      const props = { ...row };
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [lon, lat] },
+        properties: props
+      });
+    }
+    return { type: 'FeatureCollection', features };
+  }
+
   try {
-    const response = await fetch(geojsonFile);
-    if (!response.ok) throw new Error('Failed to fetch GeoJSON');
-    const geojson = await response.json();
-  let fileId = geojsonFile.split('/').pop();
-    let cleanId = fileId.replace(/(_geojson|\.geojson)$/i, '');
+    const geojson = await loadAsGeoJSONOrCSV(geojsonFile);
+    // 2) Determine ids and clean
+    let fileId = geojsonFile.split('/').pop();
+    let cleanId = fileId.replace(/(_geojson|\.geojson|\.json|\.csv)$/i, '');
     cleanId = cleanId.replace(/[^a-zA-Z0-9_-]/g, '_');
     const sourceId = cleanId;
     const layerId = cleanId;
+
+    // 3) Replace existing and add source
     if (map.getLayer(layerId)) map.removeLayer(layerId);
     if (map.getSource(sourceId)) map.removeSource(sourceId);
     map.addSource(sourceId, { type: 'geojson', data: geojson });
+
+    // 4) Infer layer type
     let type = 'line';
     if (geojson.features && geojson.features.length) {
       const geomType = geojson.features[0].geometry && geojson.features[0].geometry.type;
       if (geomType === 'Polygon' || geomType === 'MultiPolygon') type = 'fill';
       else if (geomType === 'Point' || geomType === 'MultiPoint') type = 'circle';
     }
-    // Support options for visibility
+
+    // 5) Visibility
     let visibility = 'visible';
     if (typeof toLayer === 'object' && toLayer !== null && toLayer.visibility === 'none') {
       visibility = 'none';
     }
+
+    // 6) Base paint defaults
+    const basePaint = type === 'line' ? { 'line-color': '#fff', 'line-width': 3 } :
+                      type === 'fill' ? { 'fill-color': '#f00', 'fill-opacity': 0.5 } :
+                      { 'circle-radius': 6, 'circle-color': '#f00' };
+
     const layerDef = {
       id: layerId,
       type,
       source: sourceId,
       layout: { visibility },
-      paint: type === 'line' ? { 'line-color': '#fff', 'line-width': 3 } :
-             type === 'fill' ? { 'fill-color': '#f00', 'fill-opacity': 0.5 } :
-             { 'circle-radius': 6, 'circle-color': '#f00' }
+      paint: basePaint
     };
 
-    // If caller passed a source hint (toLayer.sourceHint) try to copy paint/layout from that style layer
+    // 7) Copy styling from sourceHint if provided
     try {
       let sourceHint = null;
       if (typeof toLayer === 'object' && toLayer !== null && toLayer.sourceHint) sourceHint = toLayer.sourceHint;
-      // Also support passing sourceHint as a second parameter when callers pass an object in dynamicGeojsonToLoad
       if (!sourceHint && typeof geojsonFile === 'object' && geojsonFile.sourceHint) sourceHint = geojsonFile.sourceHint;
       if (sourceHint) {
-        // If the hinted source exists in the style, copy its paint and layout properties
         const styleLayer = map.getStyle().layers.find(l => l.id === sourceHint);
         if (styleLayer) {
-          // Copy paint and layout if present, but do NOT copy visibility (we keep computed visibility)
           if (styleLayer.paint) layerDef.paint = JSON.parse(JSON.stringify(styleLayer.paint));
           if (styleLayer.layout) {
             const copiedLayout = JSON.parse(JSON.stringify(styleLayer.layout));
@@ -188,9 +338,11 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
       console.warn('Failed to apply source hint style:', ex);
     }
 
+    // 8) Add layer
     map.addLayer(layerDef);
     console.log(`Layer loaded: ${layerId}`);
-    // After loading, always check if the hash has :follow for this layer and trigger follow logic if needed
+
+    // 9) Follow logic if requested in hash
     setTimeout(() => {
       const hash = window.location.hash.replace('#', '');
       const [, layersStr] = hash.split('/');
@@ -200,11 +352,8 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
         const match = tokens.find(token => token.match(new RegExp(`^[+~]${safeLayerId}:follow$`)));
         console.log('[FOLLOW DEBUG] Checking layerId:', layerId, 'tokens:', tokens, 'match:', match);
         if (match && !(window._isFreeCameraAnimating) && (match.slice(1, match.indexOf(':')) === layerId)) {
-          // Only start follow if the hash contains the exact :follow for this layer
           const { camera, layers, dynamicGeojsonToLoad, followId } = parseHash();
           if (followId === layerId) {
-            // ...existing code for flyTo, visibility, and followPathWithFreeCamera...
-            // 1. Fly to new location
             const flyOpts = {
               center: [camera.center[0], camera.center[1]],
               zoom: camera.zoom,
@@ -215,7 +364,6 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
             console.log('[FOLLOW] 1. Flying to new location:', flyOpts.center, 'zoom:', flyOpts.zoom);
             map.flyTo(flyOpts);
 
-            // 2. Change visibility of existing layers
             const explicitState = {};
             layersStr.split(',').forEach(token => {
               const match = token.match(/^([+~])([^:]+)(:follow)?$/);
@@ -249,10 +397,8 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
             });
             console.log('[FOLLOW] 2. Changed visibility of existing layers');
 
-            // 3. Layer is now loaded (this function)
             console.log(`[FOLLOW] 3. Layer loaded: ${layerId}`);
 
-            // 4. Start following the line
             function getCoordsFromSource(source) {
               let coords = [];
               if (source && source._data && source._data.features) {
@@ -281,7 +427,8 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
         }
       }
     }, 0);
-    // If requested as invisible, ensure visibility is set to none after adding
+
+    // 10) Post-load bookkeeping/UI
     if (visibility === 'none') {
       map.setLayoutProperty(layerId, 'visibility', 'none');
     }
@@ -291,8 +438,7 @@ async function loadAndAddOrReplaceGeoJSON(geojsonFile, toLayer) {
     }
     createLayerControls(map, allStyleLayers.filter(l => map.getLayer(l.id) && map.getLayoutProperty(l.id, 'visibility') === 'visible').map(l => l.id));
   } catch (err) {
-    alert('Error loading GeoJSON: ' + err.message);
-    console.error(err);
+    console.error('Error loading data:', err);
   }
 }
 
